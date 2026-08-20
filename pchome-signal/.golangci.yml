@@ -1,0 +1,50 @@
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+  go: "1.23"
+
+output:
+  format: colored-line-number
+
+linters-settings:
+  gosec:
+    config:
+      G301: "600"
+      G302: "600"
+      G306: "0644"
+      G307: "0644"
+  gofmt:
+    simplify: true
+  govet:
+    check-shadowing: true
+
+linters:
+  enable:
+    - gofmt
+    - govet
+    - gosec
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+  disable:
+    - funlen
+    - gochecknoglobals
+    - gochecknoinits
+    - godox
+    - wsl
+  fast: false
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gosec
+        - funlen
+        - errcheck
+    - linters:
+        - staticcheck
+      text: "SA1019:"
+  max-issues-per-linter: 50
+  max-same-issues: 10
+  new: false
