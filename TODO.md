@@ -130,3 +130,8 @@ Each checked box corresponds to a created file included in the combined commit b
 - [x] `pchome-desktop/src-ui/index.html`
 - [x] `pchome-desktop/src-ui/styles/hud.css`
 - [x] `pchome-desktop/src-ui/js/app.js`
+- [x] `.github/PULL_REQUEST_TEMPLATE.md`
+- [x] `.github/dependabot.yml`
+- [x] `.pre-commit-config.yaml`
+- [x] `pchome-signal/.golangci.yml`
+- [x] `CONTRIBUTING.md`
