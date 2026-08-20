@@ -81,21 +81,22 @@ Create `res/xml/foreground_service_config.xml`:
 
 ### ScreenCaptureService.java Setup
 ```java
-// Required in onCreate()
-private val projectionManager = getSystemService(ProjectionManager::class.java)
+// Required in Activity or Service
+MediaProjectionManager projectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
-// Launch projection selection
-val intent = projectionManager.createScreenCaptureIntent()
-startActivityForResult(intent, REQUEST_PROJECTION)
+// Launch projection selection intent
+Intent captureIntent = projectionManager.createScreenCaptureIntent();
+startActivityForResult(captureIntent, REQUEST_PROJECTION);
 ```
 
 ### onActivityResult Handling
-```kotlin
-override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-    super.onActivityResult(requestCode, resultCode, data)
-    if (requestCode == REQUEST_PROJECTION && resultCode == RESULT_OK) {
-        projection = data?.getExtras()?.getInt("android.media.projection.extra.SESSION_ID")
-        // Initialize MediaCodec encoder with projection
+```java
+@Override
+protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    super.onActivityResult(requestCode, resultCode, data);
+    if (requestCode == REQUEST_PROJECTION && resultCode == RESULT_OK && data != null) {
+        MediaProjection mediaProjection = projectionManager.getMediaProjection(resultCode, data);
+        // Initialize MediaCodec hardware encoder with mediaProjection
     }
 }
 ```
@@ -103,18 +104,17 @@ override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) 
 ## Permissions at Runtime
 
 ### Requesting Accessibility Permission
-```kotlin
-// Show system dialog to user
-val intent = AccessibilityServiceIntent { 
-    feedbackType = AccessibilityServiceIntent.FEEDBACK_ALL
-}
-sendAccessibilityServiceIntent(intent)
+```java
+// Open Android System Accessibility Settings for user to enable PChome AccessibilityService
+Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+startActivity(intent);
 ```
 
 ### Requesting MediaProjection Permission
-```kotlin
-// Already handled via createScreenCaptureIntent()
-// User must accept system dialog
+```java
+// Handled via MediaProjectionManager.createScreenCaptureIntent()
+// Prompting the system permission dialog for real-time display mirroring
 ```
 
 ## Permission Testing

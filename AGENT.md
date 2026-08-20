@@ -30,7 +30,7 @@ Always prefer the following native APIs over alternatives:
 
 | API | Preferred Alternative |
 |-----|----------------------|
-| Screen Capture | /dev/uinput (Linux) / MediaCodec (Android) |
+| Screen Capture | PipeWire DMA-BUF (Linux) / MediaCodec (Android) |
 | Input Injection | /dev/uinput over X11 tools |
 | Real-time Transport | WebRTC DataChannels over HTTP polling |
 | GPU Encoding | VA-API / NVENC H.264 over software bitmap encoding |

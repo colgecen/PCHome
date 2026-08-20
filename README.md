@@ -49,6 +49,11 @@ cd pchome-mobile
 - **Subtle UI Borders**: `#30363D`
 - **Error/Alert**: `#FF2A55` (Neon Red)
 
+## Bi-directional Control Flows
+
+- **Flow A — Phone Controls Linux PC**: Touchpad / keyboard events captured on the mobile HUD, serialized as binary over the WebRTC DataChannel, and injected via `/dev/uinput` on the Linux desktop.
+- **Flow B — Linux PC Controls / Mirrors Android Phone**: Desktop screen is captured via PipeWire (DMA-BUF), H.264 encoded, and streamed over WebRTC `MediaStream`; mouse clicks over the video window are sent back as coordinates to Android's `AccessibilityService` for gesture injection.
+
 ## Authentication
 
 - 6-digit cryptographic PIN generated per session

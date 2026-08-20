@@ -27,7 +27,7 @@
 
 **Rationale**: Balances security (sufficient entropy for session auth) with usability (not too frequent re-authentication). TTL ensures stale sessions are cleaned up automatically.
 
-**Implementation**: Go `math/rand` with `crypto/rand` seed, registered via WebSockets.
+**Implementation**: Go `crypto/rand` (or Rust `rand::rngs::OsRng`) for cryptographically secure 6-digit PIN generation, registered via WebSockets.
 
 ---
 

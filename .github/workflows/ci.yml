@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Build
+        run: |
+          cd pchome-desktop
+          cargo build --workspace --all-targets
+  lint-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install rustfmt
+        run: rustup component add rustfmt clippy || true
+      - name: Run clippy
+        run: |
+          cd pchome-desktop
+          cargo clippy --all-targets --all-features -- -D warnings

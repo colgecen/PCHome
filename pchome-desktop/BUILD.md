@@ -15,8 +15,10 @@
 ```toml
 [dependencies]
 tokio = { version = "1.38", features = ["full"] }
-pipewire = "0.31"
+pipewire = "0.8"
 uinput = "0.5"
+display-interface = "0.5"
+tauri = "2.0" # or slint = "1.5"
 sha2 = "0.10"
 serde = { version = "1.0", features = ["derive"] }
 ```

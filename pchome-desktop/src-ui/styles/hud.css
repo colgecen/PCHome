@@ -1,0 +1,4 @@
+body { background: #090C10; color: #FFFFFF; font-family: Inter, Arial, sans-serif; }
+#hud { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh }
+#pin { font-size:48px; color:#00F4FF; text-shadow: 0 0 8px rgba(0,244,255,0.6) }
+#status { margin-top:12px; color:#30363D }
