@@ -1,0 +1,76 @@
+PROJECT SPECIFICATION: PChome (Next-Gen Remote Control System)You are an expert system architect and senior software engineer. Your task is to build and guide the development of PChome, a high-performance, low-latency (<40ms), cross-platform remote control and display mirroring ecosystem designed for Linux and Android.1. General Architecture & Core ComponentsPChome operates as a monorepo consisting of three decoupled yet seamlessly integrated modules:PChome Desktop (Linux Daemon + GUI): Written in Rust. Runs a lightweight background daemon using /dev/uinput for input injection and PipeWire (DMA-BUF zero-copy) for ultra-low latency screen capture.PChome Mobile (Android Native): Written in Java (Android SDK). Provides a futuristic HUD remote touchpad, consumes screen streams, captures Android screen via MediaProjection + MediaCodec, and injects input via AccessibilityService.PChome Signal (P2P Handshake Server): Written in Go (Golang). A lightweight WebSocket server managing temporary 6-digit PIN authentication, room allocation, and WebRTC SDP/ICE candidate exchange for NAT traversal.2. UI/UX Aesthetic & Futuristic HUD ThemeThe user interface across both Desktop and Mobile must strictly adhere to a Cyber-Futuristic HUD (Heads-Up Display) design language with neon glowing accents, dark glassmorphism, and high-contrast diagnostic indicators.Color Palette:Primary Background (Deep Obsidian): #090C10Card / Container Background: #0D1117Primary Accent (Cyber Neon Cyan): #00F4FF (Glow effect enabled)Secondary Accent (Electric Blue): #0A84FFText & Grid Lines: #FFFFFF (Primary text), #30363D (Subtle UI borders and touch grid lines)Error / Alert / Disconnected State: #FF2A55 (Neon Red)3. Authentication & Handshake Mechanism (6-Digit PIN)Generation: When PChome Desktop starts, it generates a cryptographically secure random 6-digit PIN (e.g., 849-204) valid for 300 seconds (TTL) and registers it to PChome Signal via WebSockets.Input & Match: The user inputs the 6-digit PIN into PChome Mobile. The mobile client sends a validation request to PChome Signal.P2P Negotiation: Upon PIN match, PChome Signal relays WebRTC SDP offers/answers and ICE candidates between both nodes.Connection: Direct P2P DataChannel (UDP) and MediaStreams are established. PChome Signal steps out of the data path.Feedback: Successful authentication triggers a Cyber Blue pulsing glow and haptic feedback. An invalid PIN causes the border layout to flash in Error Red (#FF2A55).4. Technical Bi-Directional Control FlowsFlow A: Phone Controls Linux PC (Remote Touchpad / Keyboard)Mobile (Java): View.OnTouchListener tracks finger deltas ($\Delta X, \Delta Y$), swipes, and gestures. Serializes input into compact binary packets over WebRTC DataChannel.Desktop (Rust): Receives binary packets, processes coordinate scaling, and injects motion directly into the kernel level via /dev/uinput, bypassing Wayland/X11 display server restrictions.Flow B: Linux PC Controls / Mirrors Android PhoneMobile Capture (Java): Captures frames via MediaProjection, hardware-encodes video stream to H.264 using MediaCodec, and broadcasts over WebRTC MediaStream.Desktop Renderer (Rust): Renders incoming H.264 stream into the Rust UI canvas. Captures mouse clicks over the video window and sends scaled X/Y coordinates back to Android.Mobile Injection (Java): AccessibilityService receives remote coordinates and executes real-time gestures using GestureDescription.Builder without requiring root access.5. Monorepo Project Directory StructurePlaintextpchome/
+├── README.md
+├── .gitignore
+│
+├── pchome-desktop/                   # Linux Desktop Application
+│   ├── Cargo.toml                    # Rust Dependencies (tokio, tauri/slint, display-interface)
+│   ├── src-ui/                       # Futuristic HUD Front-end
+│   │   ├── index.html                # Main UI frame
+│   │   ├── styles/
+│   │   │   └── hud.css               # Neon Cyan/Deep Black aesthetic rules
+│   │   └── js/
+│   │       └── app.js                # HUD state controller & PIN display
+│   └── src/                          # Rust Backend
+│       ├── main.rs                   # Entry point
+│       ├── uinput.rs                 # Linux /dev/uinput virtual input driver wrapper
+│       ├── pipewire.rs               # DMA-BUF GPU zero-copy screen capturer
+│       ├── encoder.rs                # Hardware accelerated VA-API / NVENC H.264 encoder
+│       ├── network/
+│       │   ├── mod.rs
+│       │   ├── socket.rs             # Async UDP handler
+│       │   └── webrtc.rs             # WebRTC PeerConnection engine
+│       └── pin.rs                    # 6-digit crypto PIN generator & TTL manager
+│
+├── pchome-mobile/                    # Android Mobile Application
+│   ├── build.gradle                  # Gradle configuration
+│   └── app/
+│       ├── build.gradle
+│       └── src/main/
+│           ├── AndroidManifest.xml   # Permissions (Accessibility, MediaProjection, Internet)
+│           ├── java/com/pchome/mobile/
+│           │   ├── ui/
+│           │   │   ├── PinActivity.java          # 6-Digit HUD PIN Entry View
+│           │   │   ├── TouchpadActivity.java     # Remote Trackpad & Hotkeys View
+│           │   │   └── DisplayActivity.java      # Remote PC Stream Renderer
+│           │   ├── service/
+│           │   │   ├── AndroidControlService.java# AccessibilityService gesture simulator
+│           │   │   └── ScreenCaptureService.java # MediaProjection & MediaCodec encoder
+│           │   └── network/
+│           │       ├── WebRtcClient.java         # WebRTC engine & DataChannel pipeline
+│           │       └── SignalClient.java         # WebSocket connection to Go signal server
+│           └── res/
+│               ├── values/
+│               │   ├── colors.xml                # Cyber Blue, Obsidian, Error Red definitions
+│               │   └── styles.xml                # Frameless HUD theme styles
+│               └── layout/
+│                   ├── activity_pin.xml
+│                   ├── activity_touchpad.xml
+│                   └── activity_display.xml
+│
+└── pchome-signal/                    # Go Signaling & Handshake Server
+    ├── go.mod                        # Go module configuration
+    ├── go.sum
+    ├── Dockerfile                    # Container configuration for 24/7 cloud hosting
+    ├── main.go                       # Entry point & HTTP/WebSocket router
+    └── internal/
+        ├── room/
+        │   └── manager.go            # Active 6-digit PIN room mapping & TTL cleaner
+        └── signal/
+            └── websocket.go          # WebRTC SDP offer/answer & ICE candidate relay
+6. Development Guidelines for the AI AssistantWhen generating code or designing modules for this project:Zero-Lag Policy: Prioritize non-blocking async architecture (Tokio for Rust, Goroutines for Go, Background Threads / Handlers for Java).Color Strictness: Ensure all UI code snippets apply #090C10 for backgrounds, #00F4FF for active states, #30363D for grid accents, and #FF2A55 for error handling.Low-Level Native API Preference: Always prefer /dev/uinput over X11 specific tools, MediaCodec over software bitmap encoding, and WebRTC DataChannels over HTTP polling.
+
+
+bunları anlayıp aklından hafif de olsa bir plan çıkardıktan sonra şu dosyaları özenle oluştur:
+pchome/
+├── README.md               # Proje tanıtımı ve hızlı başlangıç
+├── ARCHITECTURE.md         # Veri akış şemaları ve sistem mimarisi
+├── DECISIONS.md            # Mimari kararlar (ADR)
+├── TODO.md                 # Yapılacaklar ve faz planı
+├── AGENT.md                # AI Agent çalışma kuralları & kısıtlamalar
+├── SECURITY.md             # P2P şifreleme ve Linux udev güvenlik kuralları
+│
+├── pchome-desktop/         # Rust (Linux Daemon + GUI)
+│   └── BUILD.md            # C/Linux kütüphaneleri derleme rehberi
+├── pchome-mobile/          # Java (Android)
+│   └── PERMISSIONS.md      # AccessibilityService & İzin yapılandırması
+└── pchome-signal/          # Go (Sinyalleşme Sunucusu)
