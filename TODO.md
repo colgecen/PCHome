@@ -13,13 +13,13 @@ NOT: Bu dosya `PCHome-prompt.txt` içeriğine göre genişletildi — proje deta
 ### Essential Setup (High priority)
 - [x] Create root-level docs ([README.md](README.md), [ARCHITECTURE.md](ARCHITECTURE.md), [DECISIONS.md](DECISIONS.md), [TODO.md](TODO.md), [AGENT.md](AGENT.md), [SECURITY.md](SECURITY.md))
 - [x] Create module-specific docs (pchome-desktop/BUILD.md, pchome-mobile/PERMISSIONS.md, pchome-signal/README.md)
-- [ ] Initialize `git` repository (conventional commits, branch protection, PR templates)
-- [ ] Add `.gitignore`, `.editorconfig`, basic `CODEOWNERS`
+- [x] Initialize `git` repository (conventional commits, branch protection, PR templates)
+- [x] Add `.gitignore`, `.editorconfig`, basic `CODEOWNERS`
 
 ### CI / Tooling
-- [ ] Add CI workflows: `lint`, `build`, `test` for each module (GitHub Actions / GitLab CI)
-- [ ] Configure `pre-commit` hooks: `rustfmt`, `clippy`, `ktlint`/Android lint, `gofmt`/`go vet`
-- [ ] Dependency security scanning (Dependabot / Snyk) and secret scanning
+- [x] Add CI workflows: `lint`, `build`, `test` for each module (GitHub Actions / GitLab CI)
+- [x] Configure `pre-commit` hooks: `rustfmt`, `clippy`, `ktlint`/Android lint, `gofmt`/`go vet`
+- [x] Dependency security scanning (Dependabot / Snyk) and secret scanning
 
 ## Phase 2: PChome Desktop (Rust - Linux)
 
