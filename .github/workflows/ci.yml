@@ -2,31 +2,84 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
 
 jobs:
-  build-rust:
+  fmt-rust:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          override: true
-      - name: Build
+          components: rustfmt
+      - name: Check formatting
         run: |
           cd pchome-desktop
-          cargo build --workspace --all-targets
-  lint-rust:
+          cargo fmt -- --check
+
+  clippy-rust:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install rustfmt
-        run: rustup component add rustfmt clippy || true
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
       - name: Run clippy
         run: |
           cd pchome-desktop
           cargo clippy --all-targets --all-features -- -D warnings
+
+  test-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run tests
+        run: |
+          cd pchome-desktop
+          cargo test --all-targets --all-features
+
+  lint-go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: pchome-signal
+
+  test-go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - name: Run tests
+        run: |
+          cd pchome-signal
+          go test ./...
+
+  build-go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - name: Build
+        run: |
+          cd pchome-signal
+          go build ./...
