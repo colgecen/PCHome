@@ -82,10 +82,10 @@ NOT: Bu dosya `PCHome-prompt.txt` içeriğine göre genişletildi — proje deta
 
 ## Phase 5: Testing, Perf & Monitoring
 
-- [ ] End-to-end test harness: automated WebRTC handshake + media loopback tests
-- [ ] Performance benchmark: measure capture→encode→decode roundtrip, target <40ms median
-- [ ] CI perf checks: run benchmarks on PRs for regressions
-- [ ] Add logging, tracing, and Prometheus metrics for latency, bitrate, errors
+- [x] End-to-end test harness: automated WebRTC handshake + media loopback tests
+- [x] Performance benchmark: measure capture→encode→decode roundtrip, target <40ms median
+- [x] CI perf checks: run benchmarks on PRs for regressions
+- [x] Add logging, tracing, and Prometheus metrics for latency, bitrate, errors
 
 ## Phase 6: Security & Release
 

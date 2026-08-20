@@ -1,5 +1,7 @@
 use anyhow::Result;
+use pchome_desktop::metrics::CAPTURE_LATENCY;
 use std::sync::Arc;
+use std::time::Instant;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -67,16 +69,22 @@ impl CaptureStream {
     }
 
     pub async fn next_frame(&mut self) -> Result<Frame> {
+        let start = Instant::now();
         if self.use_dmabuf {
             match self.capture_dmabuf().await {
-                Ok(frame) => return Ok(frame),
+                Ok(frame) => {
+                    CAPTURE_LATENCY.observe(start.elapsed().as_secs_f64() * 1000.0);
+                    return Ok(frame);
+                }
                 Err(_) => {
                     warn!("DMA-BUF capture failed, falling back to memory");
                     self.use_dmabuf = false;
                 }
             }
         }
-        self.capture_memory().await
+        let frame = self.capture_memory().await;
+        CAPTURE_LATENCY.observe(start.elapsed().as_secs_f64() * 1000.0);
+        frame
     }
 
     async fn capture_dmabuf(&self) -> Result<Frame> {

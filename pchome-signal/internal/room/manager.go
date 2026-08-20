@@ -29,9 +29,13 @@ type Manager struct {
 }
 
 func NewManager(log *zap.Logger) *Manager {
+	return NewManagerWithTTL(log, DefaultTTL)
+}
+
+func NewManagerWithTTL(log *zap.Logger, ttl time.Duration) *Manager {
 	m := &Manager{
 		rooms: make(map[string]*Room),
-		ttl:   DefaultTTL,
+		ttl:   ttl,
 		log:   log,
 	}
 	go m.gcLoop()

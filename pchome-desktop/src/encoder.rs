@@ -1,5 +1,7 @@
 use anyhow::{Context, Result};
+use pchome_desktop::metrics::{BITRATE_BYTES_TOTAL, ENCODE_LATENCY, ERRORS_TOTAL, FRAMES_ENCODED};
 use std::sync::Arc;
+use std::time::Instant;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -79,10 +81,26 @@ impl Encoder {
     }
 
     pub async fn encode(&mut self, data: &[u8]) -> Result<Vec<u8>> {
-        match self.backend {
+        let start = Instant::now();
+        let result = match self.backend {
             EncoderBackend::Vaapi => self.encode_vaapi(data).await,
             EncoderBackend::Nvenc => self.encode_nvenc(data).await,
             EncoderBackend::Software => self.encode_software(data).await,
+        };
+
+        let elapsed = start.elapsed();
+        ENCODE_LATENCY.observe(elapsed.as_secs_f64() * 1000.0);
+
+        match result {
+            Ok(bytes) => {
+                FRAMES_ENCODED.inc();
+                BITRATE_BYTES_TOTAL.inc_by(bytes.len() as u64);
+                Ok(bytes)
+            }
+            Err(e) => {
+                ERRORS_TOTAL.inc();
+                Err(e)
+            }
         }
     }
 
