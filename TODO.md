@@ -71,14 +71,14 @@ NOT: Bu dosya `PCHome-prompt.txt` içeriğine göre genişletildi — proje deta
 ## Phase 4: PChome Signal (Go)
 
 ### Core Server
-- [ ] `main.go`: HTTP endpoints for health, metrics, and WebSocket handshake route
-- [ ] `internal/room/manager.go`: 6-digit room mapping, TTL eviction, concurrency safe
-- [ ] `internal/signal/websocket.go`: relay of SDP and ICE candidates; auth via ephemeral PIN
-- [ ] Add metrics (Prometheus) and structured logging
+- [x] `main.go`: HTTP endpoints for health, metrics, and WebSocket handshake route
+- [x] `internal/room/manager.go`: 6-digit room mapping, TTL eviction, concurrency safe
+- [x] `internal/signal/websocket.go`: relay of SDP and ICE candidates; auth via ephemeral PIN
+- [x] Add metrics (Prometheus) and structured logging
 
 ### Deployment
-- [ ] `Dockerfile`: multi-stage build, small runtime image
-- [ ] Provide basic `docker-compose.yml` for local dev
+- [x] `Dockerfile`: multi-stage build, small runtime image
+- [x] Provide basic `docker-compose.yml` for local dev
 
 ## Phase 5: Testing, Perf & Monitoring
 
