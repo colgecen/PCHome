@@ -1,0 +1,12 @@
+.git
+.github
+.gitignore
+README.md
+docker-compose.yml
+prometheus.yml
+.idea
+.vscode
+*.md
+go.mod
+go.sum
+tests
