@@ -24,27 +24,27 @@ NOT: Bu dosya `PCHome-prompt.txt` içeriğine göre genişletildi — proje deta
 ## Phase 2: PChome Desktop (Rust - Linux)
 
 ### Core Daemon & Low-level
-- [ ] `uinput.rs`: implement safe wrapper for `/dev/uinput` (feature gated, unit tests)
-- [ ] `pin.rs`: cryptographically secure 6-digit PIN generator, TTL store (300s), WebSocket registration
-- [ ] `pipewire.rs`: DMA-BUF zero-copy screen capture, fallback to framebuffer if unavailable
-- [ ] `encoder.rs`: hardware-accelerated H.264 (VA-API / NVENC) with a software fallback
-- [ ] `network/mod.rs`: async runtime (Tokio) scaffolding, connection manager
-- [ ] `socket.rs`: UDP helper (NAT probe, STUN helper functions)
-- [ ] `webrtc.rs`: WebRTC PeerConnection integration, DataChannel for control, track for video
+- [x] `uinput.rs`: implement safe wrapper for `/dev/uinput` (feature gated, unit tests)
+- [x] `pin.rs`: cryptographically secure 6-digit PIN generator, TTL store (300s), WebSocket registration
+- [x] `pipewire.rs`: DMA-BUF zero-copy screen capture, fallback to framebuffer if unavailable
+- [x] `encoder.rs`: hardware-accelerated H.264 (VA-API / NVENC) with a software fallback
+- [x] `network/mod.rs`: async runtime (Tokio) scaffolding, connection manager
+- [x] `socket.rs`: UDP helper (NAT probe, STUN helper functions)
+- [x] `webrtc.rs`: WebRTC PeerConnection integration, DataChannel for control, track for video
 
 ### Security & Permissions
-- [ ] Udev rules and minimal permission policy for `/dev/uinput` (document in `SECURITY.md`)
-- [ ] Sandbox the daemon process where possible; capability limits
+- [x] Udev rules and minimal permission policy for `/dev/uinput` (document in `SECURITY.md`)
+- [x] Sandbox the daemon process where possible; capability limits
 
 ### GUI (HUD)
-- [ ] `src-ui/index.html`: frameless HUD shell + PIN display
-- [ ] `src-ui/styles/hud.css`: enforce color palette (#090C10, #00F4FF, #30363D, #FF2A55)
-- [ ] `src-ui/js/app.js`: state machine for PIN lifecycle, connection states, error overlays
-- [ ] Accessibility and keyboard navigation for HUD controls
+- [x] `src-ui/index.html`: frameless HUD shell + PIN display
+- [x] `src-ui/styles/hud.css`: enforce color palette (#090C10, #00F4FF, #30363D, #FF2A55)
+- [x] `src-ui/js/app.js`: state machine for PIN lifecycle, connection states, error overlays
+- [x] Accessibility and keyboard navigation for HUD controls
 
 ### Tests & Quality
-- [ ] Rust unit tests for core modules (`pin`, `encoder` mocks, `uinput` abstractions)
-- [ ] Integration tests: simulate WebRTC SDP exchange with local signal server
+- [x] Rust unit tests for core modules (`pin`, `encoder` mocks, `uinput` abstractions)
+- [x] Integration tests: simulate WebRTC SDP exchange with local signal server
 
 ## Phase 3: PChome Mobile (Android)
 
