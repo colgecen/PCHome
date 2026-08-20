@@ -49,24 +49,24 @@ NOT: Bu dosya `PCHome-prompt.txt` içeriğine göre genişletildi — proje deta
 ## Phase 3: PChome Mobile (Android)
 
 ### Permissions & Services
-- [ ] `AndroidManifest.xml`: request `AccessibilityService`, `INTERNET`, `FOREGROUND_SERVICE`, `MediaProjection`
-- [ ] `PERMISSIONS.md`: document runtime flow and how to enable Accessibility + MediaProjection
+- [x] `AndroidManifest.xml`: request `AccessibilityService`, `INTERNET`, `FOREGROUND_SERVICE`, `MediaProjection`
+- [x] `PERMISSIONS.md`: document runtime flow and how to enable Accessibility + MediaProjection
 
 ### Services & Encoding
-- [ ] `ScreenCaptureService.java`: MediaProjection + MediaCodec hardware encoder pipeline
-- [ ] `AndroidControlService.java`: AccessibilityService-based input injector and gesture simulator
-- [ ] `WebRtcClient.java`: WebRTC PeerConnection, video render surface, DataChannel control
-- [ ] `SignalClient.java`: resilient WebSocket connection with reconnect/backoff
+- [x] `ScreenCaptureService.java`: MediaProjection + MediaCodec hardware encoder pipeline
+- [x] `AndroidControlService.java`: AccessibilityService-based input injector and gesture simulator
+- [x] `WebRtcClient.java`: WebRTC PeerConnection, video render surface, DataChannel control
+- [x] `SignalClient.java`: resilient WebSocket connection with reconnect/backoff
 
 ### UI (HUD mobile)
-- [ ] `PinActivity.java`: PIN entry UI with HUD styling and timeout handling
-- [ ] `TouchpadActivity.java`: touchpad + multi-finger gestures, hotkeys overlay
-- [ ] `DisplayActivity.java`: low-latency SurfaceView/GL renderer for remote stream
-- [ ] Resource polish: `colors.xml`, `styles.xml`, responsive layouts
+- [x] `PinActivity.java`: PIN entry UI with HUD styling and timeout handling
+- [x] `TouchpadActivity.java`: touchpad + multi-finger gestures, hotkeys overlay
+- [x] `DisplayActivity.java`: low-latency SurfaceView/GL renderer for remote stream
+- [x] Resource polish: `colors.xml`, `styles.xml`, responsive layouts
 
 ### Testing
-- [ ] Instrumented UI tests for `PinActivity` and `TouchpadActivity` (Espresso/UiAutomator)
-- [ ] Emulated performance tests for MediaCodec pipeline
+- [x] Instrumented UI tests for `PinActivity` and `TouchpadActivity` (Espresso/UiAutomator)
+- [x] Emulated performance tests for MediaCodec pipeline
 
 ## Phase 4: PChome Signal (Go)
 
