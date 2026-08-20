@@ -90,3 +90,35 @@ groups <username>
 - [ ] udev rules present and correct
 - [ ] Color palette enforcement in all UI code
 - [ ] Async architecture prevents blocking vulnerabilities
+
+### Secret Scanning
+
+#### Git History Scanning
+- **gitleaks**: Pre-commit hook and CI integration scan git history for secrets
+- **truffleHog**: Periodic full history scans for high-entropy strings
+- **GitHub Secret Scanning**: Enabled for repository; alerts pushed to security tab
+
+#### Pre-commit Prevention
+- All commits are scanned via `gitleaks` before entering the repository
+- Large binary blobs are rejected via `pre-commit` check-added-large-files hook
+- Private key patterns are detected via `detect-private-key` hook
+
+#### Runtime Protection
+- No hardcoded credentials in source code
+- Environment variables and secret managers used for runtime configuration
+- `.env` and `.env.local` files are gitignored
+- Rotation policy for any test credentials
+
+#### Incident Response
+1. Immediately rotate exposed credentials
+2. Audit access logs for the affected period
+3. Add regex patterns to gitleaks config to prevent recurrence
+4. Force-prewrite git history if secrets are found in committed history
+5. Notify security team and affected service providers
+
+### Reporting Security Issues
+
+- **DO NOT** open public issues for security vulnerabilities
+- Email security issues to the maintainers directly
+- Include detailed reproduction steps and impact assessment
+- Allow 90 days for remediation before public disclosure
