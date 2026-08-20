@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PChome</string>
+    <string name="accessibility_service_description">PChome accessibility service for remote input control</string>
+    <string name="pin_hint">Enter PIN displayed on desktop</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="connecting">Connecting...</string>
+    <string name="connected">Connected</string>
+    <string name="disconnected">Disconnected</string>
+    <string name="error">Error</string>
+    <string name="touchpad_hint">Use this area as a touchpad</string>
+    <string name="waiting_for_stream">Waiting for stream...</string>
+    <string name="screen_capture_notification">PChome Screen Capture</string>
+    <string name="screen_capture_notification_channel">Screen Capture</string>
+</resources>

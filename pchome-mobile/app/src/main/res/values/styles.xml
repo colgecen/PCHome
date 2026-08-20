@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.PChome" parent="Theme.Material3.DayNight">
+        <item name="colorPrimary">@color/pchome_cyan</item>
+        <item name="colorPrimaryVariant">@color/pchome_cyan</item>
+        <item name="colorOnPrimary">@color/black</item>
+        <item name="colorSecondary">@color/pchome_pink</item>
+        <item name="colorSecondaryVariant">@color/pchome_pink</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="android:colorBackground">@color/pchome_background</item>
+        <item name="colorSurface">@color/pchome_surface</item>
+        <item name="colorOnSurface">@color/white</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="Theme.PChome.Fullscreen" parent="Theme.PChome">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+
+    <style name="PinText">
+        <item name="android:textColor">@color/pchome_cyan</item>
+        <item name="android:textSize">48sp</item>
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:letterSpacing">0.1</item>
+    </style>
+
+    <style name="StatusText">
+        <item name="android:textColor">@color/pchome_text_primary</item>
+        <item name="android:textSize">16sp</item>
+    </style>
+
+    <style name="Button.PChome">
+        <item name="android:backgroundTint">@color/pchome_cyan</item>
+        <item name="android:textColor">@color/black</item>
+        <item name="cornerRadius">8dp</item>
+    </style>
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="pchome_background">#FF090C10</color>
+    <color name="pchome_cyan">#FF00F4FF</color>
+    <color name="pchome_pink">#FFFF2A55</color>
+    <color name="pchome_border">#FF30363D</color>
+    <color name="pchome_surface">#FF161B22</color>
+    <color name="pchome_text_primary">#FF8B949E</color>
+</resources>
