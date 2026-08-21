@@ -13,6 +13,9 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
+	// Bound inbound message size to 1 MiB to prevent a memory-exhaustion DoS
+	// on the relay.
+	ReadLimit: 1 << 20,
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
@@ -41,6 +44,11 @@ type relayMessage struct {
 	msg  *Message
 }
 
+// relayMsgPool reuses relayMessage allocations on the hot relay path. Safe
+// because the hub fully consumes a relayMessage within a single synchronous
+// Run iteration before the next one is dequeued.
+var relayMsgPool = sync.Pool{New: func() any { return &relayMessage{} }}
+
 type Client struct {
 	ID     string
 	PIN    string
@@ -49,6 +57,10 @@ type Client struct {
 	Send   chan []byte
 	Hub    *Hub
 	Logger *zap.Logger
+	// closeOnce guarantees the Send channel is closed exactly once, avoiding a
+	// "close of closed channel" panic when both the hub unregister path and the
+	// slow-consumer eviction path try to close it.
+	closeOnce sync.Once
 }
 
 func NewHub(rooms *room.Manager, metrics *Metrics, log *zap.Logger) *Hub {
@@ -76,7 +88,7 @@ func (h *Hub) Run() {
 			h.mu.Lock()
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
-				close(client.Send)
+				client.closeSend()
 			}
 			h.mu.Unlock()
 			h.metrics.DecConnectedClients()
@@ -93,12 +105,14 @@ func (h *Hub) Run() {
 				select {
 				case client.Send <- []byte(rm.msg.Data):
 					h.metrics.IncMessagesRelayed()
+					h.rooms.Touch(rm.msg.Type)
 				default:
-					close(client.Send)
 					delete(h.clients, client)
+					client.closeSend()
 				}
 			}
 			h.mu.RUnlock()
+			relayMsgPool.Put(rm)
 		}
 	}
 }
@@ -170,11 +184,18 @@ func (c *Client) readPump() {
 			break
 		}
 
-		c.Hub.broadcast <- &relayMessage{
-			from: c,
-			msg:  &Message{Type: c.PIN, Data: string(message)},
-		}
+		rm := relayMsgPool.Get().(*relayMessage)
+		rm.from = c
+		rm.msg = &Message{Type: c.PIN, Data: string(message)}
+		c.Hub.broadcast <- rm
 	}
+}
+
+// closeSend closes the client's Send channel exactly once.
+func (c *Client) closeSend() {
+	c.closeOnce.Do(func() {
+		close(c.Send)
+	})
 }
 
 func (c *Client) writePump() {
