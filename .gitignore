@@ -1,41 +1,33 @@
-target/
-**/target/
+# Binaries / build output
+pchome-desktop/target/
+pchome-signal/bin/
+pchome-signal/pchome-signal
+*.exe
+
+# Android
+pchome-mobile/.gradle/
+pchome-mobile/app/build/
+pchome-mobile/local.properties
+*.apk
+*.aar
+captures/
+.externalNativeBuild/
+
+# Go
+pchome-signal/vendor/
+
+# Rust
 **/*.rs.bk
+Cargo.lock.orig
+
+# Editor / OS
 .idea/
 .vscode/
-*.iml
-*.class
-.gradle/
-build/
-.gradle/
+*.swp
 .DS_Store
+
+# Local secrets / certs
+*.pem
+*.key
+*.crt
 .env
-.env.local
-node_modules/
-.pnpm-debug.log
-coverage/
-*.log
-**/pkg/
-**/dist/
-**/*.apk
-**/*.keystore
-**/*.jks
-**/*.pem
-**/*.key
-**/*.p12
-**/*.pfx
-**/id_rsa*
-**/id_dsa*
-**/id_ecdsa*
-**/*_rsa*
-**/*_dsa*
-**/*_ecdsa*
-**/known_hosts
-**/authorized_keys
-**/*.gpg
-**/*.secret
-**/secrets.*
-**/secrets/**
-**/credentials.*
-**/config.ini
-**/private.*
