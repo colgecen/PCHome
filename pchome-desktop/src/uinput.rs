@@ -28,15 +28,21 @@ impl UInputDevice {
 
     pub fn emit(&self, event: InputEvent) -> Result<()> {
         let ev = event.to_libc();
-        unsafe {
-            let ret = libc::write(
-                self.fd.as_raw_fd(),
-                &ev as *const libc::input_event as *const libc::c_void,
-                std::mem::size_of::<libc::input_event>(),
-            );
+        let fd = self.fd.as_raw_fd();
+        let ptr = &ev as *const libc::input_event as *const libc::c_void;
+        let len = std::mem::size_of::<libc::input_event>();
+        // Retry the write on EINTR so a signal interrupt never silently drops
+        // an input event.
+        loop {
+            let ret = unsafe { libc::write(fd, ptr, len) };
             if ret < 0 {
-                anyhow::bail!("Failed to write input event");
+                let errno = unsafe { *libc::__errno_location() };
+                if errno == libc::EINTR {
+                    continue;
+                }
+                anyhow::bail!("Failed to write input event: errno {}", errno);
             }
+            break;
         }
         Ok(())
     }
