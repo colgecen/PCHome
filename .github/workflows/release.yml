@@ -25,8 +25,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -46,64 +44,51 @@ jobs:
             pchome-desktop/target/${{ matrix.target }}/release/${{ matrix.binary_name }}
             pchome-desktop/src-ui/**
 
-  build-linux-appimage:
-    name: Build Linux AppImage
+  build-signal:
+    name: Build Signal Server
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            name: pchome-signal-linux-amd64
+          - goos: linux
+            goarch: arm64
+            name: pchome-signal-linux-arm64
+          - goos: windows
+            goarch: amd64
+            name: pchome-signal-windows-amd64.exe
+          - goos: darwin
+            goarch: amd64
+            name: pchome-signal-darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            name: pchome-signal-darwin-arm64
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build
+        working-directory: pchome-signal
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libfuse2 desktop-file-install patchelf
+          go build -ldflags="-s -w" -o /tmp/${{ matrix.name }}
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install linuxdeploy
-        run: |
-          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage
-          sudo mv linuxdeploy-x86_64.AppImage /usr/local/bin/linuxdeploy
-
-      - name: Build binary
-        run: |
-          cd pchome-desktop
-          cargo build --release
-
-      - name: Create AppDir
-        run: |
-          mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/share/applications
-          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-          cp target/release/pchome-desktop AppDir/usr/bin/
-          cp -r src-ui AppDir/usr/share/pchome-ui
-          cat > AppDir/usr/share/applications/pchome.desktop <<EOF
-          [Desktop Entry]
-          Name=PChome
-          Comment=Remote Control System
-          Exec=pchome-desktop
-          Icon=pchome
-          Terminal=true
-          Type=Application
-          Categories=Utility;
-          EOF
-          cat > AppDir/AppRun <<EOF
-          #!/bin/bash
-          export PATH="\${APPDIR}/usr/bin:\${PATH}"
-          exec "\${APPDIR}/usr/bin/pchome-desktop" "\$@"
-          EOF
-          chmod +x AppDir/AppRun
-
-      - name: Create AppImage
-        run: |
-          linuxdeploy --appdir AppDir --output appimage --desktop-file AppDir/usr/share/applications/pchome.desktop
-
-      - name: Upload AppImage
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pchome-desktop-appimage
-          path: PChome*.AppImage
+          name: ${{ matrix.name }}
+          path: /tmp/${{ matrix.name }}
 
   build-android:
     name: Build Android APK
@@ -135,60 +120,9 @@ jobs:
           name: pchome-mobile-apk
           path: pchome-mobile/app/build/outputs/apk/debug/app-debug.apk
 
-  build-signal:
-    name: Build Signal Server
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: linux
-            goos: linux
-            goarch: amd64
-            name: pchome-signal-linux-amd64
-          - os: linux
-            goos: linux
-            goarch: arm64
-            name: pchome-signal-linux-arm64
-          - os: windows
-            goos: windows
-            goarch: amd64
-            name: pchome-signal-windows-amd64.exe
-          - os: darwin
-            goos: darwin
-            goarch: amd64
-            name: pchome-signal-darwin-amd64
-          - os: darwin
-            goos: darwin
-            goarch: arm64
-            name: pchome-signal-darwin-arm64
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
-
-      - name: Build
-        working-directory: pchome-signal
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 0
-        run: |
-          go build -ldflags="-s -w" -o /tmp/${{ matrix.name }}
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.name }}
-          path: /tmp/${{ matrix.name }}
-
   create-release:
     name: Create GitHub Release
-    needs: [build-desktop, build-linux-appimage, build-android, build-signal]
+    needs: [build-desktop, build-signal, build-android]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -205,10 +139,8 @@ jobs:
       - name: Generate changelog
         id: changelog
         run: |
-          git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --oneline --no-merges > changelog.txt
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          cat changelog.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          git log $(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo $(git rev-parse --short HEAD~1))..HEAD --oneline --no-merges > changelog.txt || echo "No changelog available" > changelog.txt
+          cat changelog.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -217,7 +149,7 @@ jobs:
           name: PChome ${{ github.ref_name }}
           body: |
             ## What's Changed
-            ${{ steps.changelog.outputs.changelog }}
+            $(cat changelog.txt)
           files: |
             release-artifacts/**/*
           draft: false
