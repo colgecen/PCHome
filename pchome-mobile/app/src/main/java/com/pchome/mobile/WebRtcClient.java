@@ -123,25 +123,51 @@ public class WebRtcClient {
         constraints.mandatory.add(new MediaConstraints.KeyValuePair("maxFrameRate", "30"));
 
         videoCapturer = createVideoCapturer();
-        videoSource = factory.createVideoSource(videoCapturer.isScreencast());
-        videoCapturer.initialize(
-                org.webrtc.SurfaceTextureHelper.create("CaptureThread", eglBase.getEglBaseContext()),
-                null,
-                videoSource.getCapturerObserver()
-        );
-        videoCapturer.startCapture(1920, 1080, 30);
-        localVideoTrack = factory.createVideoTrack("ARDAMSv0", videoSource);
-        localVideoTrack.addSink(localRenderer);
+        if (videoCapturer != null) {
+            videoSource = factory.createVideoSource(videoCapturer.isScreencast());
+            videoCapturer.initialize(
+                    org.webrtc.SurfaceTextureHelper.create("CaptureThread", eglBase.getEglBaseContext()),
+                    null,
+                    videoSource.getCapturerObserver()
+            );
+            videoCapturer.startCapture(1920, 1080, 30);
+            localVideoTrack = factory.createVideoTrack("ARDAMSv0", videoSource);
+            if (localRenderer != null) {
+                localVideoTrack.addSink(localRenderer);
+            }
+        }
 
         audioSource = factory.createAudioSource(new MediaConstraints());
         localAudioTrack = factory.createAudioTrack("ARDAMSa0", audioSource);
     }
 
     private VideoCapturer createVideoCapturer() {
-        // NOTE: a real deployment must pass the MediaProjection permission result
-        // Intent obtained from MediaProjectionManager.createScreenCaptureIntent().
-        // Passing null compiles but will fail at runtime; see project TODO.
-        return new org.webrtc.ScreenCapturerAndroid(null, null);
+        if (!MediaProjectionHolder.hasProjection()) {
+            // No screen capture permission available: this peer only receives
+            // a remote stream (e.g. the Desktop client) and should not capture.
+            return null;
+        }
+        return new org.webrtc.ScreenCapturerAndroid(
+                MediaProjectionHolder.getData(),
+                new org.webrtc.ScreenCapturerAndroid.CapturerObserver() {
+                    @Override
+                    public void onCapturerStarted(boolean success) {
+                        Log.d(TAG, "ScreenCapturerAndroid started: " + success);
+                    }
+
+                    @Override
+                    public void onCapturerStopped() {
+                        Log.d(TAG, "ScreenCapturerAndroid stopped");
+                    }
+
+                    @Override
+                    public void onByteBufferFrameCaptured(byte[] data, int width, int height, int rotation, long timeStamp) {
+                    }
+
+                    @Override
+                    public void onTextureFrameCaptured(int width, int height, org.webrtc.TextureBuffer textureBuffer, int rotation, long timeStamp) {
+                    }
+                });
     }
 
     private void createPeerConnection() {
@@ -212,7 +238,9 @@ public class WebRtcClient {
         });
 
         MediaStream stream = factory.createLocalMediaStream("ARDAMS");
-        stream.addTrack(localVideoTrack);
+        if (localVideoTrack != null) {
+            stream.addTrack(localVideoTrack);
+        }
         stream.addTrack(localAudioTrack);
         peerConnection.addStream(stream);
     }
