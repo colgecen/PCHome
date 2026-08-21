@@ -1,9 +1,9 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -37,6 +37,14 @@ func main() {
 	hub := signal.NewHub(roomManager, metrics, logger)
 
 	go hub.Run()
+
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			signal.SetActiveRooms(float64(roomManager.Count()))
+		}
+	}()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
