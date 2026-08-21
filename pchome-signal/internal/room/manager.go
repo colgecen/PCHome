@@ -20,6 +20,7 @@ type Room struct {
 	PIN      string
 	ClientID string
 	Created  time.Time
+	LastSeen time.Time
 }
 
 type Manager struct {
@@ -103,9 +104,20 @@ func (m *Manager) Reserve(pin, clientID string) error {
 		PIN:      pin,
 		ClientID: clientID,
 		Created:  time.Now(),
+		LastSeen: time.Now(),
 	}
 	m.log.Info("Room reserved", zap.String("pin", pin), zap.String("clientID", clientID))
 	return nil
+}
+
+// Touch updates the last-seen timestamp so that active rooms are not evicted
+// prematurely by the TTL cleaner.
+func (m *Manager) Touch(pin string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if room, ok := m.rooms[pin]; ok {
+		room.LastSeen = time.Now()
+	}
 }
 
 func (m *Manager) Delete(pin string) {
@@ -137,7 +149,7 @@ func (m *Manager) evict() {
 	now := time.Now()
 	var evicted int
 	for pin, room := range m.rooms {
-		if now.Sub(room.Created) > m.ttl {
+		if now.Sub(room.LastSeen) > m.ttl {
 			delete(m.rooms, pin)
 			evicted++
 		}
