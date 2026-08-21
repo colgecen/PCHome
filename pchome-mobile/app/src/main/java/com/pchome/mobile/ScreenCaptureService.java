@@ -41,7 +41,7 @@ public class ScreenCaptureService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         int resultCode = intent.getIntExtra("resultCode", 0);
-        android.content.Intent data = intent.getParcelableExtra("data");
+        android.content.Intent data = (android.content.Intent) intent.getParcelableExtra("data");
 
         startForeground(NOTIFICATION_ID, buildNotification());
 
