@@ -29,7 +29,7 @@ public class TouchpadActivity extends AppCompatActivity {
         leftClickButton = findViewById(R.id.btn_left_click);
         rightClickButton = findViewById(R.id.btn_right_click);
 
-        controlService = new AndroidControlService();
+        controlService = AndroidControlService.getInstance();
 
         gestureDetector = new GestureDetectorCompat(this, new GestureDetector.SimpleOnGestureListener() {
             @Override
