@@ -19,7 +19,6 @@ mod network;
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
-    tracing_subscriber::fmt::init();
     log::info!("PChome Desktop starting");
 
     let pin_manager = PinManager::new();
