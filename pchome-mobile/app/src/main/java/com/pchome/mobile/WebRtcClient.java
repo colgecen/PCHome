@@ -149,23 +149,10 @@ public class WebRtcClient {
         }
         return new org.webrtc.ScreenCapturerAndroid(
                 MediaProjectionHolder.getData(),
-                new org.webrtc.ScreenCapturerAndroid.CapturerObserver() {
+                new android.media.projection.MediaProjection.Callback() {
                     @Override
-                    public void onCapturerStarted(boolean success) {
-                        Log.d(TAG, "ScreenCapturerAndroid started: " + success);
-                    }
-
-                    @Override
-                    public void onCapturerStopped() {
-                        Log.d(TAG, "ScreenCapturerAndroid stopped");
-                    }
-
-                    @Override
-                    public void onByteBufferFrameCaptured(byte[] data, int width, int height, int rotation, long timeStamp) {
-                    }
-
-                    @Override
-                    public void onTextureFrameCaptured(int width, int height, org.webrtc.TextureBuffer textureBuffer, int rotation, long timeStamp) {
+                    public void onStop() {
+                        Log.d(TAG, "Screen capture stopped");
                     }
                 });
     }
@@ -205,6 +192,12 @@ public class WebRtcClient {
                     public void onMessage(DataChannel.Buffer buffer) {
                         if (listener != null) listener.onDataChannelMessage(buffer);
                     }
+
+                    @Override
+                    public void onStateChange() {}
+
+                    @Override
+                    public void onBufferedAmountChange(long previousAmount) {}
                 });
             }
 
@@ -228,6 +221,9 @@ public class WebRtcClient {
             public void onSignalingChange(PeerConnection.SignalingState newState) {
                 Log.d(TAG, "Signaling state: " + newState);
             }
+
+            @Override
+            public void onIceConnectionReceivingChange(boolean receiving) {}
 
             @Override public void onAddTrack(org.webrtc.RtpReceiver receiver, org.webrtc.MediaStream[] streams) {}
             @Override public void onConnectionChange(PeerConnection.PeerConnectionState newState) {}

@@ -17,7 +17,6 @@ pub struct PeerConnection {
     remote_desc: Arc<RwLock<Option<String>>>,
     ice_candidates: Arc<RwLock<Vec<String>>>,
     data_channel_tx: mpsc::UnboundedSender<DataChannelMessage>,
-    data_channel_rx: Arc<RwLock<mpsc::UnboundedReceiver<DataChannelMessage>>>,
     video_track_tx: mpsc::UnboundedSender<VideoFrame>,
 }
 
@@ -48,7 +47,6 @@ impl PeerConnection {
                 remote_desc: Arc::new(RwLock::new(None)),
                 ice_candidates: Arc::new(RwLock::new(Vec::new())),
                 data_channel_tx: tx,
-                data_channel_rx: Arc::new(RwLock::new(rx)),
                 video_track_tx: video_tx,
             },
             rx,

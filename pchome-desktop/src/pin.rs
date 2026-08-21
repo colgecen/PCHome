@@ -38,7 +38,7 @@ impl PinManager {
         }
     }
 
-    pub async fn start(self) -> Result<()> {
+    pub async fn start(&self) -> Result<()> {
         let manager = self.clone();
         tokio::spawn(async move {
             manager.gc_loop().await;

@@ -49,16 +49,15 @@ pub fn serve(addr: SocketAddr) {
         if let Ok(listener) = std::net::TcpListener::bind(addr) {
             log::info!("Metrics endpoint listening on http://{}", addr);
             for stream in listener.incoming().flatten() {
-                if let Ok(mut stream) = stream {
-                    let mut body = Vec::new();
-                    if TextEncoder::new().encode(&REGISTRY.gather(), &mut body).is_ok() {
-                        let response = format!(
-                            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n",
-                            body.len()
-                        );
-                        let _ = stream.write_all(response.as_bytes());
-                        let _ = stream.write_all(&body);
-                    }
+                let mut stream = stream;
+                let mut body = Vec::new();
+                if TextEncoder::new().encode(&REGISTRY.gather(), &mut body).is_ok() {
+                    let response = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n",
+                        body.len()
+                    );
+                    let _ = stream.write_all(response.as_bytes());
+                    let _ = stream.write_all(&body);
                 }
             }
         } else {

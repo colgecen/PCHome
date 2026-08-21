@@ -80,7 +80,7 @@ impl CaptureStream {
                 }
             }
         }
-        let frame = self.capture_memory().await;
+        let frame = self.capture_memory();
         CAPTURE_LATENCY.observe(start.elapsed().as_secs_f64() * 1000.0);
         frame
     }

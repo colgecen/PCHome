@@ -17,6 +17,7 @@ pub enum EncodeError {
 
 pub use crate::pixelformat::FourCC;
 
+#[derive(Debug)]
 pub enum EncoderBackend {
     Vaapi,
     Nvenc,
@@ -85,7 +86,7 @@ impl Encoder {
         match result {
             Ok(bytes) => {
                 FRAMES_ENCODED.inc();
-                BITRATE_BYTES_TOTAL.inc_by(bytes.len() as u64);
+                BITRATE_BYTES_TOTAL.inc_by((bytes.len() as u64) as f64);
                 Ok(bytes)
             }
             Err(e) => {
@@ -98,13 +99,15 @@ impl Encoder {
     async fn encode_vaapi(&mut self, _data: &[u8]) -> Result<Vec<u8>> {
         Err(EncodeError::HardwareInitFailed(
             "VA-API hardware encoding is not implemented yet".into(),
-        ))
+        )
+        .into())
     }
 
     async fn encode_nvenc(&mut self, _data: &[u8]) -> Result<Vec<u8>> {
         Err(EncodeError::HardwareInitFailed(
             "NVENC hardware encoding is not implemented yet".into(),
-        ))
+        )
+        .into())
     }
 
     async fn encode_software(&mut self, data: &[u8]) -> Result<Vec<u8>> {

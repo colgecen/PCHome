@@ -17,7 +17,7 @@
         android:textColor="@color/pchome_text_primary"
         android:textSize="14sp"
         android:layout_gravity="center"
-        android:background="#800000000"
+        android:background="#80000000"
         android:padding="16dp" />
 
 </FrameLayout>

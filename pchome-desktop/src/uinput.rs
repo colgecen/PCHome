@@ -21,6 +21,28 @@ const UI_DEV_DESTROY: libc::c_ulong = 0x4004556a;
 #[cfg(target_family = "unix")]
 const UINPUT_MAX_NAME_SIZE: usize = 80;
 
+// Linux input event type/code constants (not exposed by libc).
+#[cfg(target_family = "unix")]
+const EV_SYN: u16 = 0x00;
+#[cfg(target_family = "unix")]
+const EV_KEY: u16 = 0x01;
+#[cfg(target_family = "unix")]
+const EV_REL: u16 = 0x02;
+#[cfg(target_family = "unix")]
+const BTN_LEFT: u16 = 0x110;
+#[cfg(target_family = "unix")]
+const BTN_RIGHT: u16 = 0x111;
+#[cfg(target_family = "unix")]
+const BTN_MIDDLE: u16 = 0x112;
+#[cfg(target_family = "unix")]
+const REL_X: u16 = 0x00;
+#[cfg(target_family = "unix")]
+const REL_Y: u16 = 0x01;
+#[cfg(target_family = "unix")]
+const REL_WHEEL: u16 = 0x08;
+#[cfg(target_family = "unix")]
+const BUS_VIRTUAL: u16 = 0x06;
+
 #[cfg(target_family = "unix")]
 #[repr(C)]
 struct UinputId {
@@ -58,23 +80,23 @@ impl UInputDevice {
         let raw_fd = fd.as_raw_fd();
 
         // Enable the event types this virtual device will emit.
-        ioctl(raw_fd, UI_SET_EVBIT, libc::EV_SYN as libc::c_ulong);
-        ioctl(raw_fd, UI_SET_EVBIT, libc::EV_KEY as libc::c_ulong);
-        ioctl(raw_fd, UI_SET_EVBIT, libc::EV_REL as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_EVBIT, EV_SYN as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_EVBIT, EV_KEY as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_EVBIT, EV_REL as libc::c_ulong);
 
         // Advertise a broad key range plus mouse buttons and relative axes.
         for code in 0..=255u32 {
             ioctl(raw_fd, UI_SET_KEYBIT, code as libc::c_ulong);
         }
-        ioctl(raw_fd, UI_SET_KEYBIT, libc::BTN_LEFT as libc::c_ulong);
-        ioctl(raw_fd, UI_SET_KEYBIT, libc::BTN_RIGHT as libc::c_ulong);
-        ioctl(raw_fd, UI_SET_KEYBIT, libc::BTN_MIDDLE as libc::c_ulong);
-        ioctl(raw_fd, UI_SET_RELBIT, libc::REL_X as libc::c_ulong);
-        ioctl(raw_fd, UI_SET_RELBIT, libc::REL_Y as libc::c_ulong);
-        ioctl(raw_fd, UI_SET_RELBIT, libc::REL_WHEEL as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_KEYBIT, BTN_LEFT as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_KEYBIT, BTN_RIGHT as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_KEYBIT, BTN_MIDDLE as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_RELBIT, REL_X as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_RELBIT, REL_Y as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_RELBIT, REL_WHEEL as libc::c_ulong);
 
         let mut setup: UinputSetup = unsafe { std::mem::zeroed() };
-        setup.id.bustype = libc::BUS_VIRTUAL as u16;
+        setup.id.bustype = BUS_VIRTUAL as u16;
         setup.id.vendor = 0x1234;
         setup.id.product = 0x5678;
         setup.id.version = 1;
@@ -168,7 +190,7 @@ impl InputEvent {
 #[cfg(target_family = "unix")]
 pub fn emit_key(key: u16, pressed: bool) -> Result<()> {
     let fd = std::fs::OpenOptions::new().write(true).open("/dev/uinput")?;
-    let ev = InputEvent::new(libc::EV_KEY, key, pressed as i32);
+    let ev = InputEvent::new(EV_KEY, key, pressed as i32);
     unsafe {
         let ev_libc = ev.to_libc();
         libc::write(

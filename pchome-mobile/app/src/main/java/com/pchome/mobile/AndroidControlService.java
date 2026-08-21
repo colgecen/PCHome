@@ -44,7 +44,6 @@ public class AndroidControlService extends AccessibilityService {
                 globalAction = GLOBAL_ACTION_BACK;
                 break;
             case android.view.KeyEvent.KEYCODE_HOME:
-            case android.view.KeyEvent.KEYCODE_HOME_PAGE:
                 globalAction = GLOBAL_ACTION_HOME;
                 break;
             case android.view.KeyEvent.KEYCODE_APP_SWITCH:
