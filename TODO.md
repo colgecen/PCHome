@@ -96,9 +96,9 @@ NOT: Bu dosya `PCHome-prompt.txt` içeriğine göre genişletildi — proje deta
 
 ## Developer Experience & Onboarding
 
-- [ ] `README.md`: quickstart for dev (local signal server, run desktop in dev mode, test mobile with emulator)
-- [ ] Developer scripts: `scripts/dev-setup.sh`, `scripts/run-local.sh`
-- [ ] CONtributing and PR templates; code owners
+- [x] `README.md`: quickstart for dev (local signal server, run desktop in dev mode, test mobile with emulator)
+- [x] Developer scripts: `scripts/dev-setup.sh`, `scripts/run-local.sh`
+- [x] CONtributing and PR templates; code owners
 
 ## Short-Term Milestones (first 4 weeks)
 
