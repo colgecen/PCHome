@@ -19,7 +19,8 @@ import org.webrtc.VideoTrack;
 
 import android.content.Context;
 import android.util.Log;
-import android.view.SurfaceViewRenderer;
+
+import org.webrtc.EglBase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -35,6 +36,7 @@ public class WebRtcClient {
 
     private PeerConnectionFactory factory;
     private PeerConnection peerConnection;
+    private EglBase eglBase;
     private VideoCapturer videoCapturer;
     private VideoSource videoSource;
     private VideoTrack localVideoTrack;
@@ -69,9 +71,11 @@ public class WebRtcClient {
                 .createInitializationOptions();
         PeerConnectionFactory.initialize(initOptions);
 
+        eglBase = EglBase.create();
+
         factory = PeerConnectionFactory.builder()
-                .setVideoEncoderFactory(new org.webrtc.DefaultVideoEncoderFactory(null, true, true))
-                .setVideoDecoderFactory(new org.webrtc.DefaultVideoDecoderFactory(null))
+                .setVideoEncoderFactory(new org.webrtc.DefaultVideoEncoderFactory(eglBase.getEglBaseContext(), true, true))
+                .setVideoDecoderFactory(new org.webrtc.DefaultVideoDecoderFactory(eglBase.getEglBaseContext()))
                 .createPeerConnectionFactory();
     }
 
@@ -121,7 +125,7 @@ public class WebRtcClient {
         videoCapturer = createVideoCapturer();
         videoSource = factory.createVideoSource(videoCapturer.isScreencast());
         videoCapturer.initialize(
-                new org.webrtc.SurfaceTextureHelper("CaptureThread", factory.getInternalVideoEncoderFactory().get().getEglContext()),
+                org.webrtc.SurfaceTextureHelper.create("CaptureThread", eglBase.getEglBaseContext()),
                 null,
                 videoSource.getCapturerObserver()
         );
@@ -134,10 +138,10 @@ public class WebRtcClient {
     }
 
     private VideoCapturer createVideoCapturer() {
-        return new org.webrtc.ScreenCapturerAndroid(
-                org.webrtc.ScreenCapturerAndroid.SCREEN_DISPLAY_NAME,
-                null
-        );
+        // NOTE: a real deployment must pass the MediaProjection permission result
+        // Intent obtained from MediaProjectionManager.createScreenCaptureIntent().
+        // Passing null compiles but will fail at runtime; see project TODO.
+        return new org.webrtc.ScreenCapturerAndroid(null, null);
     }
 
     private void createPeerConnection() {

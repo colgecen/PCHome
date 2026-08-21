@@ -1,7 +1,7 @@
 package com.pchome.mobile;
 
 import android.os.Bundle;
-import android.view.SurfaceViewRenderer;
+import android.view.View;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
