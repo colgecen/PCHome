@@ -39,6 +39,7 @@ pub struct VideoFrame {
 impl PeerConnection {
     pub async fn new() -> Result<(Self, mpsc::UnboundedReceiver<DataChannelMessage>)> {
         let (tx, rx) = mpsc::unbounded_channel();
+        let (video_tx, _video_rx) = mpsc::unbounded_channel();
 
         Ok((
             Self {
@@ -48,9 +49,9 @@ impl PeerConnection {
                 ice_candidates: Arc::new(RwLock::new(Vec::new())),
                 data_channel_tx: tx,
                 data_channel_rx: Arc::new(RwLock::new(rx)),
-                video_track_tx: mpsc::unbounded_channel().0,
+                video_track_tx: video_tx,
             },
-            mpsc::unbounded_channel().1,
+            rx,
         ))
     }
 
