@@ -98,16 +98,43 @@ match std::fs::metadata("/dev/uinput") {
 
 ### Threat Model
 
-#### Mitigated Threats
-- **Eavesdropping**: WebRTC SRTP encryption prevents traffic interception
-- **Session hijacking**: 300s PIN TTL limits exposure window
-- **Unauthorized input**: udev rules restrict /dev/uinput access
-- **Data leakage**: No persistent storage of captured content
+#### Attacker Surface
+- **Signal Server**: Public IP, exposed `/ws` endpoint, `/health`, `/metrics`
+- **Desktop Client**: Local `/dev/uinput`, screen capture, PIN generation
+- **Mobile Client**: AccessibilityService, MediaProjection, screen capture
+- **Network Path**: Unencrypted WebSocket in default config, STUN/TURN exposure
 
-#### Remaining Risks
-- **Physical access**: If attacker has physical access to either device, security boundaries are reduced
-- **Network compromise**: Endpoints on compromised networks may be vulnerable
-- **Signal server MITM**: Relies on WebSocket TLS; certificate validation required
+#### Attack Vectors
+
+| Vector | Target | Likelihood | Impact | Mitigation |
+|--------|--------|------------|--------|------------|
+| PIN brute-force | Signal server | Medium | Session hijack | Rate-limit + TTL + 1M keyspace |
+| MITM signaling | WebSocket | Medium | Session interception | TLS + certificate pinning |
+| Replay attack | WebRTC/Signal | Low | Unauthorized control | Ephemeral PIN + TTL |
+| Malicious signal server | Desktop/Mobile | Low | Data exfiltration | Certificate validation + mTLS |
+| Physical device access | Any | Medium | Local compromise | Sandbox + udev + systemd hardening |
+| Supply chain | Dependencies | Medium | Backdoor | Dependabot + pre-commit + SLSA |
+| WebRTC DTLS downgrade | PeerConnection | Low | Traffic exposure | DTLS 1.3 enforcement |
+| DoS via room exhaustion | Signal server | Medium | Service disruption | Room limit (10000) + GC eviction |
+
+#### Trust Boundaries
+1. **Signal Server Boundary**: Untrusted relay; only validates PIN mapping, never sees media
+2. **Desktop Trust Boundary**: Requires local group membership (`pchome`) for `/dev/uinput`
+3. **Mobile Trust Boundary**: AccessibilityService scoped to package `com.pchome.mobile`
+4. **Network Boundary**: WebRTC is P2P; signal server cannot intercept media even with TLS
+
+#### Data Flow Security
+```
+Desktop (PIN gen) ──WebSocket TLS──▷ Signal Server (PIN mapping only)
+Desktop (screen) ──PipeWire DMA-BUF──▷ Encoder (H.264) ──WebRTC SRTP──▷ Mobile
+Mobile (touch) ──AccessibilityService──▷ Gesture injection
+```
+
+#### Residual Risks
+- **Physical access**: Attacker with physical access can bypass udev/sandbox
+- **Compromised endpoint**: Malware on either device can read screen/inject input
+- **Certificate compromise**: If TLS private key leaks, MITM possible
+- **PIN leakage via side-channel**: Screen reflection, shoulder surfing
 
 ### Compliance
 
@@ -238,3 +265,35 @@ ls -la /proc/$(pgrep pchome-desktop)/fd
 - Email security issues to the maintainers directly
 - Include detailed reproduction steps and impact assessment
 - Allow 90 days for remediation before public disclosure
+
+### Post-Release Checklist
+
+#### Security Verification
+- [ ] TLS certificates are valid and trusted by clients
+- [ ] Rate-limiting rules are enforced on production signal server
+- [ ] PIN TTL enforcement verified in load test
+- [ ] Dependabot alerts resolved before release
+- [ ] Secret scanning (gitleaks/truffleHog) passed on release commit
+- [ ] Docker image scanned for vulnerabilities (`docker scout`)
+- [ ] GitHub Secret Scanning alerts reviewed
+- [ ] No secrets or keys in release artifacts
+
+#### Distribution Verification
+- [ ] GitHub Release published with correct version tag
+- [ ] Docker images pushed with version and latest tags
+- [ ] Multi-arch images verified (amd64, arm64)
+- [ ] Checksums generated for all release binaries
+- [ ] Binary signing completed (GPG/sigstore)
+
+#### Smoke Tests
+- [ ] Desktop daemon starts and generates PIN
+- [ ] Mobile app connects via PIN entry
+- [ ] WebRTC handshake completes in <40ms median
+- [ ] Screen capture and input injection work end-to-end
+- [ ] Signal server handles 100 concurrent connections
+
+#### Documentation
+- [ ] README.md updated with release notes
+- [ ] CHANGELOG.md published with new version
+- [ ] Migration guide added if breaking changes
+- [ ] Version bumped in all Cargo.toml / go.mod files

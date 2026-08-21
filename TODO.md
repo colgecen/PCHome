@@ -89,10 +89,10 @@ NOT: Bu dosya `PCHome-prompt.txt` içeriğine göre genişletildi — proje deta
 
 ## Phase 6: Security & Release
 
-- [ ] Threat model and attacker surface (document in `SECURITY.md`)
-- [ ] TLS for signaling, rate-limiting PIN brute-force, PIN TTL enforcement
-- [ ] Release automation: semantic versioning, changelog generation, GitHub Releases and Docker tags
-- [ ] Post-release checklist: publish docs, update package artifacts, kitchen-sink smoke tests
+- [x] Threat model and attacker surface (document in `SECURITY.md`)
+- [x] TLS for signaling, rate-limiting PIN brute-force, PIN TTL enforcement
+- [x] Release automation: semantic versioning, changelog generation, GitHub Releases and Docker tags
+- [x] Post-release checklist: publish docs, update package artifacts, kitchen-sink smoke tests
 
 ## Developer Experience & Onboarding
 
