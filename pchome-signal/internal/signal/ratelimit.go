@@ -1,6 +1,7 @@
 package signal
 
 import (
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -59,9 +60,36 @@ func (rl *RateLimiter) Allow(ip string) bool {
 	return state.count <= rl.limit
 }
 
+func clientIP(r *http.Request) string {
+	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+		// X-Forwarded-For may contain a comma-separated list; take the first hop.
+		if idx := indexByte(fwd, ','); idx >= 0 {
+			return fwd[:idx]
+		}
+		return fwd
+	}
+	if real := r.Header.Get("X-Real-IP"); real != "" {
+		return real
+	}
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return ip
+}
+
+func indexByte(s string, b byte) int {
+	for i := 0; i < len(s); i++ {
+		if s[i] == b {
+			return i
+		}
+	}
+	return -1
+}
+
 func RateLimitMiddleware(rl *RateLimiter, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := r.RemoteAddr
+		ip := clientIP(r)
 		if !rl.Allow(ip) {
 			w.WriteHeader(http.StatusTooManyRequests)
 			w.Write([]byte("rate limit exceeded"))
