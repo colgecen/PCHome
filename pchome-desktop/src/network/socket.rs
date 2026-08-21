@@ -72,13 +72,17 @@ pub async fn discover_external_addr(socket: &UdpSocket) -> Result<Option<SocketA
 }
 
 fn build_stun_bind_request() -> Vec<u8> {
+    const MAGIC_COOKIE: u32 = 0x2112_A442;
     let mut buf = Vec::with_capacity(20);
 
-    buf.extend_from_slice(&(0u16).to_be_bytes());
-    buf.extend_from_slice(&(0x0001u16).to_be_bytes());
-
+    // STUN Binding Request: message type 0x0001, message length 0.
+    buf.extend_from_slice(&0x0001u16.to_be_bytes());
+    buf.extend_from_slice(&0x0000u16.to_be_bytes());
+    // Magic cookie.
+    buf.extend_from_slice(&MAGIC_COOKIE.to_be_bytes());
+    // 12-byte transaction ID (first 4 bytes overlap the magic cookie space per RFC).
     let mut transaction_id = [0u8; 12];
-    transaction_id[8..].copy_from_slice(&rand::random::<[u8; 4]>());
+    rand::thread_rng().fill(&mut transaction_id[..]);
     buf.extend_from_slice(&transaction_id);
 
     buf
@@ -99,19 +103,19 @@ fn parse_stun_bind_response(data: &[u8]) -> Option<SocketAddr> {
         let attr_type = u16::from_be_bytes([data[offset], data[offset + 1]]);
         let attr_len = u16::from_be_bytes([data[offset + 2], data[offset + 3]]) as usize;
 
-        if attr_type == 0x0020 && offset + 20 + attr_len <= data.len() {
-            let ip_offset = offset + 12;
-            let port = u16::from_be_bytes([
-                data[ip_offset],
-                data[ip_offset + 1],
-            ]);
+        // XOR-MAPPED-ADDRESS (0x0020).
+        if attr_type == 0x0020 && offset + 12 <= data.len() {
+            const MAGIC_COOKIE: u32 = 0x2112_A442;
+            let xport = u16::from_be_bytes([data[offset + 6], data[offset + 7]])
+                ^ (MAGIC_COOKIE >> 16) as u16;
+            let cookie = MAGIC_COOKIE.to_be_bytes();
             let ip = std::net::Ipv4Addr::new(
-                data[ip_offset + 4],
-                data[ip_offset + 5],
-                data[ip_offset + 6],
-                data[ip_offset + 7],
+                data[offset + 8] ^ cookie[0],
+                data[offset + 9] ^ cookie[1],
+                data[offset + 10] ^ cookie[2],
+                data[offset + 11] ^ cookie[3],
             );
-            return Some(SocketAddr::new(std::net::IpAddr::V4(ip), port));
+            return Some(SocketAddr::new(std::net::IpAddr::V4(ip), xport));
         }
 
         offset += 4 + attr_len;
