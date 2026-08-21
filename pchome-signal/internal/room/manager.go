@@ -64,6 +64,7 @@ func (m *Manager) Create(clientID string) (string, error) {
 		PIN:      pin,
 		ClientID: clientID,
 		Created:  time.Now(),
+		LastSeen: time.Now(),
 	}
 
 	m.log.Info("Room created", zap.String("pin", pin), zap.String("clientID", clientID))
@@ -134,7 +135,13 @@ func (m *Manager) Count() int {
 }
 
 func (m *Manager) gcLoop() {
-	ticker := time.NewTicker(30 * time.Second)
+	// Sweep at roughly half the TTL so even very short TTLs are reaped promptly
+	// without busy-looping on tiny TTL values.
+	interval := m.ttl / 2
+	if interval < 10*time.Millisecond {
+		interval = 10 * time.Millisecond
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -149,7 +156,7 @@ func (m *Manager) evict() {
 	now := time.Now()
 	var evicted int
 	for pin, room := range m.rooms {
-		if now.Sub(room.LastSeen) > m.ttl {
+		if now.Sub(room.LastSeen) >= m.ttl {
 			delete(m.rooms, pin)
 			evicted++
 		}
