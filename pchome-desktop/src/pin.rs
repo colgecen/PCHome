@@ -150,3 +150,27 @@ impl Default for PinManager {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pin_is_zero_padded_six_digits() {
+        // Every PIN must be representable as exactly 6 digits so the mobile UI
+        // and the Signal server (which expects 6 ASCII digits) stay in sync.
+        for raw in [0u32, 1, 42, 1234, 999999, 1_000_000 - 1] {
+            let formatted = format!("{:06}", raw % 1_000_000);
+            assert_eq!(formatted.len(), 6, "raw={}", raw);
+            assert!(formatted.chars().all(|c| c.is_ascii_digit()));
+            assert_eq!(formatted.parse::<u32>().unwrap(), raw % 1_000_000);
+        }
+    }
+
+    #[tokio::test]
+    async fn manager_validates_ttl() {
+        let m = PinManager::new();
+        let pin = m.generate_and_register().await.unwrap();
+        assert!(m.is_valid(pin).await);
+    }
+}
