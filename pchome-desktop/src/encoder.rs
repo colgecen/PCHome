@@ -95,14 +95,16 @@ impl Encoder {
         }
     }
 
-    async fn encode_vaapi(&mut self, data: &[u8]) -> Result<Vec<u8>> {
-        log::warn!("VA-API hardware encode stub");
-        self.encode_software(data).await
+    async fn encode_vaapi(&mut self, _data: &[u8]) -> Result<Vec<u8>> {
+        Err(EncodeError::HardwareInitFailed(
+            "VA-API hardware encoding is not implemented yet".into(),
+        ))
     }
 
-    async fn encode_nvenc(&mut self, data: &[u8]) -> Result<Vec<u8>> {
-        log::warn!("NVENC hardware encode stub");
-        self.encode_software(data).await
+    async fn encode_nvenc(&mut self, _data: &[u8]) -> Result<Vec<u8>> {
+        Err(EncodeError::HardwareInitFailed(
+            "NVENC hardware encoding is not implemented yet".into(),
+        ))
     }
 
     async fn encode_software(&mut self, data: &[u8]) -> Result<Vec<u8>> {
