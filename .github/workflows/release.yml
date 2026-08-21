@@ -136,11 +136,13 @@ jobs:
         with:
           path: ./release-artifacts
 
+      - name: List downloaded files
+        run: find ./release-artifacts -type f
+
       - name: Generate changelog
         id: changelog
         run: |
           git log $(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo $(git rev-parse --short HEAD~1))..HEAD --oneline --no-merges > changelog.txt || echo "No changelog available" > changelog.txt
-          cat changelog.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
