@@ -15,23 +15,7 @@ pub enum CaptureError {
     StreamError(String),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FourCC(u32);
-
-impl FourCC {
-    pub const RGB24: Self = Self(0x00000020);
-    pub const XRGB8888: Self = Self(0x34325258);
-    pub const ARGB8888: Self = Self(0x34325241);
-    pub const NV12: Self = Self(0x3231564E);
-
-    pub fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-
-    pub fn raw(&self) -> u32 {
-        self.0
-    }
-}
+pub use crate::pixelformat::FourCC;
 
 #[cfg(target_family = "unix")]
 #[derive(Debug, Clone)]

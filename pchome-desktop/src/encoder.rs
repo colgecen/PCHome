@@ -15,15 +15,7 @@ pub enum EncodeError {
     EncodeFailed(String),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FourCC(u32);
-
-impl FourCC {
-    pub const NV12: Self = Self(0x3231564E);
-    pub const I420: Self = Self(0x30323449);
-    pub const RGB24: Self = Self(0x00000020);
-    pub const XRGB8888: Self = Self(0x34325258);
-}
+pub use crate::pixelformat::FourCC;
 
 pub enum EncoderBackend {
     Vaapi,
