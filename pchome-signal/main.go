@@ -56,10 +56,12 @@ func main() {
 		signal.ServeWs(hub, w, r)
 	})
 
-	handler := mux
+	// CORS middleware so the browser-based HUD (served from a different origin)
+	// can open a WebSocket and scrape /metrics.
+	handler := withCORS(mux)
 	if *rateLimit > 0 {
 		limiter := signal.NewRateLimiter(*rateLimit, time.Minute)
-		handler = signal.RateLimitMiddleware(limiter, mux).(http.Handler)
+		handler = signal.RateLimitMiddleware(limiter, handler)
 		logger.Info("rate limiting enabled", zap.Int("limit", *rateLimit), zap.Duration("window", time.Minute))
 	}
 
@@ -95,4 +97,20 @@ func main() {
 	}
 
 	logger.Info("PChome Signal server stopped")
+}
+
+// withCORS adds permissive CORS headers required for the browser HUD to open a
+// WebSocket against the server and to scrape /metrics from a different origin.
+// In production this should be locked down to known origins via configuration.
+func withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
