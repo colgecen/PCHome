@@ -1,0 +1,4 @@
+# PChome uinput access rule
+# Allows members of the 'pchome' group to create virtual input devices
+# via /dev/uinput for remote input injection.
+KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="pchome", MODE="0660"
