@@ -6,7 +6,7 @@ import (
 	"flag"
 	"net/http"
 	"os"
-	"os/signal"
+	osignal "os/signal"
 	"syscall"
 	"time"
 
@@ -33,8 +33,7 @@ func main() {
 	defer logger.Sync()
 
 	roomManager := room.NewManagerWithTTL(logger, *pinTTL)
-	metrics := signal.NewMetrics()
-	hub := signal.NewHub(roomManager, metrics, logger)
+	hub := signal.NewHub(roomManager, logger)
 
 	go hub.Run()
 
@@ -87,7 +86,7 @@ func main() {
 	}()
 
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	osignal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

@@ -1,9 +1,6 @@
 package signal
 
 import (
-	"strconv"
-	"sync/atomic"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -58,28 +55,4 @@ func IncMessagesRelayedBy(n int64) {
 	for i := int64(0); i < n; i++ {
 		messagesRelayedCounter.Inc()
 	}
-}
-
-func GetActiveRooms() float64 {
-	return activeRoomsGauge.Get()
-}
-
-func GetConnectedClients() float64 {
-	return connectedClientsGauge.Get()
-}
-
-func GetMessagesRelayed() uint64 {
-	return uint64(messagesRelayedCounter.Get())
-}
-
-func GetActiveRoomsString() string {
-	return strconv.FormatFloat(GetActiveRooms(), 'f', 0, 64)
-}
-
-func GetConnectedClientsString() string {
-	return strconv.FormatFloat(GetConnectedClients(), 'f', 0, 64)
-}
-
-func GetMessagesRelayedString() string {
-	return strconv.FormatUint(GetMessagesRelayed(), 10)
 }

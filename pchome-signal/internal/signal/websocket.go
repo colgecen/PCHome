@@ -1,7 +1,6 @@
 package signal
 
 import (
-	"encoding/json"
 	"net/http"
 	"sync"
 	"time"
@@ -13,9 +12,9 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
-	// Bound inbound message size to 1 MiB to prevent a memory-exhaustion DoS
+	// Bound inbound read buffer to 1 MiB to prevent a memory-exhaustion DoS
 	// on the relay.
-	ReadLimit: 1 << 20,
+	ReadBufferSize: 1 << 20,
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
@@ -27,10 +26,9 @@ type Message struct {
 }
 
 type Hub struct {
-	rooms      *room.Manager
-	metrics    *Metrics
-	log        *zap.Logger
-	clients    map[*Client]bool
+	rooms   *room.Manager
+	log     *zap.Logger
+	clients map[*Client]bool
 	register   chan *Client
 	unregister chan *Client
 	broadcast  chan *relayMessage
@@ -63,10 +61,9 @@ type Client struct {
 	closeOnce sync.Once
 }
 
-func NewHub(rooms *room.Manager, metrics *Metrics, log *zap.Logger) *Hub {
+func NewHub(rooms *room.Manager, log *zap.Logger) *Hub {
 	return &Hub{
 		rooms:      rooms,
-		metrics:    metrics,
 		log:        log,
 		clients:    make(map[*Client]bool),
 		register:   make(chan *Client),
@@ -82,7 +79,7 @@ func (h *Hub) Run() {
 			h.mu.Lock()
 			h.clients[client] = true
 			h.mu.Unlock()
-			h.metrics.IncConnectedClients()
+			IncConnectedClients()
 			client.Logger.Info("Client registered", zap.String("id", client.ID), zap.String("role", client.Role))
 		case client := <-h.unregister:
 			h.mu.Lock()
@@ -91,7 +88,7 @@ func (h *Hub) Run() {
 				client.closeSend()
 			}
 			h.mu.Unlock()
-			h.metrics.DecConnectedClients()
+			DecConnectedClients()
 			client.Logger.Info("Client unregistered", zap.String("id", client.ID))
 		case rm := <-h.broadcast:
 			h.mu.RLock()
@@ -104,7 +101,7 @@ func (h *Hub) Run() {
 				}
 				select {
 				case client.Send <- []byte(rm.msg.Data):
-					h.metrics.IncMessagesRelayed()
+					IncMessagesRelayed()
 					h.rooms.Touch(rm.msg.Type)
 				default:
 					delete(h.clients, client)

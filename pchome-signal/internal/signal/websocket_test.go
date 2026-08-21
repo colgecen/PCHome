@@ -13,8 +13,7 @@ import (
 func TestRelayRoundtripNoEcho(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	rooms := room.NewManager(logger)
-	metrics := NewMetrics()
-	hub := NewHub(rooms, metrics, logger)
+	hub := NewHub(rooms, logger)
 
 	go hub.Run()
 
