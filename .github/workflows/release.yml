@@ -6,37 +6,201 @@ on:
       - 'v*'
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
+  build-desktop:
+    name: Build Desktop
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: pchome-desktop-linux
+            binary_name: pchome-desktop
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: pchome-desktop-windows
+            binary_name: pchome-desktop.exe
+
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: |
+          cd pchome-desktop
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            pchome-desktop/target/${{ matrix.target }}/release/${{ matrix.binary_name }}
+            pchome-desktop/src-ui/**
+
+  build-linux-appimage:
+    name: Build Linux AppImage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2 desktop-file-install patchelf
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install linuxdeploy
+        run: |
+          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+          sudo mv linuxdeploy-x86_64.AppImage /usr/local/bin/linuxdeploy
+
+      - name: Build binary
+        run: |
+          cd pchome-desktop
+          cargo build --release
+
+      - name: Create AppDir
+        run: |
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          cp target/release/pchome-desktop AppDir/usr/bin/
+          cp -r src-ui AppDir/usr/share/pchome-ui
+          cat > AppDir/usr/share/applications/pchome.desktop <<EOF
+          [Desktop Entry]
+          Name=PChome
+          Comment=Remote Control System
+          Exec=pchome-desktop
+          Icon=pchome
+          Terminal=true
+          Type=Application
+          Categories=Utility;
+          EOF
+          cat > AppDir/AppRun <<EOF
+          #!/bin/bash
+          export PATH="\${APPDIR}/usr/bin:\${PATH}"
+          exec "\${APPDIR}/usr/bin/pchome-desktop" "\$@"
+          EOF
+          chmod +x AppDir/AppRun
+
+      - name: Create AppImage
+        run: |
+          linuxdeploy --appdir AppDir --output appimage --desktop-file AppDir/usr/share/applications/pchome.desktop
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: pchome-desktop-appimage
+          path: PChome*.AppImage
+
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          ndk: 25.2.9519653
+
+      - name: Build APK
+        run: |
+          cd pchome-mobile
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pchome-mobile-apk
+          path: pchome-mobile/app/build/outputs/apk/debug/app-debug.apk
+
+  build-signal:
+    name: Build Signal Server
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            goos: linux
+            goarch: amd64
+            name: pchome-signal-linux-amd64
+          - os: linux
+            goos: linux
+            goarch: arm64
+            name: pchome-signal-linux-arm64
+          - os: windows
+            goos: windows
+            goarch: amd64
+            name: pchome-signal-windows-amd64.exe
+          - os: darwin
+            goos: darwin
+            goarch: amd64
+            name: pchome-signal-darwin-amd64
+          - os: darwin
+            goos: darwin
+            goarch: arm64
+            name: pchome-signal-darwin-arm64
+
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.23'
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Extract version
-        id: version
+      - name: Build
+        working-directory: pchome-signal
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          go build -ldflags="-s -w" -o /tmp/${{ matrix.name }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: /tmp/${{ matrix.name }}
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-desktop, build-linux-appimage, build-android, build-signal]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./release-artifacts
 
       - name: Generate changelog
         id: changelog
@@ -46,36 +210,42 @@ jobs:
           cat changelog.txt >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Build Go binaries
-        run: |
-          cd pchome-signal
-          go build -ldflags="-s -w -X main.version=${{ steps.version.outputs.version }}" -o /tmp/pchome-signal ./...
-
-      - name: Build Rust binaries
-        run: |
-          cd pchome-desktop
-          cargo build --release
-          cp target/release/pchome-desktop /tmp/
-
-      - name: Create GitHub Release
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: PChome ${{ steps.version.outputs.tag }}
+          tag_name: ${{ github.ref_name }}
+          name: PChome ${{ github.ref_name }}
           body: |
             ## What's Changed
             ${{ steps.changelog.outputs.changelog }}
           files: |
-            /tmp/pchome-signal
-            /tmp/pchome-desktop
+            release-artifacts/**/*
           draft: false
           prerelease: false
+
+  build-docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [create-release]
+    if: github.event.base_ref == 'refs/heads/main' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
