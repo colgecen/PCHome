@@ -81,7 +81,7 @@ PChome operates as a monorepo with three decoupled yet seamlessly integrated mod
 2. **Connection Phase**: WebRTC SDP/ICE candidate exchange for NAT traversal
 3. **Stream Phase**: DMA-BUF zero-copy screen capture → H.264 encoding → WebRTC DataChannel
 4. **Input Phase**: /dev/uinput (Desktop) / AccessibilityService (Mobile) → WebRTC DataChannel
-5. **Control Phase**: Asynchronous command routing via UDP/WebSocket
+5. **Control Phase**: Asynchronous command routing via the WebRTC DataChannel
 
 ## Control Flows
 
@@ -97,3 +97,34 @@ PChome operates as a monorepo with three decoupled yet seamlessly integrated mod
 - **Desktop Renderer (Rust)**: The incoming H.264 stream is rendered onto the Rust UI canvas. Mouse clicks over the video window are captured, and scaled X/Y coordinates are sent back to the Android device.
 - **Mobile Injection (Java)**: The `AndroidControlService` (AccessibilityService) receives the remote coordinates and executes real‑time gestures using `GestureDescription.Builder` without requiring root access.
 - **Result**: The Linux desktop mirrors the Android phone's screen and can inject touch gestures back.
+
+## Connection Handshake Protocol
+
+The Signal server is a thin, stateless relay. It never inspects SDP/ICE
+payloads; it only forwards them between the two peers that share a PIN.
+
+1. **PIN generation (Desktop)**: The daemon generates a cryptographically
+   secure 6-digit PIN using `crypto/rand` and calls `RoomManager.Reserve(pin)`
+   to claim the room before publishing it. The room carries a TTL (300s) that
+   is refreshed on every relayed message and swept by a background cleaner.
+2. **Registration**: Desktop opens
+   `ws://<signal>/ws?pin=<123456>&role=desktop` and stays connected.
+3. **Join**: Mobile opens
+   `ws://<signal>/ws?pin=<123456>&role=mobile` (the UI groups the digits as
+   `123-456`; separators are stripped before connecting).
+4. **Hub formation**: On the first peer's connect the Signal server creates a
+   `Room` with a `sync.Map` of `peerID -> *Client`. When the second peer
+   connects, both clients are linked in a `Hub` so messages route between them
+   and are never echoed back to the sender.
+5. **SDP/ICE relay**: Each side sends JSON `{ "type": "offer" | "answer" |
+   "ice-candidate", ... }`. The hub JSON-encodes a typed `relayMessage`
+   (`from`, `to`, `data`) and writes it to the *other* peer only.
+6. **NAT traversal**: ICE candidates are exchanged through the same relay. If
+   both peers are on the same network, host candidates connect directly;
+   otherwise a STUN server (`stun:stun.l.google.com:19302`) yields the
+   XOR-MAPPED-ADDRESS used for the connection. The desktop builds a valid
+   STUN Binding Request (magic cookie `0x2112A442`) and parses the
+   XOR-MAPPED-ADDRESS response.
+7. **Media + data**: Once the WebRTC `PeerConnection` is established, screen
+   frames and input events flow over the P2P `MediaStream` / `DataChannel`,
+   bypassing the Signal server entirely.
