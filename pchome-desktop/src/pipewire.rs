@@ -33,8 +33,16 @@ impl FourCC {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[cfg(target_family = "unix")]
+#[derive(Debug, Clone)]
 pub enum Frame {
+    DmaBuf {
+        fd: std::os::unix::io::RawFd,
+        width: u32,
+        height: u32,
+        stride: u32,
+        format: FourCC,
+    },
     Memory {
         data: Vec<u8>,
         width: u32,
@@ -44,16 +52,9 @@ pub enum Frame {
     },
 }
 
-#[cfg(target_family = "unix")]
-#[derive(Debug, Clone, Copy)]
+#[cfg(not(target_family = "unix"))]
+#[derive(Debug, Clone)]
 pub enum Frame {
-    DmaBuf {
-        fd: std::os::unix::io::RawFd,
-        width: u32,
-        height: u32,
-        stride: u32,
-        format: FourCC,
-    },
     Memory {
         data: Vec<u8>,
         width: u32,
