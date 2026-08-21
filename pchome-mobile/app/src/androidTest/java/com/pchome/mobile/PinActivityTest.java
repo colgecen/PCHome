@@ -9,6 +9,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import static androidx.test.espresso.Espresso.onView;
+import static androidx.test.espresso.action.ViewActions.click;
+import static androidx.test.espresso.action.ViewActions.closeSoftKeyboard;
+import static androidx.test.espresso.action.ViewActions.typeText;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
@@ -34,5 +37,18 @@ public class PinActivityTest {
     public void connectButton_isDisplayed() {
         onView(withId(R.id.connect_button)).check(matches(isDisplayed()));
         onView(withId(R.id.connect_button)).check(matches(withText(R.string.connect)));
+    }
+
+    @Test
+    public void pinField_acceptsInput() {
+        onView(withId(R.id.pin)).perform(typeText("123456"), closeSoftKeyboard());
+        onView(withId(R.id.pin)).check(matches(withText("123456")));
+    }
+
+    @Test
+    public void connectWithShortPin_doesNotCrash() {
+        onView(withId(R.id.pin)).perform(typeText("12"), closeSoftKeyboard());
+        onView(withId(R.id.connect_button)).perform(click());
+        onView(withId(R.id.connect_button)).check(matches(isDisplayed()));
     }
 }
