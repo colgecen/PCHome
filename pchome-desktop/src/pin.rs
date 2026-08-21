@@ -9,7 +9,7 @@ use tokio_tungstenite::connect_async;
 use uuid::Uuid;
 
 const PIN_TTL_SECS: u64 = 300;
-const SIGNAL_WS_URL: &str = "ws://localhost:8080/ws";
+const SIGNAL_WS_URL: &str = "ws://localhost:8080";
 
 #[derive(Debug, Clone)]
 pub struct PinEntry {
@@ -77,12 +77,17 @@ impl PinManager {
     }
 
     async fn register_to_signal(&self, pin: u32) -> Result<()> {
-        let url = format!("{}/register/{}", SIGNAL_WS_URL, pin);
+        let pin_str = format!("{:06}", pin);
+        let url = format!("{}/ws?pin={}&role=desktop", SIGNAL_WS_URL, pin_str);
         match connect_async(&url).await {
             Ok((ws, _)) => {
-                log::info!("WebSocket connected for PIN {}", pin);
-                let (mut _tx, _rx) = ws.split();
-                let _ = _tx;
+                log::info!("WebSocket connected for PIN {}", pin_str);
+                // Hold the connection open for the session lifetime so the
+                // Signal server keeps the room reserved until TTL eviction.
+                tokio::spawn(async move {
+                    let _held = ws;
+                    tokio::time::sleep(std::time::Duration::from_secs(PIN_TTL_SECS)).await;
+                });
                 Ok(())
             }
             Err(e) => Err(anyhow::anyhow!("WebSocket connection failed: {}", e)),
