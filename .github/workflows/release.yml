@@ -106,19 +106,20 @@ jobs:
           api-level: 34
           ndk: 25.2.9519653
 
-      - name: Download Gradle wrapper
+      - name: Install Gradle
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gradle
+
+      - name: Generate Gradle Wrapper
         run: |
           cd pchome-mobile
-          curl -sL https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradlew -o gradlew
-          curl -sL https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradlew.bat -o gradlew.bat
-          mkdir -p gradle/wrapper
-          curl -sL https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -o gradle/wrapper/gradle-wrapper.jar
-          curl -sL https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.properties -o gradle/wrapper/gradle-wrapper.properties
-          chmod +x gradlew
+          gradle wrapper --gradle-version 8.2.0
 
       - name: Build APK
         run: |
           cd pchome-mobile
+          chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
