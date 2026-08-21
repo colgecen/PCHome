@@ -82,3 +82,45 @@ func TestDeleteRoom(t *testing.T) {
 		t.Fatalf("Room should be deleted")
 	}
 }
+
+// TestPINFormat asserts every generated PIN is exactly 6 ASCII digits, which is
+// required by the spec and by the mobile client's parsing.
+func TestPINFormat(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+	manager := room.NewManager(logger)
+
+	for i := 0; i < 200; i++ {
+		pin, err := manager.Create("format-client")
+		if err != nil {
+			t.Fatalf("Create failed: %v", err)
+		}
+		if len(pin) != 6 {
+			t.Fatalf("expected 6-digit PIN, got %q (len %d)", pin, len(pin))
+		}
+		for _, c := range pin {
+			if c < '0' || c > '9' {
+				t.Fatalf("PIN %q contains non-digit character %q", pin, c)
+			}
+		}
+		manager.Delete(pin)
+	}
+}
+
+// TestReserveRejectsMalformedPIN verifies the desktop-supplied PIN is validated.
+func TestReserveRejectsMalformedPIN(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+	manager := room.NewManager(logger)
+
+	if err := manager.Reserve("123", "c"); err == nil {
+		t.Fatalf("expected error for too-short PIN")
+	}
+	if err := manager.Reserve("12a456", "c"); err == nil {
+		t.Fatalf("expected error for non-digit PIN")
+	}
+	if err := manager.Reserve("123456", "c"); err != nil {
+		t.Fatalf("expected success for valid PIN, got %v", err)
+	}
+	if err := manager.Reserve("123456", "c2"); err == nil {
+		t.Fatalf("expected error for duplicate PIN")
+	}
+}
