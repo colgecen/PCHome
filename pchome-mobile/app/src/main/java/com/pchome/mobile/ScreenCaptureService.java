@@ -5,6 +5,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
 import android.media.Image;
@@ -43,10 +44,14 @@ public class ScreenCaptureService extends Service {
         int resultCode = intent.getIntExtra("resultCode", 0);
         android.content.Intent data = (android.content.Intent) intent.getParcelableExtra("data");
 
-        startForeground(NOTIFICATION_ID, buildNotification());
+        startForegroundWithType();
 
         MediaProjectionManager projectionManager = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
         mediaProjection = projectionManager.getMediaProjection(resultCode, data);
+        if (mediaProjection != null) {
+            MediaProjectionHolder.set(data, resultCode);
+            MediaProjectionHolder.setProjection(mediaProjection);
+        }
 
         initCapture();
         return START_STICKY;
@@ -56,7 +61,8 @@ public class ScreenCaptureService extends Service {
         Size screenSize = new Size(1920, 1080);
         int density = getResources().getDisplayMetrics().densityDpi;
 
-        imageReader = ImageReader.newInstance(screenSize.getWidth(), screenSize.getHeight(), 0x1, 2);
+        imageReader = ImageReader.newInstance(screenSize.getWidth(), screenSize.getHeight(),
+                android.graphics.ImageFormat.YUV_420_888, 2);
         virtualDisplay = mediaProjection.createVirtualDisplay(
                 "PChomeCapture",
                 screenSize.getWidth(),
@@ -74,16 +80,9 @@ public class ScreenCaptureService extends Service {
     }
 
     private void onImageAvailable(ImageReader reader) {
-        try (Image image = reader.acquireLatestImage()) {
+        try (android.media.Image image = reader.acquireLatestImage()) {
             if (image == null) return;
-
-            Image.Plane[] planes = image.getPlanes();
-            if (planes.length > 0) {
-                ByteBuffer buffer = planes[0].getBuffer();
-                byte[] data = new byte[buffer.remaining()];
-                buffer.get(data);
-                encoder.encodeFrame(data);
-            }
+            encoder.encodeFrame(image);
         } catch (Exception e) {
             Log.e(TAG, "Error capturing frame", e);
         }
@@ -96,6 +95,16 @@ public class ScreenCaptureService extends Service {
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setOngoing(true)
                 .build();
+    }
+
+    private void startForegroundWithType() {
+        Notification notification = buildNotification();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(NOTIFICATION_ID, notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
+        } else {
+            startForeground(NOTIFICATION_ID, notification);
+        }
     }
 
     private void createNotificationChannel() {
