@@ -120,7 +120,7 @@ jobs:
       - name: Generate Gradle Wrapper
         run: |
           cd pchome-mobile
-          gradle wrapper --gradle-version 8.2
+          gradle wrapper --gradle-version 8.2.0
 
       - name: Build APK
         run: |

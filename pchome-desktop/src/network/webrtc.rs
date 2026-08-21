@@ -1,7 +1,6 @@
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
-use tracing::{error, info, warn};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PeerState {
@@ -56,26 +55,26 @@ impl PeerConnection {
     }
 
     pub async fn set_local_description(&self, sdp: String) -> Result<()> {
-        info!("Setting local SDP description");
+        log::info!("Setting local SDP description");
         *self.local_desc.write().await = Some(sdp);
         *self.state.write().await = PeerState::Connecting;
         Ok(())
     }
 
     pub async fn set_remote_description(&self, sdp: String) -> Result<()> {
-        info!("Setting remote SDP description");
+        log::info!("Setting remote SDP description");
         *self.remote_desc.write().await = Some(sdp);
         self.start_connection().await
     }
 
     pub async fn add_ice_candidate(&self, candidate: String) -> Result<()> {
-        info!("Adding ICE candidate: {}", candidate);
+        log::info!("Adding ICE candidate: {}", candidate);
         self.ice_candidates.write().await.push(candidate);
         Ok(())
     }
 
     pub async fn create_data_channel(&self, label: &str) -> Result<()> {
-        info!("Creating data channel: {}", label);
+        log::info!("Creating data channel: {}", label);
         Ok(())
     }
 
@@ -98,13 +97,13 @@ impl PeerConnection {
     }
 
     pub async fn close(&self) -> Result<()> {
-        info!("Closing peer connection");
+        log::info!("Closing peer connection");
         *self.state.write().await = PeerState::Disconnected;
         Ok(())
     }
 
     async fn start_connection(&self) -> Result<()> {
-        info!("Starting WebRTC connection");
+        log::info!("Starting WebRTC connection");
         *self.state.write().await = PeerState::Connected;
         Ok(())
     }

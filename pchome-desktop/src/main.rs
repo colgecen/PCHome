@@ -1,15 +1,17 @@
 use anyhow::Result;
-use pchome_desktop::encoder::Encoder;
-use pchome_desktop::metrics::ENCODE_LATENCY;
-use pchome_desktop::network::ConnectionManager;
-use pchome_desktop::pin::PinManager;
-use pchome_desktop::pipewire::init_capture;
-use pchome_desktop::uinput::UInputDevice;
+use crate::encoder::Encoder;
+use crate::metrics::ENCODE_LATENCY;
+use crate::network::ConnectionManager;
+use crate::pin::PinManager;
+use crate::pipewire::init_capture;
+use crate::uinput::UInputDevice;
 use tokio::signal;
 
 mod metrics;
+#[cfg(target_family = "unix")]
 mod uinput;
 mod pin;
+#[cfg(target_family = "unix")]
 mod pipewire;
 mod encoder;
 mod network;
@@ -25,8 +27,9 @@ async fn main() -> Result<()> {
     let _pin = pin_manager.generate_and_register().await?;
 
     let _encoder = Encoder::init_encoder()?;
+    #[cfg(target_family = "unix")]
     let _capture_stream = init_capture()?;
-
+    #[cfg(target_family = "unix")]
     let _uinput = UInputDevice::open("/dev/uinput", "pchome-virtual-device")?;
 
     let connection_manager = ConnectionManager::new("ws://localhost:8080/ws");

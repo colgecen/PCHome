@@ -1,7 +1,6 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
-use tracing::{debug, info, warn};
 
 const STUN_SERVERS: [&str; 3] = [
     "stun.l.google.com:19302",
@@ -11,7 +10,7 @@ const STUN_SERVERS: [&str; 3] = [
 
 pub async fn bind_udp(addr: SocketAddr) -> Result<UdpSocket> {
     let socket = UdpSocket::bind(addr).await?;
-    info!("UDP socket bound to {}", addr);
+    log::info!("UDP socket bound to {}", addr);
     Ok(socket)
 }
 
@@ -21,15 +20,15 @@ pub async fn nat_probe(socket: &UdpSocket, target: SocketAddr) -> Result<Option<
 
     match tokio::time::timeout(std::time::Duration::from_secs(2), socket.recv_from(&mut buf)).await {
         Ok(Ok((len, addr))) => {
-            debug!("NAT probe response from {}: {} bytes", addr, len);
+            log::debug!("NAT probe response from {}: {} bytes", addr, len);
             Ok(Some(addr))
         }
         Ok(Err(e)) => {
-            warn!("NAT probe recv error: {}", e);
+            log::warn!("NAT probe recv error: {}", e);
             Ok(None)
         }
         Err(_) => {
-            warn!("NAT probe timeout");
+            log::warn!("NAT probe timeout");
             Ok(None)
         }
     }
@@ -44,19 +43,19 @@ pub async fn stun_bind_request(socket: &UdpSocket, stun_addr: SocketAddr) -> Res
     match tokio::time::timeout(std::time::Duration::from_secs(2), socket.recv_from(&mut buf)).await {
         Ok(Ok((len, _from))) => {
             if let Some(mapped) = parse_stun_bind_response(&buf[..len]) {
-                debug!("STUN mapped address: {}", mapped);
+                log::debug!("STUN mapped address: {}", mapped);
                 Ok(Some(mapped))
             } else {
-                warn!("Invalid STUN response");
+                log::warn!("Invalid STUN response");
                 Ok(None)
             }
         }
         Ok(Err(e)) => {
-            warn!("STUN recv error: {}", e);
+            log::warn!("STUN recv error: {}", e);
             Ok(None)
         }
         Err(_) => {
-            warn!("STUN request timeout");
+            log::warn!("STUN request timeout");
             Ok(None)
         }
     }
@@ -68,7 +67,7 @@ pub async fn discover_external_addr(socket: &UdpSocket) -> Result<Option<SocketA
             return Ok(Some(addr));
         }
     }
-    warn!("All STUN servers failed");
+    log::warn!("All STUN servers failed");
     Ok(None)
 }
 

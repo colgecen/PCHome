@@ -1,6 +1,5 @@
-use anyhow::{Context, Result};
-use pchome_desktop::metrics::{BITRATE_BYTES_TOTAL, ENCODE_LATENCY, ERRORS_TOTAL, FRAMES_ENCODED};
-use std::sync::Arc;
+use crate::metrics::{BITRATE_BYTES_TOTAL, ENCODE_LATENCY, ERRORS_TOTAL, FRAMES_ENCODED};
+use anyhow::Result;
 use std::time::Instant;
 use thiserror::Error;
 
@@ -59,7 +58,7 @@ impl Encoder {
 
     pub fn init_encoder() -> Result<Self> {
         let backend = Self::detect_backend();
-        info!("Encoder backend selected: {:?}", backend);
+        log::info!("Encoder backend selected: {:?}", backend);
         Ok(Self {
             backend,
             width: 1920,
@@ -76,7 +75,7 @@ impl Encoder {
         if std::path::Path::new("/dev/nvidia0").exists() {
             return EncoderBackend::Nvenc;
         }
-        warn!("No hardware encoder found, falling back to software");
+        log::warn!("No hardware encoder found, falling back to software");
         EncoderBackend::Software
     }
 
@@ -105,12 +104,12 @@ impl Encoder {
     }
 
     async fn encode_vaapi(&mut self, data: &[u8]) -> Result<Vec<u8>> {
-        warn!("VA-API hardware encode stub");
+        log::warn!("VA-API hardware encode stub");
         self.encode_software(data).await
     }
 
     async fn encode_nvenc(&mut self, data: &[u8]) -> Result<Vec<u8>> {
-        warn!("NVENC hardware encode stub");
+        log::warn!("NVENC hardware encode stub");
         self.encode_software(data).await
     }
 
