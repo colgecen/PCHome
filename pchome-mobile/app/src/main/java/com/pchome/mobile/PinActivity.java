@@ -40,7 +40,8 @@ public class PinActivity extends AppCompatActivity {
         statusText.setText(R.string.connecting);
         connectButton.setEnabled(false);
 
-        signalClient = new SignalClient("ws://localhost:8080/ws", pinText.getText().toString(),
+        String rawPin = pinText.getText().toString().replaceAll("[^0-9]", "");
+        signalClient = new SignalClient("ws://localhost:8080/ws", rawPin,
                 new SignalClient.SignalListener() {
                     @Override
                     public void onConnected() {
