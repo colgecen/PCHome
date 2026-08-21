@@ -6,6 +6,43 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
 
 #[cfg(target_family = "unix")]
+const UI_SET_EVBIT: libc::c_ulong = 0x40045564;
+#[cfg(target_family = "unix")]
+const UI_SET_KEYBIT: libc::c_ulong = 0x40045565;
+#[cfg(target_family = "unix")]
+const UI_SET_RELBIT: libc::c_ulong = 0x40045566;
+#[cfg(target_family = "unix")]
+const UI_DEV_SETUP: libc::c_ulong = 0x40105568;
+#[cfg(target_family = "unix")]
+const UI_DEV_CREATE: libc::c_ulong = 0x40045569;
+#[cfg(target_family = "unix")]
+const UI_DEV_DESTROY: libc::c_ulong = 0x4004556a;
+
+#[cfg(target_family = "unix")]
+const UINPUT_MAX_NAME_SIZE: usize = 80;
+
+#[cfg(target_family = "unix")]
+#[repr(C)]
+struct UinputId {
+    bustype: u16,
+    vendor: u16,
+    product: u16,
+    version: u16,
+}
+
+#[cfg(target_family = "unix")]
+#[repr(C)]
+struct UinputSetup {
+    id: UinputId,
+    name: [u8; UINPUT_MAX_NAME_SIZE],
+    ff_effects_max: u32,
+    absmax: [i32; 64],
+    absmin: [i32; 64],
+    absfuzz: [i32; 64],
+    absflat: [i32; 64],
+}
+
+#[cfg(target_family = "unix")]
 pub struct UInputDevice {
     fd: std::fs::File,
     pub name: String,
@@ -18,8 +55,48 @@ impl UInputDevice {
             .write(true)
             .custom_flags(libc::O_NONBLOCK)
             .open(path)?;
+        let raw_fd = fd.as_raw_fd();
 
-        log::info!("uinput device opened: {} ({})", path, name);
+        // Enable the event types this virtual device will emit.
+        ioctl(raw_fd, UI_SET_EVBIT, libc::EV_SYN as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_EVBIT, libc::EV_KEY as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_EVBIT, libc::EV_REL as libc::c_ulong);
+
+        // Advertise a broad key range plus mouse buttons and relative axes.
+        for code in 0..=255u32 {
+            ioctl(raw_fd, UI_SET_KEYBIT, code as libc::c_ulong);
+        }
+        ioctl(raw_fd, UI_SET_KEYBIT, libc::BTN_LEFT as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_KEYBIT, libc::BTN_RIGHT as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_KEYBIT, libc::BTN_MIDDLE as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_RELBIT, libc::REL_X as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_RELBIT, libc::REL_Y as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_RELBIT, libc::REL_WHEEL as libc::c_ulong);
+
+        let mut setup: UinputSetup = unsafe { std::mem::zeroed() };
+        setup.id.bustype = libc::BUS_VIRTUAL as u16;
+        setup.id.vendor = 0x1234;
+        setup.id.product = 0x5678;
+        setup.id.version = 1;
+        let name_bytes = name.as_bytes();
+        let len = name_bytes.len().min(UINPUT_MAX_NAME_SIZE - 1);
+        setup.name[..len].copy_from_slice(&name_bytes[..len]);
+
+        unsafe {
+            if libc::ioctl(
+                raw_fd,
+                UI_DEV_SETUP as libc::c_ulong,
+                &setup as *const UinputSetup as *const libc::c_void,
+            ) < 0
+            {
+                anyhow::bail!("uinput UI_DEV_SETUP failed: errno {}", *libc::__errno_location());
+            }
+            if libc::ioctl(raw_fd, UI_DEV_CREATE as libc::c_ulong, 0) < 0 {
+                anyhow::bail!("uinput UI_DEV_CREATE failed: errno {}", *libc::__errno_location());
+            }
+        }
+
+        log::info!("uinput device created: {} ({})", path, name);
         Ok(Self {
             fd,
             name: name.to_string(),
@@ -45,6 +122,22 @@ impl UInputDevice {
             break;
         }
         Ok(())
+    }
+}
+
+#[cfg(target_family = "unix")]
+fn ioctl(fd: i32, request: libc::c_ulong, value: libc::c_ulong) {
+    unsafe {
+        libc::ioctl(fd, request, value);
+    }
+}
+
+#[cfg(target_family = "unix")]
+impl Drop for UInputDevice {
+    fn drop(&mut self) {
+        unsafe {
+            libc::ioctl(self.fd.as_raw_fd(), UI_DEV_DESTROY as libc::c_ulong, 0);
+        }
     }
 }
 
