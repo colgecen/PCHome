@@ -3,17 +3,24 @@ use crate::encoder::Encoder;
 use crate::metrics::ENCODE_LATENCY;
 use crate::network::ConnectionManager;
 use crate::pin::PinManager;
-use crate::pipewire::init_capture;
-use crate::uinput::UInputDevice;
 use tokio::signal;
+
+#[cfg(all(feature = "capture", target_family = "unix"))]
+use crate::pipewire::init_capture;
+#[cfg(all(feature = "capture", target_family = "unix"))]
+use crate::uinput::UInputDevice;
 
 mod metrics;
 mod pixelformat;
-#[cfg(target_family = "unix")]
+#[cfg(all(feature = "capture", target_family = "unix"))]
 mod uinput;
 mod pin;
-#[cfg(target_family = "unix")]
+#[cfg(all(feature = "capture", target_family = "unix"))]
 mod pipewire;
+#[cfg(feature = "webrtc")]
+mod webrtc;
+#[cfg(feature = "pipewire-rs")]
+mod pipewire_real;
 mod encoder;
 mod network;
 mod config;
@@ -32,9 +39,9 @@ async fn main() -> Result<()> {
     log::info!("Registered PIN: {:06}", pin);
 
     let _encoder = Encoder::init_encoder()?;
-    #[cfg(target_family = "unix")]
+    #[cfg(all(feature = "capture", target_family = "unix"))]
     let _capture_stream = init_capture()?;
-    #[cfg(target_family = "unix")]
+    #[cfg(all(feature = "capture", target_family = "unix"))]
     let _uinput = UInputDevice::open("/dev/uinput", "pchome-virtual-device")?;
 
     let connection_manager = ConnectionManager::new(config.signal_url.clone());
