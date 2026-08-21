@@ -12,7 +12,7 @@ github.com/gorilla/websocket v1.5.3 h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aN
 github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 h1:j6Q9qRrk6BME4Ao9cT8sB5CkSuqWLWbGsG7V3LNo9kA=
 github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0/go.mod h1:QUU042FbP2Rj2ULhrS5Q7BLcYHzydepjGaWzrh62l0g=
-github.com/prometheus/client_golang v1.19.1 h1:mP9lZJ9GOwcdCy5Gy5BzM5ekBYzPDtqlPA8R4QqBEAU=
+github.com/prometheus/client_golang v1.19.1 h1:wZWJDwK+NameRJuPGDhlnFgx8e8HN3XHQeLaYJFJBOE=
 github.com/prometheus/client_golang v1.19.1/go.mod h1:5RXxK0FXIInhrsVxVuZvTKlYSL3wP5oTSywWbNZYong=
 github.com/prometheus/client_model v0.5.0 h1:FVDWIObQuqe/Y5XkWLgZ5r3bVgVU7+EcaPbh6s/zsEY=
 github.com/prometheus/client_model v0.5.0/go.mod h1:QoyK+HFZR+uVVqQID6xzq/5g/gY7wR9wAlGXYkYjfoQ=
