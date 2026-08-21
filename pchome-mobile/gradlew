@@ -1,14 +1,30 @@
-#!/usr/bin/env sh
+#!/bin/sh
+# Gradle start up script for POSIX (minimal, Linux/CI safe).
+# Resolves APP_HOME, locates java, and launches the Gradle wrapper main class.
 
-##############################################################################
-# Gradle startup script for POSIX
-##############################################################################
+APP_HOME=$( cd "$(dirname "$0")" && pwd ) || exit 1
+CLASSPATH="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
+DEFAULT_JVM_OPTS="-Xmx64m -Xms64m"
 
-DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
+if [ -n "$JAVA_HOME" ]; then
+    JAVACMD="$JAVA_HOME/bin/java"
+    if [ ! -x "$JAVACMD" ]; then
+        echo "ERROR: JAVA_HOME is set to an invalid directory: $JAVA_HOME" >&2
+        exit 1
+    fi
+else
+    JAVACMD=java
+    if ! command -v java >/dev/null 2>&1; then
+        echo "ERROR: JAVA_HOME is not set and no 'java' command found in PATH." >&2
+        exit 1
+    fi
+fi
 
-APP_NAME="Gradle"
-GRADLE_VERSION="8.2"
+if [ ! -f "$CLASSPATH" ]; then
+    echo "ERROR: gradle-wrapper.jar not found at $CLASSPATH" >&2
+    echo "Run 'gradle wrapper' to generate it, or build with a local Gradle install." >&2
+    exit 1
+fi
 
-CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
-
-exec "$JAVACMD" "$@"
+exec "$JAVACMD" $DEFAULT_JVM_OPTS -classpath "$CLASSPATH" \
+    org.gradle.wrapper.GradleWrapperMain "$@"
