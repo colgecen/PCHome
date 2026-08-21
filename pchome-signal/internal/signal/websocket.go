@@ -30,13 +30,21 @@ type Hub struct {
 	clients    map[*Client]bool
 	register   chan *Client
 	unregister chan *Client
-	broadcast  chan *Message
+	broadcast  chan *relayMessage
 	mu         sync.RWMutex
+}
+
+// relayMessage carries a payload plus the sender so the hub can avoid echoing
+// the message back to the originator.
+type relayMessage struct {
+	from *Client
+	msg  *Message
 }
 
 type Client struct {
 	ID     string
 	PIN    string
+	Role   string
 	Conn   *websocket.Conn
 	Send   chan []byte
 	Hub    *Hub
@@ -51,7 +59,7 @@ func NewHub(rooms *room.Manager, metrics *Metrics, log *zap.Logger) *Hub {
 		clients:    make(map[*Client]bool),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
-		broadcast:  make(chan *Message),
+		broadcast:  make(chan *relayMessage),
 	}
 }
 
@@ -63,7 +71,7 @@ func (h *Hub) Run() {
 			h.clients[client] = true
 			h.mu.Unlock()
 			h.metrics.IncConnectedClients()
-			client.Logger.Info("Client registered", zap.String("id", client.ID))
+			client.Logger.Info("Client registered", zap.String("id", client.ID), zap.String("role", client.Role))
 		case client := <-h.unregister:
 			h.mu.Lock()
 			if _, ok := h.clients[client]; ok {
@@ -73,17 +81,21 @@ func (h *Hub) Run() {
 			h.mu.Unlock()
 			h.metrics.DecConnectedClients()
 			client.Logger.Info("Client unregistered", zap.String("id", client.ID))
-		case msg := <-h.broadcast:
+		case rm := <-h.broadcast:
 			h.mu.RLock()
 			for client := range h.clients {
-				if client.PIN == msg.Type {
-					select {
-					case client.Send <- []byte(msg.Data):
-						h.metrics.IncMessagesRelayed()
-					default:
-						close(client.Send)
-						delete(h.clients, client)
-					}
+				if client == rm.from {
+					continue
+				}
+				if client.PIN != rm.msg.Type {
+					continue
+				}
+				select {
+				case client.Send <- []byte(rm.msg.Data):
+					h.metrics.IncMessagesRelayed()
+				default:
+					close(client.Send)
+					delete(h.clients, client)
 				}
 			}
 			h.mu.RUnlock()
@@ -98,22 +110,33 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	}
 
 	pin := r.URL.Query().Get("pin")
-	if pin == "" {
-		conn.Close()
-		return
-	}
-
-	if _, exists := hub.rooms.Get(pin); !exists {
-		conn.WriteJSON(map[string]string{"error": "invalid pin"})
+	role := r.URL.Query().Get("role")
+	if pin == "" || (role != "desktop" && role != "mobile") {
+		conn.WriteJSON(map[string]string{"error": "missing pin or role"})
 		conn.Close()
 		return
 	}
 
 	clientID := uuid.New().String()
+	if role == "desktop" {
+		if err := hub.rooms.Reserve(pin, clientID); err != nil {
+			conn.WriteJSON(map[string]string{"error": err.Error()})
+			conn.Close()
+			return
+		}
+	} else {
+		if _, exists := hub.rooms.Get(pin); !exists {
+			conn.WriteJSON(map[string]string{"error": "invalid pin"})
+			conn.Close()
+			return
+		}
+	}
+
 	logger := zap.NewExample()
 	client := &Client{
 		ID:     clientID,
 		PIN:    pin,
+		Role:   role,
 		Conn:   conn,
 		Send:   make(chan []byte, 256),
 		Hub:    hub,
@@ -147,9 +170,9 @@ func (c *Client) readPump() {
 			break
 		}
 
-		c.Hub.broadcast <- &Message{
-			Type: c.PIN,
-			Data: string(message),
+		c.Hub.broadcast <- &relayMessage{
+			from: c,
+			msg:  &Message{Type: c.PIN, Data: string(message)},
 		}
 	}
 }
