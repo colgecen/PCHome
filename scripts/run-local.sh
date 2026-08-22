@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Launch the full PChome stack locally for development.
 #
-#   1. PChome Signal server (Go)
+#   1. PChome Signal server (Rust)
 #   2. PChome Desktop daemon (Rust)
 #
 # The Android app (pchome-mobile) must be launched separately via Android
@@ -13,7 +13,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SIGNAL_ADDR="ws://127.0.0.1:8080/ws"
 
 echo "==> Starting PChome Signal server"
-( cd "$ROOT/pchome-signal" && go run ./cmd/server ) &
+( cd "$ROOT/pchome-signal" && cargo run -- ) &
 SIGNAL_PID=$!
 
 cleanup() {

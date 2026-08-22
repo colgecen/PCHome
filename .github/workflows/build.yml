@@ -7,24 +7,23 @@ on:
 
 jobs:
   signal:
-    name: Build Signal Server (Go)
+    name: Build Signal Server (Rust)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: pchome-signal
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          go-version: '1.23'
-      - name: Tidy modules (repairs go.sum checksums)
-        run: go mod tidy
-      - name: Vet
-        run: go vet ./...
+          components: clippy
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
       - name: Build
-        run: go build -o bin/pchome-signal ./cmd/server
+        run: cargo build --release
       - name: Test
-        run: go test ./...
+        run: cargo test --release
 
   desktop:
     name: Build Desktop Daemon (Rust)

@@ -9,16 +9,6 @@ if ! command -v rustc &> /dev/null; then
     source "$HOME/.cargo/env"
 fi
 
-if ! command -v go &> /dev/null; then
-    echo "Installing Go 1.23..."
-    GO_VERSION=1.23.0
-    wget -q "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz"
-    sudo rm -rf /usr/local/go
-    sudo tar -C /usr/local -xzf "go${GO_VERSION}.linux-amd64.tar.gz"
-    rm "go${GO_VERSION}.linux-amd64.tar.gz"
-    export PATH=$PATH:/usr/local/go/bin
-fi
-
 if ! command -v java &> /dev/null; then
     echo "Installing JDK 17..."
     sudo apt-get update -qq
@@ -33,7 +23,7 @@ else
 fi
 
 echo "Building all modules..."
-cd pchome-signal && go mod tidy && cd ..
+cd pchome-signal && cargo build && cd ..
 cd pchome-desktop && cargo build && cd ..
 
 echo "Setup complete. Run ./scripts/run-local.sh to start development environment."

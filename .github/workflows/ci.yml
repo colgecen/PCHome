@@ -55,45 +55,40 @@ jobs:
           cd pchome-desktop
           cargo bench --bench roundtrip_bench
 
-  lint-go:
+  lint-signal:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          go-version: '1.23'
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          working-directory: pchome-signal
+          components: clippy
+      - name: Run clippy
+        run: |
+          cd pchome-signal
+          cargo clippy --all-targets -- -D warnings
 
-  test-go:
+  test-signal:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
       - name: Run tests
         run: |
           cd pchome-signal
-          go test ./...
+          cargo test --all-targets
 
-  build-go:
+  build-signal:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
       - name: Build
         run: |
           cd pchome-signal
-          go build ./...
+          cargo build --release
 
   e2e-test:
     runs-on: ubuntu-latest

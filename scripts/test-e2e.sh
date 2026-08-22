@@ -8,8 +8,8 @@ PIN="${PIN:-000000}"
 
 echo "[1/4] Starting signal server..."
 cd pchome-signal
-go build -o /tmp/pchome-signal ./...
-/tmp/pchome-signal &
+cargo build
+./target/debug/pchome-signal &
 SIGNAL_PID=$!
 cd ..
 
