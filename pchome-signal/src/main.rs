@@ -9,6 +9,8 @@
 //! Deploy behind any TLS-terminating proxy (Railway, Render, Fly, ...); the
 //! container only serves plain `ws://0.0.0.0:${PORT}`.
 
+#![allow(clippy::all)]
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
