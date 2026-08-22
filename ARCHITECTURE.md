@@ -80,23 +80,33 @@ PChome operates as a monorepo with three decoupled yet seamlessly integrated mod
 1. **Handshake Phase**: PIN authentication via Signal server WebSockets
 2. **Connection Phase**: WebRTC SDP/ICE candidate exchange for NAT traversal
 3. **Stream Phase**: DMA-BUF zero-copy screen capture → H.264 encoding → WebRTC DataChannel
-4. **Input Phase**: /dev/uinput (Desktop) / AccessibilityService (Mobile) → WebRTC DataChannel
+4. **Input Phase**: /dev/uinput (Desktop) / on-screen touch + hardware keyboard (Mobile) → WebRTC DataChannel
 5. **Control Phase**: Asynchronous command routing via the WebRTC DataChannel
 
 ## Control Flows
 
 ### Flow A: Phone Controls Linux PC (Remote Touchpad / Keyboard)
 
-- **Mobile (Java)**: The `TouchpadActivity` tracks finger deltas (`ΔX, ΔY`), swipes, and gestures via `View.OnTouchListener`. Input is serialized into compact binary packets and sent over the WebRTC DataChannel.
-- **Desktop (Rust)**: The daemon receives the binary packets, scales coordinates, and injects motion directly into the kernel level via `/dev/uinput`, bypassing Wayland/X11 display server restrictions.
-- **Result**: The user can control the Linux desktop's mouse cursor and keyboard from the Android device.
+- **Mobile (Java)**: `DisplayActivity` renders the desktop's H.264 stream on a
+  `SurfaceViewRenderer` and translates touch into control JSON
+  (`move_abs`/`move_rel`/`click`/`scroll`) sent over the unordered/unreliable
+  `control` DataChannel. Two modes are supported: **Direct** (touch point maps
+  to absolute PC coordinates; two-finger drag = scroll) and **Trackpad**
+  (relative deltas + on-screen reticle). A neon `NeonKeyboard` and hardware key
+  events (`KeyCodeMap`) send `key` messages.
+- **Desktop (Rust)**: `WebRtcEngine` is the WebRTC **offerer**; it opens the
+  `control` DataChannel and, on each message, `ControlHandler` injects motion /
+  button / wheel / key events into the kernel via `/dev/uinput`, bypassing
+  Wayland/X11 restrictions.
+- **Result**: The user controls the Linux desktop's mouse cursor and keyboard
+  from the Android device with no root and no AccessibilityService.
 
-### Flow B: Linux PC Controls / Mirrors Android Phone
+### Flow B: Linux PC Mirrors / Controls Android Phone — REMOVED
 
-- **Mobile Capture (Java)**: The `ScreenCaptureService` captures frames via `MediaProjection`, hardware‑encodes video to H.264 using `MediaCodec`, and broadcasts the stream over the WebRTC `MediaStream`.
-- **Desktop Renderer (Rust)**: The incoming H.264 stream is rendered onto the Rust UI canvas. Mouse clicks over the video window are captured, and scaled X/Y coordinates are sent back to the Android device.
-- **Mobile Injection (Java)**: The `AndroidControlService` (AccessibilityService) receives the remote coordinates and executes real‑time gestures using `GestureDescription.Builder` without requiring root access.
-- **Result**: The Linux desktop mirrors the Android phone's screen and can inject touch gestures back.
+This direction was removed in the current revision. The mobile client no longer
+captures its screen or injects gestures; it is purely a remote viewer/controller
+of the desktop. The desktop remains the WebRTC offerer and the sole input
+injector via `/dev/uinput`.
 
 ## Connection Handshake Protocol
 
@@ -114,17 +124,21 @@ payloads; it only forwards them between the two peers that share a PIN.
    `123-456`; separators are stripped before connecting).
 4. **Hub formation**: On the first peer's connect the Signal server creates a
    `Room` with a `sync.Map` of `peerID -> *Client`. When the second peer
-   connects, both clients are linked in a `Hub` so messages route between them
-   and are never echoed back to the sender.
-5. **SDP/ICE relay**: Each side sends JSON `{ "type": "offer" | "answer" |
-   "ice-candidate", ... }`. The hub JSON-encodes a typed `relayMessage`
-   (`from`, `to`, `data`) and writes it to the *other* peer only.
-6. **NAT traversal**: ICE candidates are exchanged through the same relay. If
-   both peers are on the same network, host candidates connect directly;
-   otherwise a STUN server (`stun:stun.l.google.com:19302`) yields the
-   XOR-MAPPED-ADDRESS used for the connection. The desktop builds a valid
-   STUN Binding Request (magic cookie `0x2112A442`) and parses the
-   XOR-MAPPED-ADDRESS response.
-7. **Media + data**: Once the WebRTC `PeerConnection` is established, screen
-   frames and input events flow over the P2P `MediaStream` / `DataChannel`,
-   bypassing the Signal server entirely.
+    connects, both clients are linked in a `Hub` so messages route between them
+    and are never echoed back to the sender.
+ 5. **Offer/answer**: The desktop is the WebRTC **offerer**. After the hub forms,
+    the mobile sends `{ "type": "hello", "role": "mobile" }`; the desktop replies
+    with `{ "type": "offer", ... }` and the mobile answers. ICE candidates then
+    flow both ways.
+ 6. **SDP/ICE relay**: Each side sends JSON `{ "type": "offer" | "answer" |
+    "ice-candidate", ... }`. The hub JSON-encodes a typed `relayMessage`
+    (`from`, `to`, `data`) and writes it to the *other* peer only.
+ 7. **NAT traversal**: ICE candidates are exchanged through the same relay. If
+    both peers are on the same network, host candidates connect directly;
+    otherwise a STUN server (`stun:stun.l.google.com:19302`) yields the
+    XOR-MAPPED-ADDRESS used for the connection. The desktop builds a valid
+    STUN Binding Request (magic cookie `0x2112A442`) and parses the
+    XOR-MAPPED-ADDRESS response.
+ 8. **Media + data**: Once the WebRTC `PeerConnection` is established, screen
+    frames and input events flow over the P2P `MediaStream` / `DataChannel`,
+    bypassing the Signal server entirely.

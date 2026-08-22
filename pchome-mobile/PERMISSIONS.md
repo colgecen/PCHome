@@ -1,5 +1,12 @@
 # PChome Android Permissions Guide
 
+> **Note (current revision):** Phone-screen mirroring and AccessibilityService
+> gesture injection (`ScreenCaptureService` / `AndroidControlService`) were
+> **removed**. The mobile app is now a pure remote viewer/controller of the
+> Linux desktop: it only needs `INTERNET` (+ `WAKE_LOCK`) and renders the
+> desktop's WebRTC stream, sending input over the `control` DataChannel. The
+> sections below describing those removed services are kept for history only.
+
 ## Required Permissions
 
 ### AndroidManifest.xml
