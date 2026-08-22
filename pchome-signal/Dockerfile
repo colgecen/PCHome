@@ -1,30 +1,14 @@
-# Stage 1: Build
-FROM golang:1.23-alpine AS builder
-
-RUN apk add --no-cache git ca-certificates
-
+# ---- build stage ----
+FROM rust:1.81-slim AS build
 WORKDIR /app
+COPY Cargo.toml Cargo.lock* ./
+COPY src ./src
+RUN cargo build --release
 
-COPY go.mod go.sum ./
-RUN go mod download
-
-COPY . .
-
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /pchome-signal .
-
-# Stage 2: Runtime
-FROM alpine:3.19
-
-RUN apk --no-cache add ca-certificates tzdata openssl
-
+# ---- runtime stage ----
+FROM debian:bookworm-slim
 WORKDIR /app
-
-COPY --from=builder /pchome-signal .
-COPY docker-entrypoint.sh /usr/local/bin/
-
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
+COPY --from=build /app/target/release/pchome-signal /app/pchome-signal
+ENV PORT=8080
 EXPOSE 8080
-
-ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["./pchome-signal", "-tls-cert=/certs/tls.crt", "-tls-key=/certs/tls.key"]
+CMD ["/app/pchome-signal"]

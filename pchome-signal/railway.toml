@@ -1,0 +1,11 @@
+# Railway deployment config for the PChome signaling server.
+# Push this folder to GitHub and link it to Railway; it auto-detects Docker.
+# The public URL becomes wss://<random>.up.railway.app (TLS terminated by Railway).
+# Set the desktop's PCHOME_SIGNAL_URL to wss://<random>.up.railway.app/ws
+
+services:
+  signal:
+    dockerfile: Dockerfile
+    healthcheckPath: /
+    variables:
+      PORT: 8080
