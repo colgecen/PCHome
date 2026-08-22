@@ -79,7 +79,7 @@ public class WebRtcClient {
                 .createPeerConnectionFactory();
     }
 
-    public void connect(String signalUrl, String pin, JSONObject sdpOffer) {
+    public void connect(String signalUrl, String pin) {
         state = ConnectionState.CONNECTING;
         notifyStateChanged();
 
@@ -88,11 +88,7 @@ public class WebRtcClient {
             public void onConnected() {
                 startLocalMedia();
                 createPeerConnection();
-                if (sdpOffer != null) {
-                    setRemoteDescription(sdpOffer);
-                } else {
-                    createOffer();
-                }
+                sendHello();
             }
 
             @Override
@@ -137,8 +133,13 @@ public class WebRtcClient {
             }
         }
 
-        audioSource = factory.createAudioSource(new MediaConstraints());
-        localAudioTrack = factory.createAudioTrack("ARDAMSa0", audioSource);
+        // Only capture a local audio track when we actually have a media
+        // projection (e.g. mirroring the phone). For pure remote-control of the
+        // desktop we are a receiver and must NOT capture the mic.
+        if (MediaProjectionHolder.hasProjection()) {
+            audioSource = factory.createAudioSource(new MediaConstraints());
+            localAudioTrack = factory.createAudioTrack("ARDAMSa0", audioSource);
+        }
     }
 
     private VideoCapturer createVideoCapturer() {
@@ -182,6 +183,20 @@ public class WebRtcClient {
             @Override
             public void onAddStream(MediaStream stream) {
                 if (listener != null) listener.onRemoteTrack(stream);
+            }
+
+            @Override
+            public void onTrack(org.webrtc.RtpTransceiver transceiver) {
+                org.webrtc.MediaStreamTrack track = transceiver.getReceiver().track();
+                if (track instanceof VideoTrack) {
+                    VideoTrack vt = (VideoTrack) track;
+                    if (remoteRenderer != null) {
+                        vt.addSink(remoteRenderer);
+                    }
+                    if (listener != null) {
+                        listener.onRemoteTrack(null);
+                    }
+                }
             }
 
             @Override
@@ -230,23 +245,31 @@ public class WebRtcClient {
             @Override public void onIceCandidatesRemoved(IceCandidate[] candidates) {}
             @Override public void onRemoveStream(MediaStream stream) {}
             @Override public void onRenegotiationNeeded() {}
-            @Override public void onTrack(org.webrtc.RtpTransceiver transceiver) {}
         });
+
+        // Ensure the SDP answer contains a recvonly video m-line so the
+        // desktop's outbound H.264 track is accepted (mobile only receives).
+        try {
+            peerConnection.addTransceiver(
+                    org.webrtc.MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO,
+                    new org.webrtc.RtpTransceiver.RtpTransceiverInit(
+                            org.webrtc.RtpTransceiver.RtpTransceiverDirection.RECV_ONLY));
+        } catch (Exception e) {
+            Log.e(TAG, "addTransceiver failed", e);
+        }
 
         MediaStream stream = factory.createLocalMediaStream("ARDAMS");
         if (localVideoTrack != null) {
             stream.addTrack(localVideoTrack);
         }
-        stream.addTrack(localAudioTrack);
+        if (localAudioTrack != null) {
+            stream.addTrack(localAudioTrack);
+        }
         peerConnection.addStream(stream);
     }
 
-    private void createOffer() {
-        MediaConstraints constraints = new MediaConstraints();
-        constraints.mandatory.add(new MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"));
-        constraints.mandatory.add(new MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"));
-
-        peerConnection.createOffer(new SdpObserver() {
+    private void createAnswer() {
+        peerConnection.createAnswer(new SdpObserver() {
             @Override
             public void onCreateSuccess(SessionDescription sessionDescription) {
                 localSdp = sessionDescription.description;
@@ -254,18 +277,18 @@ public class WebRtcClient {
 
                 try {
                     JSONObject msg = new JSONObject();
-                    msg.put("type", "offer");
+                    msg.put("type", "answer");
                     msg.put("sdp", sessionDescription.description);
                     signalClient.sendMessage(msg);
                 } catch (JSONException e) {
-                    Log.e(TAG, "Failed to send offer", e);
+                    Log.e(TAG, "Failed to send answer", e);
                 }
             }
 
             @Override public void onSetSuccess() {}
-            @Override public void onCreateFailure(String s) { Log.e(TAG, "Create offer failed: " + s); }
+            @Override public void onCreateFailure(String s) { Log.e(TAG, "Create answer failed: " + s); }
             @Override public void onSetFailure(String s) { Log.e(TAG, "Set local desc failed: " + s); }
-        }, constraints);
+        }, new MediaConstraints());
     }
 
     private void setRemoteDescription(JSONObject sdp) {
@@ -280,6 +303,8 @@ public class WebRtcClient {
                 @Override public void onSetSuccess() {
                     if (type.equals("answer")) {
                         drainIceCandidates();
+                    } else if (type.equals("offer")) {
+                        createAnswer();
                     }
                 }
                 @Override public void onCreateSuccess(SessionDescription sessionDescription) {}
@@ -291,10 +316,24 @@ public class WebRtcClient {
         }
     }
 
+    private void sendHello() {
+        try {
+            JSONObject hello = new JSONObject();
+            hello.put("type", "hello");
+            hello.put("role", "mobile");
+            signalClient.sendMessage(hello);
+        } catch (JSONException e) {
+            Log.e(TAG, "Failed to send hello", e);
+        }
+    }
+
     private void handleSignalMessage(JSONObject message) {
         try {
             String type = message.getString("type");
             switch (type) {
+                case "offer":
+                    setRemoteDescription(message);
+                    break;
                 case "answer":
                     setRemoteDescription(message);
                     break;
@@ -346,6 +385,18 @@ public class WebRtcClient {
 
     public void setListener(WebRtcListener listener) {
         this.listener = listener;
+    }
+
+    /// Send a UTF-8 JSON control message over the `control` DataChannel
+    /// (unordered/unreliable). No buffering: the bytes are transmitted
+    /// immediately for lowest input latency.
+    public void sendControl(String json) {
+        if (dataChannel != null && dataChannel.state() == DataChannel.State.OPEN) {
+            byte[] bytes = json.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            DataChannel.Buffer buffer = new DataChannel.Buffer(
+                    java.nio.ByteBuffer.wrap(bytes), false);
+            dataChannel.send(buffer);
+        }
     }
 
     private void notifyStateChanged() {

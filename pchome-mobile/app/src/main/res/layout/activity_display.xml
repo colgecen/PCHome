@@ -4,8 +4,13 @@
     android:layout_height="match_parent"
     android:background="@color/pchome_background">
 
-    <SurfaceView
+    <org.webrtc.SurfaceViewRenderer
         android:id="@+id/surface_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <com.pchome.mobile.ui.ReticleView
+        android:id="@+id/reticle"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
@@ -13,11 +18,90 @@
         android:id="@+id/stream_status"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Waiting for stream..."
+        android:text="@string/waiting_for_stream"
         android:textColor="@color/pchome_text_primary"
         android:textSize="14sp"
         android:layout_gravity="center"
         android:background="#80000000"
         android:padding="16dp" />
+
+    <!-- Cyber keyboard overlay (hidden until toggled) -->
+    <LinearLayout
+        android:id="@+id/keyboard_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:background="@color/pchome_surface"
+        android:padding="8dp"
+        android:visibility="gone" />
+
+    <!-- Floating HUD dock -->
+    <LinearLayout
+        android:id="@+id/hud_dock"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:background="#CC0D1117"
+        android:padding="8dp">
+
+        <Button
+            android:id="@+id/btn_mode"
+            style="@style/PChomeButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="DIRECT"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btn_left"
+            style="@style/PChomeButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="L-CLICK"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btn_right"
+            style="@style/PChomeButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="R-CLICK"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btn_keyboard"
+            style="@style/PChomeButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="KEYBOARD"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btn_rotate"
+            style="@style/PChomeButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ROTATE"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btn_esc"
+            style="@style/PChomeButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ESC"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btn_ctrl"
+            style="@style/PChomeButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="CTRL"
+            android:textSize="12sp" />
+    </LinearLayout>
 
 </FrameLayout>

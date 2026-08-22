@@ -48,7 +48,7 @@ public class SignalClient {
         }
 
         try {
-            URI uri = new URI(serverUrl + "?pin=" + pin);
+            URI uri = new URI(serverUrl + "?pin=" + pin + "&role=mobile");
             webSocketClient = new WebSocketClient(uri) {
                 @Override
                 public void onOpen(ServerHandshake handshakedata) {

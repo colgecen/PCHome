@@ -8,6 +8,28 @@
     android:background="@color/pchome_background">
 
     <TextView
+        android:id="@+id/server_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="SIGNAL SERVER"
+        android:textColor="@color/pchome_text_primary"
+        android:textSize="14sp"
+        android:letterSpacing="0.05"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/server"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="ws://host:8080/ws"
+        android:text="ws://localhost:8080/ws"
+        android:textColor="@color/pchome_cyan"
+        android:inputType="textUri"
+        android:textSize="16sp"
+        android:fontFamily="monospace"
+        android:layout_marginBottom="24dp" />
+
+    <TextView
         android:id="@+id/pin_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -17,15 +39,18 @@
         android:letterSpacing="0.05"
         android:layout_marginBottom="8dp" />
 
-    <TextView
-        android:id="@+id/pin"
+    <EditText
+        android:id="@+id/pin_edit"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="------"
+        android:hint="------"
         android:textColor="@color/pchome_cyan"
         android:textSize="64sp"
         android:fontFamily="monospace"
         android:letterSpacing="0.1"
+        android:inputType="number"
+        android:maxLength="6"
+        android:gravity="center"
         android:layout_marginBottom="24dp" />
 
     <TextView
