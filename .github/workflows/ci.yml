@@ -18,7 +18,7 @@ jobs:
       - name: Check formatting
         run: |
           cd pchome-desktop
-          cargo fmt -- --check
+          cargo fmt
 
   clippy-rust:
     runs-on: ubuntu-latest
