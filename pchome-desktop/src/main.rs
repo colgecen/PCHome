@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(clippy::all)]
+
 use anyhow::Result;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;

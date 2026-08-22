@@ -121,7 +121,7 @@ impl UInputDevice {
         ioctl(raw_fd, UI_SET_ABSBIT, ABS_Y as libc::c_ulong);
 
         let mut setup: UinputSetup = unsafe { std::mem::zeroed() };
-        setup.id.bustype = BUS_VIRTUAL as u16;
+        setup.id.bustype = BUS_VIRTUAL;
         setup.id.vendor = 0x1234;
         setup.id.product = 0x5678;
         setup.id.version = 1;

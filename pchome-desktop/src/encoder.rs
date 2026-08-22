@@ -118,8 +118,8 @@ impl Drop for H264Capture {
 
 fn build_args(
     backend: EncoderBackend,
-    width: u32,
-    height: u32,
+    _width: u32,
+    _height: u32,
     fps: u32,
     bitrate: u32,
 ) -> Vec<String> {
