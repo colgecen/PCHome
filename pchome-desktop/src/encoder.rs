@@ -1,116 +1,218 @@
-use crate::metrics::{BITRATE_BYTES_TOTAL, ENCODE_LATENCY, ERRORS_TOTAL, FRAMES_ENCODED};
 use anyhow::Result;
-use std::time::Instant;
-use thiserror::Error;
+use std::process::Stdio;
+use tokio::io::{AsyncReadExt, BufReader};
+use tokio::process::Command;
+use which::which;
 
-#[derive(Error, Debug)]
-pub enum EncodeError {
-    #[error("Unsupported pixel format")]
-    UnsupportedFormat,
-    #[error("Hardware encoder initialization failed: {0}")]
-    HardwareInitFailed(String),
-    #[error("Software encoder initialization failed: {0}")]
-    SoftwareInitFailed(String),
-    #[error("Encoding failed: {0}")]
-    EncodeFailed(String),
-}
-
-pub use crate::pixelformat::FourCC;
-
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EncoderBackend {
     Vaapi,
     Nvenc,
     Software,
 }
 
-pub struct Encoder {
-    backend: EncoderBackend,
-    width: u32,
-    height: u32,
-    bitrate: u32,
-    framerate: u32,
+pub fn detect_backend() -> EncoderBackend {
+    if std::path::Path::new("/dev/dri/renderD128").exists() {
+        return EncoderBackend::Vaapi;
+    }
+    if std::path::Path::new("/dev/nvidia0").exists() {
+        return EncoderBackend::Nvenc;
+    }
+    log::warn!("No hardware encoder found, falling back to software (libx264)");
+    EncoderBackend::Software
 }
 
-impl Encoder {
-    pub fn new(
-        backend: EncoderBackend,
+/// Spawns an `ffmpeg` process that captures the desktop via PipeWire and encodes
+/// it to an Annex-B H.264 elementary stream on stdout, using VA-API / NVENC when
+/// available and falling back to libx264.
+pub struct H264Capture {
+    child: tokio::process::Child,
+    reader: BufReader<tokio::process::ChildStdout>,
+    pub width: u32,
+    pub height: u32,
+    pub fps: u32,
+    buf: Vec<u8>,
+}
+
+impl H264Capture {
+    pub async fn spawn(
         width: u32,
         height: u32,
+        fps: u32,
         bitrate: u32,
-        framerate: u32,
-    ) -> Self {
-        Self {
-            backend,
+    ) -> Result<Self> {
+        let backend = detect_backend();
+        log::info!("Capture encoder backend: {:?}", backend);
+
+        let ff = which("ffmpeg").unwrap_or_else(|_| std::path::PathBuf::from("ffmpeg"));
+        let args = build_args(backend, width, height, fps, bitrate);
+        log::debug!("ffmpeg args: {:?} {:?}", ff, args);
+
+        let mut child = Command::new(ff)
+            .args(&args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?;
+
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("ffmpeg stdout unavailable"))?;
+        let reader = BufReader::new(stdout);
+
+        Ok(Self {
+            child,
+            reader,
             width,
             height,
-            bitrate,
-            framerate,
-        }
-    }
-
-    pub fn init_encoder() -> Result<Self> {
-        let backend = Self::detect_backend();
-        log::info!("Encoder backend selected: {:?}", backend);
-        Ok(Self {
-            backend,
-            width: 1920,
-            height: 1080,
-            bitrate: 4_000_000,
-            framerate: 60,
+            fps,
+            buf: Vec::with_capacity(65_536),
         })
     }
 
-    fn detect_backend() -> EncoderBackend {
-        if std::path::Path::new("/dev/dri/renderD128").exists() {
-            return EncoderBackend::Vaapi;
-        }
-        if std::path::Path::new("/dev/nvidia0").exists() {
-            return EncoderBackend::Nvenc;
-        }
-        log::warn!("No hardware encoder found, falling back to software");
-        EncoderBackend::Software
-    }
-
-    pub async fn encode(&mut self, data: &[u8]) -> Result<Vec<u8>> {
-        let start = Instant::now();
-        let result = match self.backend {
-            EncoderBackend::Vaapi => self.encode_vaapi(data).await,
-            EncoderBackend::Nvenc => self.encode_nvenc(data).await,
-            EncoderBackend::Software => self.encode_software(data).await,
-        };
-
-        let elapsed = start.elapsed();
-        ENCODE_LATENCY.observe(elapsed.as_secs_f64() * 1000.0);
-
-        match result {
-            Ok(bytes) => {
-                FRAMES_ENCODED.inc();
-                BITRATE_BYTES_TOTAL.inc_by((bytes.len() as u64) as f64);
-                Ok(bytes)
+    /// Read the next encoded H.264 frame (one or more NALs up to the next start
+    /// code). Returns the raw Annex-B bytes and whether it is a keyframe (SPS present).
+    pub async fn next_frame(&mut self) -> Result<(Vec<u8>, bool)> {
+        loop {
+            if let Some((frame, key)) = self.try_extract() {
+                return Ok((frame, key));
             }
-            Err(e) => {
-                ERRORS_TOTAL.inc();
-                Err(e)
+            let mut tmp = [0u8; 8192];
+            let n = self.reader.read(&mut tmp).await?;
+            if n == 0 {
+                if let Some((frame, key)) = self.try_extract_eof() {
+                    return Ok((frame, key));
+                }
+                anyhow::bail!("ffmpeg H.264 stream ended");
             }
+            self.buf.extend_from_slice(&tmp[..n]);
         }
     }
 
-    async fn encode_vaapi(&mut self, _data: &[u8]) -> Result<Vec<u8>> {
-        Err(EncodeError::HardwareInitFailed(
-            "VA-API hardware encoding is not implemented yet".into(),
-        )
-        .into())
+    fn try_extract(&mut self) -> Option<(Vec<u8>, bool)> {
+        let p = find_start(&self.buf, 0)?;
+        let q = find_start(&self.buf, p + 3)?;
+        let frame = self.buf[p..q].to_vec();
+        let key = is_keyframe(&self.buf, p);
+        self.buf.drain(..q);
+        Some((frame, key))
     }
 
-    async fn encode_nvenc(&mut self, _data: &[u8]) -> Result<Vec<u8>> {
-        Err(EncodeError::HardwareInitFailed(
-            "NVENC hardware encoding is not implemented yet".into(),
-        )
-        .into())
+    fn try_extract_eof(&mut self) -> Option<(Vec<u8>, bool)> {
+        let p = find_start(&self.buf, 0)?;
+        if p == 0 && self.buf.len() <= 4 {
+            return None;
+        }
+        let frame = self.buf[p..].to_vec();
+        let key = is_keyframe(&self.buf, p);
+        self.buf.drain(..p);
+        Some((frame, key))
     }
+}
 
-    async fn encode_software(&mut self, data: &[u8]) -> Result<Vec<u8>> {
-        Ok(data.to_vec())
+impl Drop for H264Capture {
+    fn drop(&mut self) {
+        let _ = self.child.start_kill();
     }
+}
+
+fn build_args(
+    backend: EncoderBackend,
+    width: u32,
+    height: u32,
+    fps: u32,
+    bitrate: u32,
+) -> Vec<String> {
+    let gop = (fps * 2).to_string();
+    let br = bitrate.to_string();
+    match backend {
+        EncoderBackend::Vaapi => vec![
+            "-loglevel".into(),
+            "error".into(),
+            "-f".into(),
+            "pipewire".into(),
+            "-i".into(),
+            "default".into(),
+            "-vaapi_device".into(),
+            "/dev/dri/renderD128".into(),
+            "-vf".into(),
+            "format=nv12,hwupload".into(),
+            "-c:v".into(),
+            "h264_vaapi".into(),
+            "-g".into(),
+            gop,
+            "-b:v".into(),
+            br,
+            "-f".into(),
+            "h264".into(),
+            "-".into(),
+        ],
+        EncoderBackend::Nvenc => vec![
+            "-loglevel".into(),
+            "error".into(),
+            "-f".into(),
+            "pipewire".into(),
+            "-i".into(),
+            "default".into(),
+            "-c:v".into(),
+            "h264_nvenc".into(),
+            "-preset".into(),
+            "p1".into(),
+            "-g".into(),
+            gop,
+            "-b:v".into(),
+            br,
+            "-f".into(),
+            "h264".into(),
+            "-".into(),
+        ],
+        EncoderBackend::Software => vec![
+            "-loglevel".into(),
+            "error".into(),
+            "-f".into(),
+            "pipewire".into(),
+            "-i".into(),
+            "default".into(),
+            "-vf".into(),
+            "format=yuv420p".into(),
+            "-c:v".into(),
+            "libx264".into(),
+            "-preset".into(),
+            "ultrafast".into(),
+            "-tune".into(),
+            "zerolatency".into(),
+            "-g".into(),
+            gop,
+            "-b:v".into(),
+            br,
+            "-f".into(),
+            "h264".into(),
+            "-".into(),
+        ],
+    }
+}
+
+fn find_start(buf: &[u8], from: usize) -> Option<usize> {
+    let mut i = from;
+    while i + 3 <= buf.len() {
+        if buf[i] == 0 && buf[i + 1] == 0 {
+            if buf[i + 2] == 1 {
+                return Some(i);
+            }
+            if buf[i + 2] == 0 && i + 4 <= buf.len() && buf[i + 3] == 1 {
+                return Some(i);
+            }
+        }
+        i += 1;
+    }
+    None
+}
+
+fn is_keyframe(buf: &[u8], start: usize) -> bool {
+    let start_len = if buf[start + 2] == 1 { 3 } else { 4 };
+    if start + start_len < buf.len() {
+        let nal = buf[start + start_len] & 0x1F;
+        return nal == 7; // SPS => keyframe
+    }
+    false
 }

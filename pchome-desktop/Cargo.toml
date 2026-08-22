@@ -7,10 +7,11 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["capture"]
+default = ["capture", "webrtc", "gui"]
 capture = []
-webrtc = []
+webrtc = ["dep:webrtc"]
 pipewire-rs = []
+gui = ["dep:eframe", "dep:egui"]
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
@@ -34,6 +35,14 @@ prometheus = "0.13"
 lazy_static = "1.4"
 thiserror = "1.0"
 futures-util = "0.3"
+
+# WebRTC peer connection + media (offerer, H.264 video track, control DataChannel)
+webrtc = { version = "0.12", optional = true }
+# Desktop GUI (header/panel/telemetry/terminate + live preview)
+eframe = { version = "0.29", optional = true }
+egui = { version = "0.29", optional = true }
+# ffmpeg process control for HW encode pipeline
+which = "6"
 
 [dev-dependencies]
 tokio-test = "0.4"

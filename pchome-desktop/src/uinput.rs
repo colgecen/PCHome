@@ -12,6 +12,8 @@ const UI_SET_KEYBIT: libc::c_ulong = 0x40045565;
 #[cfg(target_family = "unix")]
 const UI_SET_RELBIT: libc::c_ulong = 0x40045566;
 #[cfg(target_family = "unix")]
+const UI_SET_ABSBIT: libc::c_ulong = 0x40045567;
+#[cfg(target_family = "unix")]
 const UI_DEV_SETUP: libc::c_ulong = 0x40105568;
 #[cfg(target_family = "unix")]
 const UI_DEV_CREATE: libc::c_ulong = 0x40045569;
@@ -21,7 +23,6 @@ const UI_DEV_DESTROY: libc::c_ulong = 0x4004556a;
 #[cfg(target_family = "unix")]
 const UINPUT_MAX_NAME_SIZE: usize = 80;
 
-// Linux input event type/code constants (not exposed by libc).
 #[cfg(target_family = "unix")]
 const EV_SYN: u16 = 0x00;
 #[cfg(target_family = "unix")]
@@ -29,11 +30,17 @@ const EV_KEY: u16 = 0x01;
 #[cfg(target_family = "unix")]
 const EV_REL: u16 = 0x02;
 #[cfg(target_family = "unix")]
+const EV_ABS: u16 = 0x03;
+#[cfg(target_family = "unix")]
+const SYN_REPORT: u16 = 0x00;
+
+#[cfg(target_family = "unix")]
 const BTN_LEFT: u16 = 0x110;
 #[cfg(target_family = "unix")]
 const BTN_RIGHT: u16 = 0x111;
 #[cfg(target_family = "unix")]
 const BTN_MIDDLE: u16 = 0x112;
+
 #[cfg(target_family = "unix")]
 const REL_X: u16 = 0x00;
 #[cfg(target_family = "unix")]
@@ -41,7 +48,20 @@ const REL_Y: u16 = 0x01;
 #[cfg(target_family = "unix")]
 const REL_WHEEL: u16 = 0x08;
 #[cfg(target_family = "unix")]
+const REL_HWHEEL: u16 = 0x09;
+
+#[cfg(target_family = "unix")]
+const ABS_X: u16 = 0x00;
+#[cfg(target_family = "unix")]
+const ABS_Y: u16 = 0x01;
+
+#[cfg(target_family = "unix")]
 const BUS_VIRTUAL: u16 = 0x06;
+
+// Largest key code advertised so the kernel accepts any Linux keycode forwarded
+// from the mobile client (KEY_* range plus BTN_* mouse buttons).
+#[cfg(target_family = "unix")]
+const KEY_CODE_MAX: u32 = 767;
 
 #[cfg(target_family = "unix")]
 #[repr(C)]
@@ -68,38 +88,47 @@ struct UinputSetup {
 pub struct UInputDevice {
     fd: std::fs::File,
     pub name: String,
+    width: i32,
+    height: i32,
 }
 
 #[cfg(target_family = "unix")]
 impl UInputDevice {
-    pub fn open(path: &str, name: &str) -> Result<Self> {
+    pub fn open(path: &str, name: &str, width: u32, height: u32) -> Result<Self> {
         let fd = std::fs::OpenOptions::new()
             .write(true)
             .custom_flags(libc::O_NONBLOCK)
             .open(path)?;
         let raw_fd = fd.as_raw_fd();
 
-        // Enable the event types this virtual device will emit.
         ioctl(raw_fd, UI_SET_EVBIT, EV_SYN as libc::c_ulong);
         ioctl(raw_fd, UI_SET_EVBIT, EV_KEY as libc::c_ulong);
         ioctl(raw_fd, UI_SET_EVBIT, EV_REL as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_EVBIT, EV_ABS as libc::c_ulong);
 
-        // Advertise a broad key range plus mouse buttons and relative axes.
-        for code in 0..=255u32 {
+        for code in 0..=KEY_CODE_MAX {
             ioctl(raw_fd, UI_SET_KEYBIT, code as libc::c_ulong);
         }
         ioctl(raw_fd, UI_SET_KEYBIT, BTN_LEFT as libc::c_ulong);
         ioctl(raw_fd, UI_SET_KEYBIT, BTN_RIGHT as libc::c_ulong);
         ioctl(raw_fd, UI_SET_KEYBIT, BTN_MIDDLE as libc::c_ulong);
+
         ioctl(raw_fd, UI_SET_RELBIT, REL_X as libc::c_ulong);
         ioctl(raw_fd, UI_SET_RELBIT, REL_Y as libc::c_ulong);
         ioctl(raw_fd, UI_SET_RELBIT, REL_WHEEL as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_RELBIT, REL_HWHEEL as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_ABSBIT, ABS_X as libc::c_ulong);
+        ioctl(raw_fd, UI_SET_ABSBIT, ABS_Y as libc::c_ulong);
 
         let mut setup: UinputSetup = unsafe { std::mem::zeroed() };
         setup.id.bustype = BUS_VIRTUAL as u16;
         setup.id.vendor = 0x1234;
         setup.id.product = 0x5678;
         setup.id.version = 1;
+        setup.absmin[ABS_X as usize] = 0;
+        setup.absmax[ABS_X as usize] = width as i32;
+        setup.absmin[ABS_Y as usize] = 0;
+        setup.absmax[ABS_Y as usize] = height as i32;
         let name_bytes = name.as_bytes();
         let len = name_bytes.len().min(UINPUT_MAX_NAME_SIZE - 1);
         setup.name[..len].copy_from_slice(&name_bytes[..len]);
@@ -118,11 +147,71 @@ impl UInputDevice {
             }
         }
 
-        log::info!("uinput device created: {} ({})", path, name);
+        log::info!("uinput device created: {} ({}) {}x{}", path, name, width, height);
         Ok(Self {
             fd,
             name: name.to_string(),
+            width: width as i32,
+            height: height as i32,
         })
+    }
+
+    /// Direct-touch teleport to an absolute (PC-pixel) coordinate.
+    pub fn move_absolute(&self, x: i32, y: i32) -> Result<()> {
+        let x = x.clamp(0, self.width);
+        let y = y.clamp(0, self.height);
+        self.emit(InputEvent::new(EV_ABS, ABS_X, x))?;
+        self.emit(InputEvent::new(EV_ABS, ABS_Y, y))?;
+        self.emit(InputEvent::new(EV_SYN, SYN_REPORT, 0))?;
+        Ok(())
+    }
+
+    /// Trackpad style relative delta.
+    pub fn move_relative(&self, dx: i32, dy: i32) -> Result<()> {
+        self.emit(InputEvent::new(EV_REL, REL_X, dx))?;
+        self.emit(InputEvent::new(EV_REL, REL_Y, dy))?;
+        self.emit(InputEvent::new(EV_SYN, SYN_REPORT, 0))?;
+        Ok(())
+    }
+
+    pub fn button(&self, code: u16, down: bool) -> Result<()> {
+        self.emit(InputEvent::new(EV_KEY, code, down as i32))?;
+        self.emit(InputEvent::new(EV_SYN, SYN_REPORT, 0))?;
+        Ok(())
+    }
+
+    pub fn click(&self, code: u16) -> Result<()> {
+        self.button(code, true)?;
+        self.button(code, false)?;
+        Ok(())
+    }
+
+    pub fn double_click(&self, code: u16) -> Result<()> {
+        self.button(code, true)?;
+        self.button(code, false)?;
+        self.button(code, true)?;
+        self.button(code, false)?;
+        Ok(())
+    }
+
+    pub fn wheel(&self, dx: i32, dy: i32) -> Result<()> {
+        if dy != 0 {
+            self.emit(InputEvent::new(EV_REL, REL_WHEEL, dy))?;
+        }
+        if dx != 0 {
+            self.emit(InputEvent::new(EV_REL, REL_HWHEEL, dx))?;
+        }
+        self.emit(InputEvent::new(EV_SYN, SYN_REPORT, 0))?;
+        Ok(())
+    }
+
+    pub fn key(&self, code: u32, down: bool) -> Result<()> {
+        if code > KEY_CODE_MAX {
+            return Ok(());
+        }
+        self.emit(InputEvent::new(EV_KEY, code as u16, down as i32))?;
+        self.emit(InputEvent::new(EV_SYN, SYN_REPORT, 0))?;
+        Ok(())
     }
 
     pub fn emit(&self, event: InputEvent) -> Result<()> {
@@ -130,8 +219,6 @@ impl UInputDevice {
         let fd = self.fd.as_raw_fd();
         let ptr = &ev as *const libc::input_event as *const libc::c_void;
         let len = std::mem::size_of::<libc::input_event>();
-        // Retry the write on EINTR so a signal interrupt never silently drops
-        // an input event.
         loop {
             let ret = unsafe { libc::write(fd, ptr, len) };
             if ret < 0 {
@@ -202,13 +289,43 @@ pub fn emit_key(key: u16, pressed: bool) -> Result<()> {
     Ok(())
 }
 
+#[cfg(target_family = "unix")]
+pub fn button_code(name: &str) -> u16 {
+    match name {
+        "right" => BTN_RIGHT,
+        "middle" => BTN_MIDDLE,
+        _ => BTN_LEFT,
+    }
+}
+
 #[cfg(not(target_family = "unix"))]
 pub struct UInputDevice;
 
 #[cfg(not(target_family = "unix"))]
 impl UInputDevice {
-    pub fn open(_path: &str, _name: &str) -> Result<Self> {
+    pub fn open(_path: &str, _name: &str, _width: u32, _height: u32) -> Result<Self> {
         Ok(Self)
+    }
+    pub fn move_absolute(&self, _x: i32, _y: i32) -> Result<()> {
+        Ok(())
+    }
+    pub fn move_relative(&self, _dx: i32, _dy: i32) -> Result<()> {
+        Ok(())
+    }
+    pub fn button(&self, _code: u16, _down: bool) -> Result<()> {
+        Ok(())
+    }
+    pub fn click(&self, _code: u16) -> Result<()> {
+        Ok(())
+    }
+    pub fn double_click(&self, _code: u16) -> Result<()> {
+        Ok(())
+    }
+    pub fn wheel(&self, _dx: i32, _dy: i32) -> Result<()> {
+        Ok(())
+    }
+    pub fn key(&self, _code: u32, _down: bool) -> Result<()> {
+        Ok(())
     }
 }
 
@@ -226,4 +343,9 @@ impl InputEvent {
 #[cfg(not(target_family = "unix"))]
 pub fn emit_key(_key: u16, _pressed: bool) -> Result<()> {
     Ok(())
+}
+
+#[cfg(not(target_family = "unix"))]
+pub fn button_code(_name: &str) -> u16 {
+    0
 }

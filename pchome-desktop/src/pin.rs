@@ -1,15 +1,12 @@
 use anyhow::Result;
-use futures_util::stream::StreamExt;
 use rand::RngCore;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tokio::sync::{mpsc, RwLock};
-use tokio_tungstenite::connect_async;
 use uuid::Uuid;
 
 const PIN_TTL_SECS: u64 = 300;
-const SIGNAL_WS_URL: &str = "ws://localhost:8080";
 
 #[derive(Debug, Clone)]
 pub struct PinEntry {
@@ -61,37 +58,13 @@ impl PinManager {
 
         self.entries.write().await.insert(code, entry);
 
-        if let Err(e) = self.register_to_signal(code).await {
-            log::warn!("Failed to register PIN {}: {}", code, e);
-            self.entries.write().await.remove(&code);
-            return Err(e);
-        }
-
-        log::info!("Generated and registered PIN: {:06}", code);
+        log::info!("Generated PIN: {:06}", code);
         Ok(code)
     }
 
     fn generate_pin(&self) -> u32 {
         let mut rng = rand::thread_rng();
         rng.next_u32() % 1_000_000
-    }
-
-    async fn register_to_signal(&self, pin: u32) -> Result<()> {
-        let pin_str = format!("{:06}", pin);
-        let url = format!("{}/ws?pin={}&role=desktop", SIGNAL_WS_URL, pin_str);
-        match connect_async(&url).await {
-            Ok((ws, _)) => {
-                log::info!("WebSocket connected for PIN {}", pin_str);
-                // Hold the connection open for the session lifetime so the
-                // Signal server keeps the room reserved until TTL eviction.
-                tokio::spawn(async move {
-                    let _held = ws;
-                    tokio::time::sleep(std::time::Duration::from_secs(PIN_TTL_SECS)).await;
-                });
-                Ok(())
-            }
-            Err(e) => Err(anyhow::anyhow!("WebSocket connection failed: {}", e)),
-        }
     }
 
     async fn gc_loop(&self) {
