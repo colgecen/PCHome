@@ -53,7 +53,7 @@ jobs:
       - name: Run benchmarks
         run: |
           cd pchome-desktop
-          cargo bench --bench roundtrip_bench
+          cargo bench --bench pin_bench
 
   lint-signal:
     runs-on: ubuntu-latest

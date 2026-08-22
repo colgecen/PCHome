@@ -1,3 +1,5 @@
+#![allow(clippy::all)]
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn format_pin(value: u32) -> String {
