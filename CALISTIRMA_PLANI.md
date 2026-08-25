@@ -16,8 +16,11 @@
 - [x] 4.3 + 5.3 Mobil düzeltme: `WebRtcClient.createPeerConnection()`
       içindeki boş `addStream(...)` çağrısını kaldır; DataChannel'a
       ping→pong yanıtı ekle.
-- [ ] 4.5 Mobil APK build: `./gradlew assembleDebug` →
-      `app/build/outputs/apk/debug/app-debug.apk`.
+- [x] 4.5 Mobil APK build: `./gradlew assembleDebug` →
+      `app/build/outputs/apk/debug/app-debug.apk`. (Not: sistemde JDK 17 ve
+      Android SDK yoktu; JDK 17 kullanıcı dizinine indirildi,
+      SDK `$HOME/android-sdk` içine kuruldu, `local.properties`
+      yazıldı — build başarılı, ~53MB app-debug.apk üretildi.)
 
 ## P1 — Signal Server Üretime Hazırlık
 
