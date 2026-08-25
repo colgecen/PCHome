@@ -12,8 +12,8 @@ help:
 
 run: build
 	@echo "Starting PChome..."
-	@echo "Signal server: http://localhost:8080"
-	@echo "Desktop HUD:   file://$(shell pwd)/pchome-desktop/src-ui/index.html"
+	@echo "Signal server: ws://localhost:8080/ws"
+	@echo "Desktop daemon: egui HUD (PIN + telemetry)"
 	@./scripts/run-local.sh
 
 run-docker:

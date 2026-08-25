@@ -10,8 +10,9 @@
 # One-liner: start signal server
 docker compose up -d
 
-# Open HUD
-xdg-open pchome-desktop/src-ui/index.html
+# Desktop daemon shows its own egui HUD (PIN + telemetry)
+cd pchome-desktop && cargo build --release
+sudo ./target/release/pchome-desktop
 ```
 
 ### Option 2: Local Build
@@ -34,8 +35,8 @@ make build
 
 | Component | Port | URL |
 |-----------|------|-----|
-| Signal Server | 8080/8443 | http://localhost:8080 |
-| Desktop HUD | - | `file://.../pchome-desktop/src-ui/index.html` |
+| Signal Server | 8080 | ws://localhost:8080/ws |
+| Desktop HUD | - | egui window (PIN + telemetry) |
 
 ## Project Structure
 

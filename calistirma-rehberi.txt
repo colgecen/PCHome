@@ -1,0 +1,110 @@
+============================================================
+PCHOME - TELEFONDAN BİLGİSAYARI KONTROL ETME REHBERİ
+(Cluster'da değil, düz Türkçe anlatım)
+============================================================
+
+BU NEDİR?
+--------
+PChome, telefonunu kullanarak evdeki/işteki Linux bilgisayarını
+uzaktan kontrol etmeni sağlar. Telefonunun ekranında bilgisayarının
+görüntüsü belirir; parmağınla dokunup fare gibi kullanırsın,
+klavye tuşlarına basıp yazı yazarsın.
+
+Yani: Bilgisayarın neredeyse, telefonunla oradaki fareyi ve
+klavyesini oynatırsın. "Her yerden" kullanmak için internet yeterli.
+
+
+SENİN ELİNDE 3 ŞEY VAR
+----------------------
+1) SİNYAL SUNUCUSU (köprü):
+   İki cihazın birbirini bulması için internette duran küçük bir
+   bağlantı noktası. Bunu ücretsiz bir yere (Railway) koydun ve
+   sana bir adres verdi. Örnek adres:
+      wss://pchome.onrender.com/ws
+   (xxxx yerine senin gerçek adresin gelecek.)
+
+2) BİLGİSAYAR PROGRAMI (masaüstü):
+   Kontrol edilecek Linux bilgisayarda çalışan program.
+   Dosyası: pchome-desktop/target/release/pchome-desktop
+
+3) TELEFON UYGULAMASI:
+   Telefona kurduğun APK dosyası.
+   Dosyası: pchome-mobile/app/build/outputs/apk/debug/app-debug.apk
+
+
+------------------------------------------------------------
+ADIM 1 - BİLGİSAYARDA (kontrol edilecek olan)
+------------------------------------------------------------
+Bu program, bilgisayarda fare ve klavye taklidi yaptığı için
+"yönetici (root)" yetkisiyle açılmalıdır.
+
+Yapman gereken: bir terminal (komut satırı) aç ve şunu yaz:
+
+  sudo sh -c 'PCHOME_SIGNAL_URL=wss://pchome.onrender.com/ws /yol/pchome-desktop'
+
+Açıklaması (merak etme, ezberleme):
+  - sudo         = programı yönetici olarak çalıştır
+  - PCHOME_...   = bilgisayara "şu köprü adresini kullan" de
+  - /yol/...     = programın dosya yolu (gerçek yolu sen yazacaksın)
+
+Program açılınca ekranda 6 haneli bir PIN çıkar. Örnek: 639036
+Bu sayıyı bir yere not et. Ayrıca şunu yazar: "Registered PIN: 639036"
+
+ÖNEMLİ: Bu bilgisayarda normal masaüstü (ekran) açık olmalıdır;
+çünkü program o ekranın görüntüsünü telefona gönderir.
+
+
+------------------------------------------------------------
+ADIM 2 - TELEFONDA
+------------------------------------------------------------
+1) PChome uygulamasını aç.
+2) Üstteki kutuya köprü adresini yaz:
+      wss://pchome.onrender.com/ws
+3) Alttaki kutuya bilgisayardaki PIN'i yaz (örn 639036).
+4) "Connect" (Bağlan) butonuna bas.
+
+Birkaç saniye sonra bilgisayarının ekranı telefonda belirir.
+- Parmakla dokunmak = fare
+- "KEYBOARD" butonu = telefon klavyesiyle yazı yazma
+- "DIRECT" / "TRACKPAD" butonu = kontrol şeklini değiştirir
+- "ROTATE" = ekranı çevirir
+
+
+------------------------------------------------------------
+"HER YERDEN" NASIL ÇALIŞIR?
+------------------------------------------------------------
+Senin telefonun ve bilgisayarın aynı evde olmak zorunda DEĞİL.
+İkisi de sadece o köprü adresine (sunucuya) bağlanır; gerisi
+otomatik halledilir. Yani:
+  - Bilgisayar işte, telefon evde olabilir.
+  - Bilgisayar evde, telefon başka şehirde olabilir.
+Yeter ki ikisi de internate bağlı olsun ve aynı köprü adresini
+kullansın.
+
+
+------------------------------------------------------------
+SIKINTI ÇIKARSA NE YAPARSIN?
+------------------------------------------------------------
+- PIN çıkmazsa:
+    * Programı "sudo" ile (yönetici olarak) açmadın demektir.
+    * Veya köprü adresini yanlış yazdın.
+
+- Telefon "Connect" deyince ekran gelmezse:
+    * Bilgisayarda masaüstü/elekran görüntüsü alınamıyor olabilir.
+    * Adres ve PIN'i aynı yazdığından emin ol.
+
+- Hiç bağlanmıyorsa:
+    * Telefon ve bilgisayar AYNI köprü adresini kullanıyor mu bak.
+    * Bilgisayarın interneti var mı kontrol et.
+
+Basit kural: Adres aynı, PIN doğru, bilgisayar yönetici olarak
+açık → çalışır.
+
+
+------------------------------------------------------------
+İSTERSEN DAHA KOLAYI
+------------------------------------------------------------
+Her seferinde o uzun komutu yazmak istemezsen, bilgisayarda bir
+"baslat.sh" dosyasına şunu koyup çift tıklayabilirsin:
+  sudo sh -c 'PCHOME_SIGNAL_URL=wss://pchome.onrender.com/ws /yol/pchome-desktop'
+(txt dosyasının yanına bu dosyayı da koyabilirim, istersen söyle.)
