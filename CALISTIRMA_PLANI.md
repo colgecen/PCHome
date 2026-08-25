@@ -26,7 +26,7 @@
 
 - [x] 4.6 TTL eviction: `Room`'a `created_at`, arka plan sweeper (300s).
 - [x] 4.7 `/health` ve `/metrics` HTTP endpoint'leri.
-- [ ] 4.8 Basit rate limit (`RATE_LIMIT` env, aynı IP için).
+- [x] 4.8 Basit rate limit (`RATE_LIMIT` env, aynı IP için).
 
 ## P2 — Docs & Temizlik
 

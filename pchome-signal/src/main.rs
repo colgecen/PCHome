@@ -27,6 +27,30 @@ type Tx = tokio::sync::mpsc::UnboundedSender<Message>;
 /// matching the desktop PIN lifetime.
 const ROOM_TTL_SECS: u64 = 300;
 
+/// Sliding-window length and default cap for new connections per client IP.
+const RATE_WINDOW_SECS: u64 = 60;
+
+#[derive(Default)]
+struct RateLimiter {
+    /// ip -> timestamps of recent accepted connections.
+    hits: HashMap<std::net::IpAddr, Vec<std::time::Instant>>,
+}
+
+impl RateLimiter {
+    /// Returns false when the IP exceeded `limit` connections inside the window.
+    fn allow(&mut self, ip: std::net::IpAddr, limit: u32) -> bool {
+        let now = std::time::Instant::now();
+        let cutoff = std::time::Duration::from_secs(RATE_WINDOW_SECS);
+        let entry = self.hits.entry(ip).or_default();
+        entry.retain(|t| now.duration_since(*t) < cutoff);
+        if entry.len() >= limit as usize {
+            return false;
+        }
+        entry.push(now);
+        true
+    }
+}
+
 #[derive(Default)]
 struct Room {
     desktop: Option<Tx>,
@@ -76,11 +100,16 @@ async fn main() -> Result<()> {
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(8081);
+    let rate_limit: u32 = std::env::var("RATE_LIMIT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(20);
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     log::info!("PChome signal server listening on ws://{}/ws", addr);
 
     let registry = Arc::new(Mutex::new(Registry::default()));
+    let rate_limiter = Arc::new(Mutex::new(RateLimiter::default()));
 
     spawn_health_server(registry.clone(), health_port);
 
@@ -102,7 +131,15 @@ async fn main() -> Result<()> {
     }
 
     loop {
-        let (stream, _) = listener.accept().await?;
+        let (stream, peer) = listener.accept().await?;
+        {
+            let mut limiter = rate_limiter.lock().await;
+            if !limiter.allow(peer.ip(), rate_limit) {
+                log::warn!("rate limit exceeded for {}, dropping", peer.ip());
+                drop(stream);
+                continue;
+            }
+        }
         let registry = Arc::clone(&registry);
         tokio::spawn(async move {
             if let Err(e) = handle_conn(stream, registry).await {
