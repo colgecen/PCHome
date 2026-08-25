@@ -26,7 +26,7 @@ NOT: Bu dosya `PCHome-prompt.txt` içeriğine göre genişletildi — proje deta
 ### Core Daemon & Low-level
 - [x] `uinput.rs`: implement safe wrapper for `/dev/uinput` (feature gated, unit tests)
 - [x] `pin.rs`: cryptographically secure 6-digit PIN generator, TTL store (300s), WebSocket registration
-- [x] `pipewire.rs`: DMA-BUF zero-copy screen capture, fallback to framebuffer if unavailable
+- [x] `pipewire.rs`: removed — screen capture is done by `encoder.rs` (ffmpeg over PipeWire); the DMA-BUF stub was deleted
 - [x] `encoder.rs`: hardware-accelerated H.264 (VA-API / NVENC) with a software fallback
 - [x] `network/mod.rs`: async runtime (Tokio) scaffolding, connection manager
 - [x] `socket.rs`: UDP helper (NAT probe, STUN helper functions)

@@ -8,7 +8,7 @@
 
 - [x] 4.1 Web HUD sil: `pchome-desktop/src-ui/` kaldır, `README.md` + `run.sh`
       içindeki `xdg-open .../index.html` referanslarını sil.
-- [ ] 4.4 Atıl stubları temizle: `pipewire.rs`, `pipewire_real.rs`, kök
+- [x] 4.4 Atıl stubları temizle: `pipewire.rs`, `pipewire_real.rs`, kök
       `webrtc.rs` sil; `main.rs` mod bildirimlerini düzelt.
 - [ ] 4.2 + 5.1 + 5.2 Desktop canlı telemetri: `metrics::serve()` çağır,
       `local_ip` doldur, `WebRtcEngine`'e periyodik ping/pong ekle

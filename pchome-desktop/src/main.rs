@@ -13,7 +13,6 @@ mod encoder;
 mod metrics;
 mod network;
 mod pin;
-mod pixelformat;
 mod state;
 #[cfg(all(feature = "capture", target_family = "unix"))]
 mod uinput;
@@ -22,8 +21,6 @@ mod uinput;
 mod control;
 #[cfg(feature = "gui")]
 mod gui;
-#[cfg(all(feature = "capture", target_family = "unix"))]
-mod pipewire;
 
 use crate::state::{new_state, SharedState};
 

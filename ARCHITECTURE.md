@@ -7,17 +7,17 @@ PChome operates as a monorepo with three decoupled yet seamlessly integrated mod
 ### 1. PChome Desktop (Linux Daemon + GUI)
 
 **Language**: Rust  
-**Key Dependencies**: tokio, tauri/slint, display-interface  
+**Key Dependencies**: tokio, webrtc-rs, eframe/egui  
 **Input Injection**: `/dev/uinput` for virtual input  
-**Screen Capture**: PipeWire (DMA-BUF zero-copy) for ultra-low latency  
+**Screen Capture**: ffmpeg over PipeWire (VA-API / NVENC / libx264 fallback)  
 **Encoding**: Hardware accelerated VA-API / NVENC H.264 encoder  
-**Network**: Async UDP handler + WebRTC PeerConnection  
+**Network**: WebSocket signaling + WebRTC PeerConnection  
 
 **Architecture Flow**:
-1. Screen capture via Pipe DMA-BUF (zero-copy)
+1. Screen capture via ffmpeg (PipeWire source, HW encode when available)
 2. Hardware-accelerated H.264 encoding
-3. Transmission via WebRTC DataChannel
-4. Rendering in HUD frontend with Cyber-Futuristic theme
+3. Transmission via WebRTC video track
+4. Rendering in the Android app's SurfaceViewRenderer
 
 ### 2. PChome Mobile (Android Native)
 
@@ -79,7 +79,7 @@ PChome operates as a monorepo with three decoupled yet seamlessly integrated mod
 
 1. **Handshake Phase**: PIN authentication via Signal server WebSockets
 2. **Connection Phase**: WebRTC SDP/ICE candidate exchange for NAT traversal
-3. **Stream Phase**: DMA-BUF zero-copy screen capture → H.264 encoding → WebRTC DataChannel
+3. **Stream Phase**: ffmpeg PipeWire capture → H.264 encoding → WebRTC video track
 4. **Input Phase**: /dev/uinput (Desktop) / on-screen touch + hardware keyboard (Mobile) → WebRTC DataChannel
 5. **Control Phase**: Asynchronous command routing via the WebRTC DataChannel
 
