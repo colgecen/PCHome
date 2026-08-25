@@ -23,10 +23,31 @@ use tokio_tungstenite::tungstenite::http::Response as HttpResponse;
 
 type Tx = tokio::sync::mpsc::UnboundedSender<Message>;
 
+/// Rooms older than this are swept even if a peer is still connected,
+/// matching the desktop PIN lifetime.
+const ROOM_TTL_SECS: u64 = 300;
+
 #[derive(Default)]
 struct Room {
     desktop: Option<Tx>,
     mobile: Option<Tx>,
+    /// Set when the first peer joins; refreshed on every join.
+    created_at: Option<std::time::Instant>,
+}
+
+impl Room {
+    fn touch(&mut self) {
+        if self.created_at.is_none() {
+            self.created_at = Some(std::time::Instant::now());
+        }
+    }
+
+    fn is_expired(&self) -> bool {
+        match self.created_at {
+            Some(t) => t.elapsed() >= std::time::Duration::from_secs(ROOM_TTL_SECS),
+            None => false,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -56,6 +77,24 @@ async fn main() -> Result<()> {
     log::info!("PChome signal server listening on ws://{}/ws", addr);
 
     let registry = Arc::new(Mutex::new(Registry::default()));
+
+    // Background sweeper: evict rooms whose PIN lifetime (TTL) has elapsed.
+    {
+        let registry = Arc::clone(&registry);
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
+            loop {
+                interval.tick().await;
+                let mut reg = registry.lock().await;
+                let before = reg.rooms.len();
+                reg.rooms.retain(|_, room| !room.is_expired());
+                if before != reg.rooms.len() {
+                    log::info!("room sweeper: evicted {} stale rooms", before - reg.rooms.len());
+                }
+            }
+        });
+    }
+
     loop {
         let (stream, _) = listener.accept().await?;
         let registry = Arc::clone(&registry);
@@ -99,6 +138,7 @@ async fn handle_conn(
     {
         let mut reg = registry.lock().await;
         let room = reg.rooms.entry(pin.clone()).or_default();
+        room.touch();
         match role.as_str() {
             "desktop" => room.desktop = Some(tx.clone()),
             "mobile" => room.mobile = Some(tx.clone()),
