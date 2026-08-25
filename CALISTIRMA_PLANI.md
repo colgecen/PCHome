@@ -10,7 +10,7 @@
       içindeki `xdg-open .../index.html` referanslarını sil.
 - [x] 4.4 Atıl stubları temizle: `pipewire.rs`, `pipewire_real.rs`, kök
       `webrtc.rs` sil; `main.rs` mod bildirimlerini düzelt.
-- [ ] 4.2 + 5.1 + 5.2 Desktop canlı telemetri: `metrics::serve()` çağır,
+- [x] 4.2 + 5.1 + 5.2 Desktop canlı telemetri: `metrics::serve()` çağır,
       `local_ip` doldur, `WebRtcEngine`'e periyodik ping/pong ekle
       (`ping_ms` güncellensin).
 - [ ] 4.3 + 5.3 Mobil düzeltme: `WebRtcClient.createPeerConnection()`

@@ -24,8 +24,10 @@ use crate::network::ConnectionManager;
 pub struct WebRtcEngine {
     pc: Arc<RTCPeerConnection>,
     video_track: Arc<TrackLocalStaticSample>,
+    data_channel: Arc<webrtc::data_channel::RTCDataChannel>,
     connection: Arc<ConnectionManager>,
     control: Arc<ControlHandler>,
+    state: crate::state::SharedState,
     width: u32,
     height: u32,
     fps: u32,
@@ -35,6 +37,7 @@ impl WebRtcEngine {
     pub async fn build(
         connection: Arc<ConnectionManager>,
         control: Arc<ControlHandler>,
+        state: crate::state::SharedState,
         width: u32,
         height: u32,
         fps: u32,
@@ -119,8 +122,10 @@ impl WebRtcEngine {
         Ok(Arc::new(Self {
             pc,
             video_track,
+            data_channel: dc,
             connection,
             control,
+            state,
             width,
             height,
             fps,
@@ -128,8 +133,10 @@ impl WebRtcEngine {
     }
 
     /// Drives the signaling exchange: waits for the mobile `hello`, then offers,
-    /// and applies the returned `answer` + `ice-candidate`s.
+    /// and applies the returned `answer` + `ice-candidate`s. Also emits a
+    /// periodic ping over the control DataChannel so the GUI can display RTT.
     pub async fn run(self: Arc<Self>) -> Result<()> {
+        self.spawn_ping_loop();
         let incoming = self.connection.incoming();
         let mut rx = incoming.lock().await;
         while let Some(msg) = rx.recv().await {
@@ -186,6 +193,29 @@ impl WebRtcEngine {
                 .await;
         }
         Ok(())
+    }
+
+    /// Sends `{"type":"ping","t":<epoch_ms>}` every 5s while the control
+    /// DataChannel is open; the mobile peer answers with `pong` and the
+    /// desktop computes RTT into `AppState.ping_ms`.
+    fn spawn_ping_loop(self: &Arc<Self>) {
+        let engine = Arc::clone(self);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                if engine.data_channel.ready_state() != webrtc::data_channel::data_channel_state::RTCDataChannelState::Open {
+                    continue;
+                }
+                let now = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .map(|d| d.as_millis() as u64)
+                    .unwrap_or(0);
+                let msg = json!({ "type": "ping", "t": now }).to_string();
+                if let Err(e) = engine.data_channel.send(&bytes::Bytes::from(msg.into_bytes())).await {
+                    log::debug!("ping send failed: {}", e);
+                }
+            }
+        });
     }
 
     /// Push one encoded H.264 frame (Annex-B) into the outbound video track.

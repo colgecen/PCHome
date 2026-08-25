@@ -67,6 +67,9 @@ fn main() -> Result<()> {
 async fn daemon(state: SharedState) {
     let config = config::Config::from_env().unwrap_or_default();
     *state.resolution.lock().unwrap() = format!("{}x{}", config.capture_width, config.capture_height);
+    *state.local_ip.lock().unwrap() = first_non_loopback_ip();
+
+    crate::metrics::serve(config.metrics_addr);
 
     let pin_manager = pin::PinManager::new();
     pin_manager.start().await.ok();
@@ -112,6 +115,7 @@ async fn daemon(state: SharedState) {
     let engine = match WebRtcEngine::build(
         Arc::clone(&connection),
         control,
+        Arc::clone(&state),
         config.capture_width,
         config.capture_height,
         config.frame_rate,
@@ -182,4 +186,17 @@ async fn daemon(state: SharedState) {
 #[cfg(not(feature = "webrtc"))]
 async fn daemon(_state: SharedState) {
     log::warn!("WebRTC feature disabled; nothing to do");
+}
+
+/// Best-effort local LAN address: opens a UDP socket towards a public IP
+/// (no packets are sent) and reads the bound local address.
+fn first_non_loopback_ip() -> String {
+    if let Ok(s) = std::net::UdpSocket::bind("0.0.0.0:0") {
+        if s.connect("8.8.8.8:80").is_ok() {
+            if let Ok(addr) = s.local_addr() {
+                return addr.ip().to_string();
+            }
+        }
+    }
+    "127.0.0.1".to_string()
 }

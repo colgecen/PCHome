@@ -1,4 +1,5 @@
 use serde_json::Value;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -81,6 +82,17 @@ impl ControlHandler {
                     code,
                     if down { "dn" } else { "up" }
                 ));
+            }
+            "pong" => {
+                let sent = msg.get("t").and_then(|v| v.as_u64()).unwrap_or(0);
+                if sent > 0 {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                        .map(|d| d.as_millis() as u64)
+                        .unwrap_or(0);
+                    let rtt = now.saturating_sub(sent).min(u32::MAX as u64) as u32;
+                    self.state.ping_ms.store(rtt, Ordering::SeqCst);
+                }
             }
             other => {
                 log::debug!("ignoring control message type: {}", other);
