@@ -13,7 +13,7 @@
 - [x] 4.2 + 5.1 + 5.2 Desktop canlı telemetri: `metrics::serve()` çağır,
       `local_ip` doldur, `WebRtcEngine`'e periyodik ping/pong ekle
       (`ping_ms` güncellensin).
-- [ ] 4.3 + 5.3 Mobil düzeltme: `WebRtcClient.createPeerConnection()`
+- [x] 4.3 + 5.3 Mobil düzeltme: `WebRtcClient.createPeerConnection()`
       içindeki boş `addStream(...)` çağrısını kaldır; DataChannel'a
       ping→pong yanıtı ekle.
 - [ ] 4.5 Mobil APK build: `./gradlew assembleDebug` →

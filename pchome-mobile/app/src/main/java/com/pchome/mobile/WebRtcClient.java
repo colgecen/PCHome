@@ -205,6 +205,7 @@ public class WebRtcClient {
                 dataChannel.registerObserver(new DataChannel.Observer() {
                     @Override
                     public void onMessage(DataChannel.Buffer buffer) {
+                        answerPing(buffer);
                         if (listener != null) listener.onDataChannelMessage(buffer);
                     }
 
@@ -247,8 +248,10 @@ public class WebRtcClient {
             @Override public void onRenegotiationNeeded() {}
         });
 
-        // Ensure the SDP answer contains a recvonly video m-line so the
-        // desktop's outbound H.264 track is accepted (mobile only receives).
+        // Recv-only transceiver is sufficient: this peer only renders the
+        // desktop's outbound H.264 track and never captures local media
+        // (Flow B was removed). Adding an empty local MediaStream would emit
+        // extra m-lines and break SDP negotiation with the desktop offerer.
         try {
             peerConnection.addTransceiver(
                     org.webrtc.MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO,
@@ -257,15 +260,6 @@ public class WebRtcClient {
         } catch (Exception e) {
             Log.e(TAG, "addTransceiver failed", e);
         }
-
-        MediaStream stream = factory.createLocalMediaStream("ARDAMS");
-        if (localVideoTrack != null) {
-            stream.addTrack(localVideoTrack);
-        }
-        if (localAudioTrack != null) {
-            stream.addTrack(localAudioTrack);
-        }
-        peerConnection.addStream(stream);
     }
 
     private void createAnswer() {
@@ -359,6 +353,25 @@ public class WebRtcClient {
             peerConnection.addIceCandidate(candidate);
         }
         iceCandidates.clear();
+    }
+
+    /// Reply to desktop RTT probes: `{"type":"ping","t":<epoch_ms>}` gets a
+    /// `{"type":"pong","t":<same t>}` back over the same control channel.
+    private void answerPing(DataChannel.Buffer buffer) {
+        try {
+            if (buffer.data == null) return;
+            byte[] raw = new byte[buffer.data.remaining()];
+            buffer.data.get(raw);
+            JSONObject msg = new JSONObject(new String(raw, java.nio.charset.StandardCharsets.UTF_8));
+            if ("ping".equals(msg.optString("type"))) {
+                JSONObject pong = new JSONObject();
+                pong.put("type", "pong");
+                pong.put("t", msg.optLong("t"));
+                sendControl(pong.toString());
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "answerPing ignored non-JSON message");
+        }
     }
 
     public void disconnect() {
