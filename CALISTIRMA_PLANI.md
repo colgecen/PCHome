@@ -25,7 +25,7 @@
 ## P1 — Signal Server Üretime Hazırlık
 
 - [x] 4.6 TTL eviction: `Room`'a `created_at`, arka plan sweeper (300s).
-- [ ] 4.7 `/health` ve `/metrics` HTTP endpoint'leri.
+- [x] 4.7 `/health` ve `/metrics` HTTP endpoint'leri.
 - [ ] 4.8 Basit rate limit (`RATE_LIMIT` env, aynı IP için).
 
 ## P2 — Docs & Temizlik

@@ -72,11 +72,17 @@ async fn main() -> Result<()> {
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(8080);
+    let health_port: u16 = std::env::var("HEALTH_PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(8081);
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     log::info!("PChome signal server listening on ws://{}/ws", addr);
 
     let registry = Arc::new(Mutex::new(Registry::default()));
+
+    spawn_health_server(registry.clone(), health_port);
 
     // Background sweeper: evict rooms whose PIN lifetime (TTL) has elapsed.
     {
@@ -104,6 +110,61 @@ async fn main() -> Result<()> {
             }
         });
     }
+}
+
+/// Minimal HTTP sidecar serving `/health` and Prometheus-style `/metrics`
+/// on a dedicated port so orchestrators can probe the relay without
+/// speaking WebSocket.
+fn spawn_health_server(registry: Arc<Mutex<Registry>>, port: u16) {
+    tokio::spawn(async move {
+        let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
+        let listener = match tokio::net::TcpListener::bind(addr).await {
+            Ok(l) => l,
+            Err(e) => {
+                log::warn!("health endpoint unavailable on {}: {}", addr, e);
+                return;
+            }
+        };
+        log::info!("health endpoint listening on http://{}/health", addr);
+        loop {
+            let Ok((mut stream, _)) = listener.accept().await else {
+                continue;
+            };
+            let registry = Arc::clone(&registry);
+            tokio::spawn(async move {
+                use tokio::io::{AsyncReadExt, AsyncWriteExt};
+                let mut buf = [0u8; 2048];
+                let n = stream.read(&mut buf).await.unwrap_or(0);
+                let req = String::from_utf8_lossy(&buf[..n]);
+                let path = req.split_whitespace().nth(1).unwrap_or("/");
+                let (status, body) = match path {
+                    "/health" => ("200 OK", "OK".to_string()),
+                    "/metrics" => {
+                        let reg = registry.lock().await;
+                        let rooms = reg.rooms.len();
+                        let desktops = reg.rooms.values().filter(|r| r.desktop.is_some()).count();
+                        let mobiles = reg.rooms.values().filter(|r| r.mobile.is_some()).count();
+                        let body = format!(
+                            "# TYPE pchome_rooms_active gauge\npchome_rooms_active {}\n\
+                             # TYPE pchome_desktops_connected gauge\npchome_desktops_connected {}\n\
+                             # TYPE pchome_mobiles_connected gauge\npchome_mobiles_connected {}\n",
+                            rooms, desktops, mobiles
+                        );
+                        ("200 OK", body)
+                    }
+                    _ => ("404 Not Found", "not found\n".to_string()),
+                };
+                drop(registry);
+                let resp = format!(
+                    "HTTP/1.1 {}\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    status,
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(resp.as_bytes()).await;
+            });
+        }
+    });
 }
 
 async fn handle_conn(
