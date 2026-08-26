@@ -168,6 +168,7 @@ public class WebRtcClient {
         peerConnection = factory.createPeerConnection(config, new PeerConnection.Observer() {
             @Override
             public void onIceCandidate(IceCandidate candidate) {
+                Log.i(TAG, "onIceCandidate: " + candidate.sdp);
                 try {
                     JSONObject msg = new JSONObject();
                     msg.put("type", "ice-candidate");
@@ -188,6 +189,7 @@ public class WebRtcClient {
             @Override
             public void onTrack(org.webrtc.RtpTransceiver transceiver) {
                 org.webrtc.MediaStreamTrack track = transceiver.getReceiver().track();
+                Log.i(TAG, "onTrack fired: " + (track != null ? track.kind() : "null"));
                 if (track instanceof VideoTrack) {
                     VideoTrack vt = (VideoTrack) track;
                     if (remoteRenderer != null) {

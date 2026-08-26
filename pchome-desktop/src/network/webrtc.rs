@@ -58,7 +58,7 @@ impl WebRtcEngine {
                 clock_rate: 90_000,
                 channels: 0,
                 sdp_fmtp_line:
-                    "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f"
+                    "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01e"
                         .to_string(),
                 rtcp_feedback: vec![],
             },
@@ -149,6 +149,7 @@ impl WebRtcEngine {
                 }
                 "answer" => {
                     if let Some(sdp) = msg.get("sdp").and_then(|v| v.as_str()) {
+                        log::info!("WebRTC: received answer, setting remote description");
                         match RTCSessionDescription::answer(sdp.to_string()) {
                             Ok(ans) => {
                                 if let Err(e) = self.pc.set_remote_description(ans).await {
@@ -185,6 +186,7 @@ impl WebRtcEngine {
     }
 
     async fn create_offer(&self) -> Result<()> {
+        log::info!("WebRTC: creating offer");
         let offer = self.pc.create_offer(None).await?;
         self.pc.set_local_description(offer).await?;
         if let Some(local) = self.pc.local_description().await {

@@ -192,6 +192,9 @@ async fn daemon(state: SharedState) {
                     if let Err(e) = engine.push_video_sample(&frame, keyframe).await {
                         log::warn!("push_video_sample failed: {}", e);
                     }
+                    if frames == 0 {
+                        log::info!("WebRTC: first video sample pushed to track");
+                    }
                     frames += 1;
                     let now = Instant::now();
                     if now.duration_since(last) >= Duration::from_secs(1) {
