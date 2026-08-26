@@ -24,12 +24,22 @@ SENİN ELİNDE 3 ŞEY VAR
    (xxxx yerine senin gerçek adresin gelecek.)
 
 2) BİLGİSAYAR PROGRAMI (masaüstü):
-   Kontrol edilecek Linux bilgisayarda çalışan program.
-   Dosyası: pchome-desktop/target/release/pchome-desktop
+    Kontrol edilecek Linux bilgisayarda çalışan program.
+    Derlemek için: cd pchome-desktop && cargo build --release
+    Dosyası: pchome-desktop/target/release/pchome-desktop
+    GEREKLİ PROGRAM: ffmpeg kurulu olmalı (ekranı yakalayıp videoya
+    çeviren araç). Kurulum: sudo dnf install ffmpeg (Fedora)
+    veya sudo apt install ffmpeg (Ubuntu/Debian).
 
 3) TELEFON UYGULAMASI:
-   Telefona kurduğun APK dosyası.
-   Dosyası: pchome-mobile/app/build/outputs/apk/debug/app-debug.apk
+    Telefona kurduğun APK dosyası. Derlemek için:
+    cd pchome-mobile && ./gradlew assembleDebug
+    Dosyası: pchome-mobile/app/build/outputs/apk/debug/app-debug.apk
+
+4) KÖPRÜYÜ (SİNYAL SUNUCUSUNU) KENDİN ÇALIŞTIRMAK İSTERSEN:
+    cd pchome-signal && cargo build --release
+    ./target/release/pchome-signal
+    Adresi o zaman: ws://BILGISAYARIN-IPSI:8080/ws
 
 
 ------------------------------------------------------------
@@ -90,7 +100,8 @@ SIKINTI ÇIKARSA NE YAPARSIN?
     * Veya köprü adresini yanlış yazdın.
 
 - Telefon "Connect" deyince ekran gelmezse:
-    * Bilgisayarda masaüstü/elekran görüntüsü alınamıyor olabilir.
+    * Bilgisayarda masaüstü/ekran görüntüsü alınamıyor olabilir.
+      ffmpeg kurulu mu? Terminale "ffmpeg -version" yaz, hata veriyorsa kur.
     * Adres ve PIN'i aynı yazdığından emin ol.
 
 - Hiç bağlanmıyorsa:

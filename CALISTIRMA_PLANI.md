@@ -32,7 +32,7 @@
 
 - [x] 4.10 Docs Go→Rust düzeltmesi: `README.md`, `BUILD.md`, `Makefile`,
       `DECISIONS.md`, `TODO.md`.
-- [ ] 4.11 `calistirma-rehberi.txt`: ffmpeg şartı, sudo, APK build adımı,
+- [x] 4.11 `calistirma-rehberi.txt`: ffmpeg şartı, sudo, APK build adımı,
       signal'i `cargo run` ile başlatma.
 - [ ] 4.13 Kullanılmayan `activity_touchpad.xml` sil.
 
