@@ -45,6 +45,13 @@ jobs:
           Icon=pchome
           Categories=Network;RemoteAccess;
           EOF
+          # appimagetool does not generate AppRun; ship our own launcher
+          cat > staging/AppDir/AppRun <<'EOF'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "$HERE/usr/bin/pchome-desktop" "$@"
+          EOF
+          chmod +x staging/AppDir/AppRun
           echo iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAIAAABMXPacAAAA+UlEQVR4nO3RsQkAMAzAsKyFDv3/2p6RwQIfYNCc+7TYrB/EAwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2Hy4tQIiJm9zzAAAAAElFTkSuQmCC | base64 -d > staging/AppDir/pchome.png
 
       - name: tar.gz
