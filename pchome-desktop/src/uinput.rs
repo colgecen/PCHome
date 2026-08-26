@@ -173,9 +173,7 @@ impl UInputDevice {
                 &abs_x as *const UinputAbsSetup as *const libc::c_void,
             ) < 0
             {
-                anyhow::bail!("uinput UI_ABS_SETUP(ABS_X) failed: errno {}", unsafe {
-                    *libc::__errno_location()
-                });
+                anyhow::bail!("uinput UI_ABS_SETUP(ABS_X) failed: errno {}", *libc::__errno_location());
             }
             if libc::ioctl(
                 raw_fd,
@@ -183,12 +181,10 @@ impl UInputDevice {
                 &abs_y as *const UinputAbsSetup as *const libc::c_void,
             ) < 0
             {
-                anyhow::bail!("uinput UI_ABS_SETUP(ABS_Y) failed: errno {}", unsafe {
-                    *libc::__errno_location()
-                });
+                anyhow::bail!("uinput UI_ABS_SETUP(ABS_Y) failed: errno {}", *libc::__errno_location());
             }
 
-            let mut setup: UinputSetup = unsafe { std::mem::zeroed() };
+            let mut setup: UinputSetup = std::mem::zeroed();
             setup.id.bustype = BUS_VIRTUAL;
             setup.id.vendor = 0x1234;
             setup.id.product = 0x5678;
@@ -203,14 +199,10 @@ impl UInputDevice {
                 &setup as *const UinputSetup as *const libc::c_void,
             ) < 0
             {
-                anyhow::bail!("uinput UI_DEV_SETUP failed: errno {}", unsafe {
-                    *libc::__errno_location()
-                });
+                anyhow::bail!("uinput UI_DEV_SETUP failed: errno {}", *libc::__errno_location());
             }
             if libc::ioctl(raw_fd, UI_DEV_CREATE, 0) < 0 {
-                anyhow::bail!("uinput UI_DEV_CREATE failed: errno {}", unsafe {
-                    *libc::__errno_location()
-                });
+                anyhow::bail!("uinput UI_DEV_CREATE failed: errno {}", *libc::__errno_location());
             }
         }
 
