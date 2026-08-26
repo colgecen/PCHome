@@ -19,10 +19,14 @@ pub fn run(state: SharedState) {
             let signal_url = crate::config::Config::from_env()
                 .map(|c| c.signal_url)
                 .unwrap_or_else(|_| "ws://localhost:8080".to_string());
+            let is_default = signal_url.trim() == "ws://localhost:8080";
+            if is_default {
+                *state.status.lock().unwrap() = "SIGNAL: SET URL IN SETTINGS".to_string();
+            }
             Ok(Box::new(DesktopGui {
                 state,
                 signal_url,
-                show_settings: false,
+                show_settings: is_default,
             }))
         }),
     );
