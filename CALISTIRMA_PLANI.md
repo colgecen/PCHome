@@ -48,17 +48,25 @@
 
 ## Denetim Turu (baştan kontrol — bulgular)
 
-- [ ] D1 [KRİTİK] `ffmpeg -f pipewire` sistemde desteklenmiyor →
+- [x] D1 [KRİTİK] `ffmpeg -f pipewire` sistemde desteklenmiyor →
       `encoder.rs`'e capture-input otomatik seçimi ekle:
       pipewire destekliyse pipewire, yoksa `$DISPLAY` ile x11grab.
-- [ ] D2 `prometheus.yml` hâlâ 8080'i scrape ediyor; `/metrics` 8081'e taşındı.
-- [ ] D3 `docs/handshake-sequence.md`: "(Go)" etiketi, "GET /ws",
+      + [KRİTİK] uinput ioctl numaraları yanlıştı (EINVAL) — kernel
+      başlığındaki gerçek değerlerle düzeltildi; cihaz kurulumu artık
+      root'suz bile doğrulandı. + VA-API bu makinede init olamıyor →
+      encoder fallback zinciri (Vaapi→Nvenc→libx264/libopenh264/h264)
+      eklendi, canlı testte Software(libopenh264) kare üretti.
+      + `PCHOME_SIGNAL_URL` sonunda `/ws` varken çift `/ws/ws`
+      oluşuyordu — normalize edildi.
+- [x] D2 `prometheus.yml` hâlâ 8080'i scrape ediyor; `/metrics` 8081'e taşındı.
+- [x] D3 `docs/handshake-sequence.md`: "(Go)" etiketi, "GET /ws",
       "mesaj TTL'i yeniler" ifadeleri gerçek davranışa aykırı.
-- [ ] D4 `scripts/test-e2e.sh` bozuk (tek client'a relay echo beklemez,
-      python `websocket` bağımlılığı) ve `run-local.sh` desktop'u
-      sudo'suz başlatıp uinput'ta düşürüyor.
-- [ ] D5 AndroidManifest'teki `FOREGROUND_SERVICE_MEDIA_PROJECTION`
-      izinleri Flow B kaldırıldığından artık gereksiz.
+- [x] D4 `scripts/test-e2e.sh` bozuk (tek client'a relay echo beklemez,
+      python `websocket` bağımlılığı) — silindi; `run-local.sh`'a
+      sudo uyarısı eklendi.
+- [x] D5 AndroidManifest'teki `FOREGROUND_SERVICE_MEDIA_PROJECTION`
+      izinleri Flow B kaldırıldığından artık gereksiz — kaldırıldı,
+      APK yeniden derlendi.
 
 ## Commit Listesi
 
@@ -74,3 +82,5 @@
 | 8 | 4.10 | `docs: correct signal server language references` |
 | 9 | 4.11 | `docs: expand quickstart guide with real build steps` |
 | 10 | 4.13 | `chore(mobile): remove unused touchpad layout` |
+| 11 | D1-D5 | `fix(desktop): probe encoders, correct uinput ioctls, normalize signal URL` |
+| 12 | D2-D5 | `fix: audit follow-ups across docs, scripts and manifest` |

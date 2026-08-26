@@ -5,4 +5,4 @@ global:
 scrape_configs:
   - job_name: 'pchome-signal'
     static_configs:
-      - targets: ['pchome-signal:8080']
+      - targets: ['pchome-signal:8081']

@@ -25,6 +25,8 @@ trap cleanup EXIT
 sleep 2
 
 echo "==> Starting PChome Desktop daemon"
+echo "    (uinput injection needs elevated privileges; rerun with"
+echo "     sudo if the mouse/keyboard stops working on the PC)"
 ( cd "$ROOT/pchome-desktop" && cargo run -- ) &
 DESKTOP_PID=$!
 
