@@ -88,8 +88,33 @@ Senin telefonun ve bilgisayarın aynı evde olmak zorunda DEĞİL.
 otomatik halledilir. Yani:
   - Bilgisayar işte, telefon evde olabilir.
   - Bilgisayar evde, telefon başka şehirde olabilir.
-Yeter ki ikisi de internate bağlı olsun ve aynı köprü adresini
+Yeter ki ikisi de internette bağlı olsun ve aynı köprü adresini
 kullansın.
+
+
+------------------------------------------------------------
+KENDİ ADRESİNİ NEREYE YAZACAKSIN? (repoya GİRMEZ)
+------------------------------------------------------------
+Herkes kendi köprü adresini lokal bir dosyaya yazar; bu dosyalar
+git'e commit edilmez:
+
+1) BİLGİSAYAR (desktop):
+   Programı çalıştırdığın klasöre ".env" adında dosya aç
+   (şablon: .env.example) ve içine şunu yaz:
+       PCHOME_SIGNAL_URL=wss://senin-servisin.onrender.com
+   Artık sadece şu komut yeter, uzun env yazmana gerek yok:
+       sudo ./pchome-desktop
+   İstersen eski yöntem de geçerli:
+       sudo sh -c 'PCHOME_SIGNAL_URL=wss://... /yol/pchome-desktop'
+
+2) TELEFON (APK derlerken):
+   pchome-mobile/local.properties dosyasına (zaten varsa sdk.dir
+   satırının altına) şunu ekle:
+       signalUrl=wss://senin-servisin.onrender.com/ws
+   Sonra APK'yı yeniden derle:
+       cd pchome-mobile && ./gradlew assembleDebug
+   Uygulama açılışta adres kutusunu senin adresinle doldurur;
+   istersen oradan elle de değiştirebilirsin.
 
 
 ------------------------------------------------------------

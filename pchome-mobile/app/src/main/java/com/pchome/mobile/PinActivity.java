@@ -24,6 +24,10 @@ public class PinActivity extends AppCompatActivity {
         statusText = findViewById(R.id.status);
         connectButton = findViewById(R.id.connect_button);
 
+        // Pre-fill the personal signal URL baked in from local.properties
+        // (signalUrl=...) at build time; the user can still override it here.
+        serverEdit.setText(BuildConfig.SIGNAL_URL);
+
         connectButton.setOnClickListener(v -> {
             String server = serverEdit.getText().toString().trim();
             String pin = pinEdit.getText().toString().replaceAll("[^0-9]", "");

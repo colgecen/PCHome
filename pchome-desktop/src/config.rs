@@ -35,8 +35,11 @@ impl Default for Config {
 
 impl Config {
     /// Load configuration from the process environment. Unknown variables are
-    /// ignored; missing ones fall back to `Default`.
+    /// ignored; missing ones fall back to `Default`. Before reading the
+    /// environment, a local `.env` file in the current directory (if any) is
+    /// applied so each user can keep a personal signal URL out of the repo.
     pub fn from_env() -> Result<Self> {
+        load_dotenv(".env");
         let mut cfg = Config::default();
         if let Ok(v) = std::env::var("PCHOME_SIGNAL_URL") {
             cfg.signal_url = v;
@@ -54,5 +57,31 @@ impl Config {
             cfg.metrics_addr = v.parse().unwrap_or(cfg.metrics_addr);
         }
         Ok(cfg)
+    }
+}
+
+/// Minimal `.env` loader: KEY=VALUE lines, `#` comments, optional quotes.
+/// Existing environment variables win over the file.
+fn load_dotenv(path: &str) {
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return;
+    };
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some((key, value)) = line.split_once('=') {
+            let key = key.trim();
+            let mut value = value.trim();
+            if (value.starts_with('"') && value.ends_with('"') && value.len() >= 2)
+                || (value.starts_with('\'') && value.ends_with('\'') && value.len() >= 2)
+            {
+                value = &value[1..value.len() - 1];
+            }
+            if !key.is_empty() && std::env::var_os(key).is_none() {
+                std::env::set_var(key, value);
+            }
+        }
     }
 }

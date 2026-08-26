@@ -2,6 +2,16 @@ plugins {
     id 'com.android.application'
 }
 
+// Personal signal server URL lives in local.properties (gitignored) so every
+// user keeps their own address out of the repository:
+//     echo "signalUrl=wss://your-service.onrender.com/ws" >> local.properties
+def localProps = new Properties()
+def localPropsFile = rootProject.file("local.properties")
+if (localPropsFile.exists()) {
+    localPropsFile.withInputStream { localProps.load(it) }
+}
+def signalUrl = localProps.getProperty("signalUrl", "ws://localhost:8080/ws")
+
 android {
     namespace 'com.pchome.mobile'
     compileSdk 34
@@ -13,6 +23,7 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField "String", "SIGNAL_URL", "\"${signalUrl}\""
     }
 
     buildTypes {
@@ -29,6 +40,7 @@ android {
 
     buildFeatures {
         viewBinding true
+        buildConfig true
     }
 }
 

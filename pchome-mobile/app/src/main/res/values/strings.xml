@@ -11,6 +11,7 @@
     <string name="error">Error</string>
     <string name="touchpad_hint">Use this area as a touchpad</string>
     <string name="waiting_for_stream">Waiting for stream...</string>
+    <string name="signal_url_hint">wss://your-service.onrender.com/ws</string>
     <string name="screen_capture_notification">PChome Screen Capture</string>
     <string name="screen_capture_notification_channel">Screen Capture</string>
 </resources>
