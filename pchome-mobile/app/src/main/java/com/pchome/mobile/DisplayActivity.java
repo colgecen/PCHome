@@ -7,6 +7,7 @@ import android.os.HandlerThread;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -14,7 +15,6 @@ import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.pchome.mobile.control.KeyCodeMap;
-import com.pchome.mobile.ui.NeonKeyboard;
 import com.pchome.mobile.ui.ReticleView;
 
 import org.json.JSONException;
@@ -102,10 +102,6 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         });
         btnLeft.setOnClickListener(v -> sendClick("left", "click"));
         btnRight.setOnClickListener(v -> sendClick("right", "click"));
-        btnKeyboard.setOnClickListener(v -> {
-            int vis = keyboardContainer.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE;
-            keyboardContainer.setVisibility(vis);
-        });
         btnRotate.setOnClickListener(v -> rotateScreen());
         btnEsc.setOnClickListener(v -> {
             sendKey(KeyCodeMap.KEY_ESC, true);
@@ -122,11 +118,22 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                 btnCtrl.setBackgroundColor(0xFF00F4FF);
             }
         });
+
+        findViewById(R.id.btn_disconnect).setOnClickListener(v -> finish());
     }
 
     private void setupKeyboard() {
-        NeonKeyboard keyboard = new NeonKeyboard();
-        keyboard.build(keyboardContainer, (linuxCode, down) -> sendKey(linuxCode, down));
+        // Use the system IME picker so a real on-screen keyboard can be used
+        // for text entry on the remote desktop, instead of the custom grid.
+        btnKeyboard.setOnClickListener(v -> {
+            InputMethodManager imm =
+                    (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                imm.showInputMethodPicker();
+            }
+            int vis = keyboardContainer.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE;
+            keyboardContainer.setVisibility(vis);
+        });
     }
 
     private void setupTouch() {

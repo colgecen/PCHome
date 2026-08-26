@@ -91,6 +91,34 @@ async fn daemon(state: SharedState) {
         *state.status.lock().unwrap() = "SIGNAL: OK".to_string();
     }
 
+    // Event-driven PIN rotation: when the signal connection drops we generate
+    // a fresh PIN so a stale number never lingers in the HUD after a peer
+    // disconnects. The signal server already TTL-evicts empty rooms, but
+    // without a new PIN the desktop would keep advertising the old one.
+    {
+        let pin_manager = Arc::new(pin_manager);
+        let connection = Arc::clone(&connection);
+        let state = Arc::clone(&state);
+        tokio::spawn(async move {
+            let mut was_connected = true;
+            loop {
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                let current = connection.state().await;
+                if was_connected && current != network::ConnectionState::Connected {
+                    if let Ok(new_pin) = pin_manager.generate_and_register().await {
+                        state.pin.store(new_pin, Ordering::SeqCst);
+                        state.push_event(format!("PIN rotated: {:06}", new_pin));
+                        log::info!("PIN rotated on disconnect: {:06}", new_pin);
+                    }
+                    if let Err(e) = connection.connect(state.pin.load(Ordering::SeqCst)).await {
+                        log::warn!("reconnect after PIN rotation failed: {}", e);
+                    }
+                }
+                was_connected = current == network::ConnectionState::Connected;
+            }
+        });
+    }
+
     #[cfg(all(feature = "capture", target_family = "unix"))]
     let control = {
         let uinput = match UInputDevice::open(

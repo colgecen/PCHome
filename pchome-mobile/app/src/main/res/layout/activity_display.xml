@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/pchome_background">
+    android:background="?attr/colorSurfaceVariant">
 
     <org.webrtc.SurfaceViewRenderer
         android:id="@+id/surface_view"
@@ -14,16 +15,16 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <TextView
+    <com.google.android.material.chip.Chip
         android:id="@+id/stream_status"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_margin="12dp"
+        android:layout_gravity="top|start"
         android:text="@string/waiting_for_stream"
-        android:textColor="@color/pchome_text_primary"
-        android:textSize="14sp"
-        android:layout_gravity="center"
-        android:background="#80000000"
-        android:padding="16dp" />
+        android:checkable="false"
+        app:chipBackgroundColor="@color/black"
+        android:textColor="?attr/colorOnSurface" />
 
     <!-- Cyber keyboard overlay (hidden until toggled) -->
     <LinearLayout
@@ -32,76 +33,90 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         android:orientation="vertical"
-        android:background="@color/pchome_surface"
+        android:background="?attr/colorSurface"
         android:padding="8dp"
         android:visibility="gone" />
 
-    <!-- Floating HUD dock -->
-    <LinearLayout
-        android:id="@+id/hud_dock"
+    <com.google.android.material.bottomappbar.BottomAppBar
+        android:id="@+id/bottom_app_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:background="#CC0D1117"
-        android:padding="8dp">
+        app:fabAlignmentMode="center"
+        app:fabCradleMargin="8dp"
+        app:fabCradleRoundedCornerRadius="16dp">
 
-        <Button
-            android:id="@+id/btn_mode"
-            style="@style/PChomeButton"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="DIRECT"
-            android:textSize="12sp" />
+            android:orientation="horizontal"
+            android:gravity="center">
 
-        <Button
-            android:id="@+id/btn_left"
-            style="@style/PChomeButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="L-CLICK"
-            android:textSize="12sp" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_mode"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="DIRECT"
+                android:textSize="11sp" />
 
-        <Button
-            android:id="@+id/btn_right"
-            style="@style/PChomeButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="R-CLICK"
-            android:textSize="12sp" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_left"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="L"
+                android:textSize="11sp" />
 
-        <Button
-            android:id="@+id/btn_keyboard"
-            style="@style/PChomeButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="KEYBOARD"
-            android:textSize="12sp" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_right"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="R"
+                android:textSize="11sp" />
 
-        <Button
-            android:id="@+id/btn_rotate"
-            style="@style/PChomeButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="ROTATE"
-            android:textSize="12sp" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_esc"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ESC"
+                android:textSize="11sp" />
 
-        <Button
-            android:id="@+id/btn_esc"
-            style="@style/PChomeButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="ESC"
-            android:textSize="12sp" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_ctrl"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="CTRL"
+                android:textSize="11sp" />
 
-        <Button
-            android:id="@+id/btn_ctrl"
-            style="@style/PChomeButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="CTRL"
-            android:textSize="12sp" />
-    </LinearLayout>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_keyboard"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ABC"
+                android:textSize="11sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_rotate"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ROT"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </com.google.android.material.bottomappbar>
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/btn_disconnect"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:src="@android:drawable/ic_menu_close_clear_cancel"
+        android:contentDescription="@string/disconnect" />
 
 </FrameLayout>

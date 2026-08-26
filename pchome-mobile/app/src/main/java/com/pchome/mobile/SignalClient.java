@@ -2,25 +2,28 @@ package com.pchome.mobile;
 
 import android.util.Log;
 
-import org.java_websocket.client.WebSocketClient;
-import org.java_websocket.handshake.ServerHandshake;
+import androidx.annotation.NonNull;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.net.URI;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.WebSocket;
+import okhttp3.WebSocketListener;
 
 public class SignalClient {
     private static final String TAG = "SignalClient";
     private static final long RECONNECT_DELAY_MS = 2000;
     private static final int MAX_RECONNECT_ATTEMPTS = 10;
 
-    private WebSocketClient webSocketClient;
+    private OkHttpClient httpClient;
+    private WebSocket webSocket;
     private String serverUrl;
     private String pin;
-    private BlockingQueue<JSONObject> messageQueue;
     private boolean connected;
     private int reconnectAttempts;
     private Thread reconnectThread;
@@ -38,56 +41,58 @@ public class SignalClient {
         this.serverUrl = serverUrl;
         this.pin = pin;
         this.listener = listener;
-        this.messageQueue = new LinkedBlockingQueue<>();
         this.connected = false;
     }
 
     public void connect() {
-        if (webSocketClient != null && webSocketClient.isOpen()) {
+        if (webSocket != null && connected) {
             return;
         }
 
-        try {
-            URI uri = new URI(serverUrl + "?pin=" + pin + "&role=mobile");
-            webSocketClient = new WebSocketClient(uri) {
-                @Override
-                public void onOpen(ServerHandshake handshakedata) {
-                    connected = true;
-                    reconnectAttempts = 0;
-                    Log.i(TAG, "WebSocket connected");
-                    if (listener != null) listener.onConnected();
-                }
+        httpClient = new OkHttpClient.Builder()
+                // Cloudflare closes idle sockets after ~100s; a periodic ping
+                // keeps the signaling connection alive behind the proxy.
+                .pingInterval(20, TimeUnit.SECONDS)
+                .build();
 
-                @Override
-                public void onMessage(String message) {
-                    try {
-                        JSONObject json = new JSONObject(message);
-                        if (listener != null) listener.onMessage(json);
-                    } catch (JSONException e) {
-                        Log.e(TAG, "Failed to parse message", e);
-                    }
-                }
+        String url = serverUrl + "?pin=" + pin + "&role=mobile";
+        Request request = new Request.Builder().url(url).build();
 
-                @Override
-                public void onClose(int code, String reason, boolean remote) {
-                    connected = false;
-                    Log.i(TAG, "WebSocket closed: " + reason);
-                    if (listener != null) listener.onDisconnected();
-                    scheduleReconnect();
-                }
+        webSocket = httpClient.newWebSocket(request, new WebSocketListener() {
+            @Override
+            public void onOpen(@NonNull WebSocket ws, @NonNull Response response) {
+                connected = true;
+                reconnectAttempts = 0;
+                Log.i(TAG, "WebSocket connected");
+                if (listener != null) listener.onConnected();
+            }
 
-                @Override
-                public void onError(Exception ex) {
-                    Log.e(TAG, "WebSocket error", ex);
-                    if (listener != null) listener.onError(ex.getMessage());
+            @Override
+            public void onMessage(@NonNull WebSocket ws, @NonNull String text) {
+                try {
+                    JSONObject json = new JSONObject(text);
+                    if (listener != null) listener.onMessage(json);
+                } catch (JSONException e) {
+                    Log.e(TAG, "Failed to parse message", e);
                 }
-            };
+            }
 
-            webSocketClient.connectBlocking();
-        } catch (Exception e) {
-            Log.e(TAG, "Connection failed", e);
-            scheduleReconnect();
-        }
+            @Override
+            public void onClosed(@NonNull WebSocket ws, int code, @NonNull String reason) {
+                connected = false;
+                Log.i(TAG, "WebSocket closed: " + reason);
+                if (listener != null) listener.onDisconnected();
+                scheduleReconnect();
+            }
+
+            @Override
+            public void onFailure(@NonNull WebSocket ws, @NonNull Throwable t, Response response) {
+                connected = false;
+                Log.e(TAG, "WebSocket error: " + t.getMessage(), t);
+                if (listener != null) listener.onError(t.getMessage());
+                scheduleReconnect();
+            }
+        });
     }
 
     public void disconnect() {
@@ -95,15 +100,19 @@ public class SignalClient {
         if (reconnectThread != null) {
             reconnectThread.interrupt();
         }
-        if (webSocketClient != null) {
-            webSocketClient.close();
+        if (webSocket != null) {
+            webSocket.close(1000, "client disconnect");
+            webSocket = null;
+        }
+        if (httpClient != null) {
+            httpClient.dispatcher().executorService().shutdown();
         }
     }
 
     public boolean sendMessage(JSONObject message) {
-        if (webSocketClient != null && connected) {
+        if (webSocket != null && connected) {
             try {
-                webSocketClient.send(message.toString());
+                webSocket.send(message.toString());
                 return true;
             } catch (Exception e) {
                 Log.e(TAG, "Send failed", e);
@@ -116,11 +125,10 @@ public class SignalClient {
         return connected;
     }
 
-    private void scheduleReconnect() {
+    private void scheduleRepeatedReconnect() {
         if (reconnectThread != null && reconnectThread.isAlive()) {
             return;
         }
-
         reconnectThread = new Thread(() -> {
             while (reconnectAttempts < MAX_RECONNECT_ATTEMPTS && !connected) {
                 try {
@@ -134,5 +142,9 @@ public class SignalClient {
             }
         });
         reconnectThread.start();
+    }
+
+    private void scheduleReconnect() {
+        scheduleRepeatedReconnect();
     }
 }

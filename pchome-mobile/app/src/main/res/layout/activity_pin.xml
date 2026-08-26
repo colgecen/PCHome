@@ -1,74 +1,94 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:gravity="center"
-    android:padding="32dp"
-    android:background="@color/pchome_background">
+    android:gravity="center_horizontal"
+    android:padding="24dp"
+    android:background="?attr/colorSurfaceVariant">
 
-    <TextView
-        android:id="@+id/server_label"
+    <com.google.android.material.textview.MaterialTextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="SIGNAL SERVER"
-        android:textColor="@color/pchome_text_primary"
-        android:textSize="14sp"
+        android:text="@string/app_name"
+        android:textAppearance="?attr/textAppearanceHeadlineMedium"
+        android:textColor="?attr/colorPrimary"
         android:letterSpacing="0.05"
+        android:layout_marginTop="24dp"
         android:layout_marginBottom="8dp" />
 
-    <EditText
-        android:id="@+id/server"
+    <com.google.android.material.textview.MaterialTextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Remote control your desktop"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:layout_marginBottom="32dp" />
+
+    <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="@string/signal_url_hint"
-        android:textColor="@color/pchome_cyan"
-        android:inputType="textUri"
-        android:textSize="16sp"
-        android:fontFamily="monospace"
-        android:layout_marginBottom="24dp" />
+        android:hint="@string/signal_server_hint"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
-    <TextView
-        android:id="@+id/pin_label"
+        <AutoCompleteTextView
+            android:id="@+id/server"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textUri"
+            android:textSize="16sp"
+            android:fontFamily="monospace" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textview.MaterialTextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="PIN"
-        android:textColor="@color/pchome_text_primary"
-        android:textSize="14sp"
-        android:letterSpacing="0.05"
-        android:layout_marginBottom="8dp" />
+        android:text="Recent servers"
+        android:textAppearance="?attr/textAppearanceLabelMedium"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="8dp"
+        android:layout_gravity="start" />
 
-    <EditText
-        android:id="@+id/pin_edit"
-        android:layout_width="wrap_content"
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/recent_servers"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="------"
-        android:textColor="@color/pchome_cyan"
-        android:textSize="64sp"
-        android:fontFamily="monospace"
-        android:letterSpacing="0.1"
-        android:inputType="number"
-        android:maxLength="6"
-        android:gravity="center"
-        android:layout_marginBottom="24dp" />
+        android:visibility="gone" />
 
-    <TextView
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/pin_hint"
+        android:layout_marginTop="16dp"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/pin_edit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:maxLength="6"
+            android:gravity="center"
+            android:textSize="40sp"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.15" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textview.MaterialTextView
         android:id="@+id/status"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Idle"
-        android:textColor="@color/pchome_text_primary"
-        android:textSize="18sp"
-        android:layout_marginBottom="32dp" />
+        android:text="@string/idle"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textColor="?attr/colorError"
+        android:layout_marginTop="12dp" />
 
-    <Button
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/connect_button"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Connect"
-        android:textSize="16sp"
-        android:paddingHorizontal="32dp"
-        android:paddingVertical="12dp"
-        style="@style/PChomeButton" />
+        android:text="@string/connect"
+        android:layout_marginTop="24dp"
+        app:cornerRadius="12dp" />
 
 </LinearLayout>
