@@ -28,18 +28,18 @@ test-desktop:
 	cd pchome-desktop && cargo test --all-targets --all-features
 
 test-signal:
-	cd pchome-signal && go test ./...
+	cd pchome-signal && cargo test
 
 test-mobile:
 	cd pchome-mobile && ./gradlew test
 
 build:
 	@echo "Building all modules..."
-	cd pchome-signal && go mod tidy && go build ./...
-	cd pchome-desktop && cargo build
+	cd pchome-signal && cargo build --release
+	cd pchome-desktop && cargo build --release
 	cd pchome-mobile && ./gradlew assembleDebug
 
 clean:
 	cd pchome-desktop && cargo clean
-	cd pchome-signal && rm -f pchome-signal
+	cd pchome-signal && cargo clean
 	cd pchome-mobile && ./gradlew clean

@@ -4,28 +4,26 @@
 
 ### System Requirements
 - Linux kernel 5.10+ with uinput support
-- PipeWire 0.3+ with DMA-BUF support
+- PipeWire 0.3+ (screen source for ffmpeg)
+- ffmpeg with PipeWire support (`-f pipewire` input)
 - Rust 1.70 or newer
 - Cargo for package management
-- Optional: Tauri or Slint for GUI framework
 
 ### Dependencies
 
 #### Core Rust Dependencies (Cargo.toml)
 ```toml
 [dependencies]
-tokio = { version = "1.38", features = ["full"] }
-pipewire = "0.8"
-uinput = "0.5"
-display-interface = "0.5"
-tauri = "2.0" # or slint = "1.5"
-sha2 = "0.10"
+tokio = { version = "1", features = ["full"] }
+webrtc = "0.12"
+eframe = "0.29"
+egui = "0.29"
 serde = { version = "1.0", features = ["derive"] }
 ```
 
 #### Hardware Acceleration (Optional)
-- `libva-dev` or `libnvenc` for H.264 encoding
-- `gstreamer-1.0` with good/plugins elements
+- VA-API (`/dev/dri/renderD128`) or NVIDIA GPU for H.264 encoding
+- ffmpeg falls back to `libx264` automatically
 
 ## Build Steps
 
@@ -38,8 +36,7 @@ cd pchome
 ### 2. Build Signal Server
 ```bash
 cd pchome-signal
-go mod tidy
-go run main.go
+cargo build --release
 ```
 
 ### 3. Build Desktop Daemon
@@ -49,16 +46,8 @@ cargo build --release
 ```
 
 ### 4. Build GUI Frontend
-```bash
-# If using Tauri
-cd pchome-desktop/src-ui
-npm install
-npm run build
-
-# If using Slint
-cd pchome-desktop/src-ui
-slint build
-```
+The desktop HUD is a native egui window compiled into the daemon
+(feature `gui`, enabled by default) — no separate frontend build step.
 
 ## Configuration
 
@@ -77,13 +66,13 @@ Desktop generates cryptographically secure 6-digit PIN on startup:
 - Displayed in HUD for user input
 
 ### PipeWire Configuration
-Ensure PipeWire captures screen with DMA-BUF:
+ffmpeg reads the desktop through the PipeWire screen source:
 ```bash
-# Check PipeWire version
-pw-info --version
+# Check PipeWire is running
+pw-cli info 0
 
-# Verify DMA-BUF support
-pactl list modules | grep -i dmabuf
+# Verify ffmpeg supports the pipewire input format
+ffmpeg -hide_banner -formats 2>/dev/null | grep -i pipewire
 ```
 
 ## Running
@@ -91,29 +80,31 @@ pactl list modules | grep -i dmabuf
 ### Start Signal Server (separate terminal)
 ```bash
 cd pchome-signal
-go run main.go
+./target/release/pchome-signal
+# Health: http://localhost:8081/health  Metrics: /metrics
 ```
 
 ### Start Desktop Daemon
 ```bash
-cd pchome-desktop
-./target/release/pchome-desktop
+sudo env PCHOME_SIGNAL_URL=ws://127.0.0.1:8080/ws \
+    ./target/release/pchome-desktop
 ```
+The egui HUD window shows the PIN, connection status, and live telemetry.
 
 ### Access HUD
-Open browser to `http://localhost:3000` or run GUI frontend
+Run the desktop daemon — the HUD is the native egui window it opens.
 
 ## Debugging
 
 ### Common Issues
 
 1. **uinput permission denied**
-   - Verify udev rules loaded: `ls -la /dev/uinput`
+   - Run the daemon with sudo, or verify udev rules loaded: `ls -la /dev/uinput`
    - Add user to pchome group: `usermod -aG pchome $USER`
 
-2. **PipeWire capture failure**
+2. **Capture failure / no frames**
+   - Check ffmpeg is installed and supports `-f pipewire`: `ffmpeg -formats | grep pipewire`
    - Check PipeWire is running: `pw-cli list-objects`
-   - Verify DMA-BUF format support
 
 3. **PIN not registering**
    - Check Signal server WebSocket connection

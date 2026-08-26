@@ -68,13 +68,14 @@ NOT: Bu dosya `PCHome-prompt.txt` içeriğine göre genişletildi — proje deta
 - [x] Instrumented UI tests for `PinActivity` and `TouchpadActivity` (Espresso/UiAutomator)
 - [x] Emulated performance tests for MediaCodec pipeline
 
-## Phase 4: PChome Signal (Go)
+## Phase 4: PChome Signal (Rust)
 
 ### Core Server
-- [x] `main.go`: HTTP endpoints for health, metrics, and WebSocket handshake route
-- [x] `internal/room/manager.go`: 6-digit room mapping, TTL eviction, concurrency safe
-- [x] `internal/signal/websocket.go`: relay of SDP and ICE candidates; auth via ephemeral PIN
+- [x] `main.rs`: WebSocket handshake route (`/ws?pin=…&role=…`), `/health`, and Prometheus-style `/metrics` endpoints
+- [x] `Room` registry: 6-digit room mapping, TTL eviction sweeper, concurrency safe
+- [x] Role-aware relay of SDP and ICE candidates; auth via ephemeral PIN; never echoes to sender
 - [x] Add metrics (Prometheus) and structured logging
+- [x] Basic per-IP connection rate limit (`RATE_LIMIT`)
 
 ### Deployment
 - [x] `Dockerfile`: multi-stage build, small runtime image

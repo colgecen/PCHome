@@ -34,10 +34,10 @@ PChome operates as a monorepo with three decoupled yet seamlessly integrated mod
 
 ### 3. PChome Signal (P2P Handshake Server)
 
-**Language**: Go (Golang)  
+**Language**: Rust (tokio + tokio-tungstenite)  
 **Framework**: WebSocket server  
 **Components**:
-- **Room Manager**: Active 6-digit PIN room mapping & TTL cleaner
+- **Room Manager**: Active 6-digit PIN room mapping & TTL sweeper
 - **WebSocket Relay**: SDP offer/answer & ICE candidate exchange
 
 **Architecture Flow**:
@@ -61,7 +61,7 @@ PChome operates as a monorepo with three decoupled yet seamlessly integrated mod
             ▼                                            ▼
 +--------------------------------------------------------------------+
 |                       PChome Signal Server                         |
-|                 (Go / Room Manager & WebSocket)                    |
+|               (Rust / Room Manager & WebSocket Relay)              |
 +--------------------------------------------------------------------+
 
 +-----------------------+                    +-----------------------+
@@ -114,18 +114,18 @@ The Signal server is a thin, stateless relay. It never inspects SDP/ICE
 payloads; it only forwards them between the two peers that share a PIN.
 
 1. **PIN generation (Desktop)**: The daemon generates a cryptographically
-   secure 6-digit PIN using `crypto/rand` and calls `RoomManager.Reserve(pin)`
-   to claim the room before publishing it. The room carries a TTL (300s) that
-   is refreshed on every relayed message and swept by a background cleaner.
+   secure 6-digit PIN using `rand::RngCore` and registers the room simply by
+   being the first peer to connect. The room carries a TTL (300s) that is
+   refreshed on every join and swept by a background cleaner.
 2. **Registration**: Desktop opens
    `ws://<signal>/ws?pin=<123456>&role=desktop` and stays connected.
 3. **Join**: Mobile opens
    `ws://<signal>/ws?pin=<123456>&role=mobile` (the UI groups the digits as
    `123-456`; separators are stripped before connecting).
 4. **Hub formation**: On the first peer's connect the Signal server creates a
-   `Room` with a `sync.Map` of `peerID -> *Client`. When the second peer
-    connects, both clients are linked in a `Hub` so messages route between them
-    and are never echoed back to the sender.
+    `Room` (`desktop`/`mobile` sender slots). When the second peer
+     connects, both clients are linked in a `Room` so messages route between them
+     and are never echoed back to the sender.
  5. **Offer/answer**: The desktop is the WebRTC **offerer**. After the hub forms,
     the mobile sends `{ "type": "hello", "role": "mobile" }`; the desktop replies
     with `{ "type": "offer", ... }` and the mobile answers. ICE candidates then

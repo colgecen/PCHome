@@ -4,8 +4,7 @@
 
 ### Zero-Lag Policy
 All code must prioritize non-blocking async architecture:
-- **Rust**: Use Tokio async runtime for all I/O operations
-- **Go**: Use Goroutines + channels for concurrent operations
+- **Rust**: Use Tokio async runtime for all I/O operations (desktop daemon and signal relay)
 - **Java**: Use Background Threads + Handlers + Coroutines where applicable
 
 Any blocking operation must be offloaded to a background thread/async task.

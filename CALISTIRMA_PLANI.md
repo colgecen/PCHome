@@ -30,7 +30,7 @@
 
 ## P2 — Docs & Temizlik
 
-- [ ] 4.10 Docs Go→Rust düzeltmesi: `README.md`, `BUILD.md`, `Makefile`,
+- [x] 4.10 Docs Go→Rust düzeltmesi: `README.md`, `BUILD.md`, `Makefile`,
       `DECISIONS.md`, `TODO.md`.
 - [ ] 4.11 `calistirma-rehberi.txt`: ffmpeg şartı, sudo, APK build adımı,
       signal'i `cargo run` ile başlatma.

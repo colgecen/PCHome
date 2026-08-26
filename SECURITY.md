@@ -11,7 +11,7 @@ All data transmitted between PChome Desktop and PChome Mobile uses WebRTC DataCh
 - No plaintext data leaves the source device
 
 ### Signal Server Security
-The Go Signal server operates as a relay only:
+The Rust Signal server operates as a relay only:
 - **No media relay**: WebRTC DataChannels are peer-to-peer (P2P)
 - **No session storage**: PINs are transient (300s TTL), not persisted
 - **Minimal metadata**: Only room PIN mapping and ICE candidate relay
@@ -296,4 +296,4 @@ ls -la /proc/$(pgrep pchome-desktop)/fd
 - [ ] README.md updated with release notes
 - [ ] CHANGELOG.md published with new version
 - [ ] Migration guide added if breaking changes
-- [ ] Version bumped in all Cargo.toml / go.mod files
+- [ ] Version bumped in all Cargo.toml files

@@ -5,7 +5,7 @@
 **Decision**: Use language-specific best practices for each platform
 - **Desktop**: Rust for performance-critical daemon + zero-copy guarantees
 - **Mobile**: Java/Android SDK for native MediaProjection/MediaCodec access
-- **Signal Server**: Go for lightweight WebSocket handling & concurrent connections
+- **Signal Server**: Rust (tokio + tokio-tungstenite) for lightweight WebSocket relay & concurrent connections
 
 **Rationale**: Each language offers optimal ecosystem support for the specific native APIs required (/uinput, MediaProjection, WebSockets).
 
@@ -27,7 +27,7 @@
 
 **Rationale**: Balances security (sufficient entropy for session auth) with usability (not too frequent re-authentication). TTL ensures stale sessions are cleaned up automatically.
 
-**Implementation**: Go `crypto/rand` (or Rust `rand::rngs::OsRng`) for cryptographically secure 6-digit PIN generation, registered via WebSockets.
+**Implementation**: Rust `rand::rngs::OsRng` (`rand::RngCore::next_u32`) for cryptographically secure 6-digit PIN generation, registered via WebSockets.
 
 ---
 
@@ -84,8 +84,7 @@
 **Decision**: Prioritize non-blocking async architecture throughout
 
 **Implementation**:
-- Rust: Tokio async runtime
-- Go: Goroutines + channels
+- Rust: Tokio async runtime (desktop daemon and signal relay)
 - Java: Background Handlers + Coroutines
 
 **Rationale**: Meets low-latency requirements and prevents UI blocking across all platforms.

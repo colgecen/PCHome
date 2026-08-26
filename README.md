@@ -42,9 +42,9 @@ make build
 
 ```
 pchome/
-├── pchome-desktop/   # Rust daemon + HUD
+├── pchome-desktop/   # Rust daemon + egui HUD
 ├── pchome-mobile/    # Android app
-├── pchome-signal/    # Go signal server
+├── pchome-signal/    # Rust signal server (WebSocket relay)
 ├── scripts/          # Helper scripts
 ├── Makefile          # Simple build targets
 └── docker-compose.yml # Docker setup
@@ -64,7 +64,7 @@ make clean        # Clean artifacts
 
 ```bash
 # Signal server
-cd pchome-signal && go run main.go
+cd pchome-signal && cargo run --release
 
 # Desktop
 cd pchome-desktop && cargo run
@@ -76,8 +76,7 @@ cd pchome-mobile && ./gradlew assembleDebug
 ## Requirements
 
 - **Docker**: For signal server (easiest)
-- **Go 1.23+**: For signal server (if not using Docker)
-- **Rust 1.70+**: For desktop
+- **Rust 1.70+**: For signal server and desktop
 - **JDK 17+**: For mobile
 
 ## Documentation
