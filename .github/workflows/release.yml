@@ -5,47 +5,107 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build-desktop:
-    name: Build Desktop
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact_name: pchome-desktop-linux
-            binary_name: pchome-desktop
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact_name: pchome-desktop-windows
-            binary_name: pchome-desktop.exe
-
+    name: Desktop (tar.gz / AppImage / RPM)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install packaging tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq rpm
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
 
       - name: Build
-        run: |
-          cd pchome-desktop
-          cargo build --release --target ${{ matrix.target }}
+        working-directory: pchome-desktop
+        run: cargo build --release
 
-      - name: Upload artifact
+      - name: Stage payload
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          mkdir -p staging/AppDir/usr/bin staging/usr/bin
+          install -m 755 pchome-desktop/target/release/pchome-desktop \
+            staging/AppDir/usr/bin/pchome-desktop
+          install -m 644 pchome-desktop/BUILD.md README.md staging/
+
+          # .desktop entry + placeholder icon for the AppImage
+          cat > staging/AppDir/pchome.desktop <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=PChome
+          Comment=Remote control your Linux PC from Android
+          Exec=pchome-desktop
+          Categories=Network;RemoteAccess;
+          EOF
+          convert -size 128x128 xc:'#090C10' \
+            -fill '#00F4FF' -pointsize 48 -gravity center -annotate +0+0 'PC' \
+            staging/AppDir/pchome.png
+
+      - name: tar.gz
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          cp staging/AppDir/usr/bin/pchome-desktop staging/usr/bin/
+          tar -czf pchome-desktop-${VERSION}-x86_64.tar.gz -C staging \
+            usr/bin/pchome-desktop BUILD.md README.md
+
+      - name: AppImage
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          curl -sL -o appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run \
+            staging/AppDir "PChome-${VERSION}-x86_64.AppImage"
+
+      - name: RPM
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          VER=${VERSION#v}
+          mkdir -p ~/rpmbuild/{BUILD,RPMS,SPECS,SOURCES}
+          tar -czf ~/rpmbuild/SOURCES/pchome-desktop-${VER}.tar.gz \
+            -C staging usr/bin/pchome-desktop
+          cat > ~/rpmbuild/SPECS/pchome-desktop.spec <<EOF
+          Name:           pchome-desktop
+          Version:        ${VER}
+          Release:        1%{?dist}
+          Summary:        PChome remote control desktop daemon
+          License:        MIT
+          Source0:        pchome-desktop-${VER}.tar.gz
+          Requires:       ffmpeg, pipewire
+          %description
+          Screen capture and input daemon for the PChome remote control system.
+          %prep
+          %setup -c
+          %install
+          mkdir -p %{buildroot}%{_bindir}
+          install -m 755 usr/bin/pchome-desktop %{buildroot}%{_bindir}/pchome-desktop
+          %files
+          %{_bindir}/pchome-desktop
+          EOF
+          rpmbuild -bb ~/rpmbuild/SPECS/pchome-desktop.spec
+          find ~/rpmbuild/RPMS -name '*.rpm' -exec mv {} pchome-desktop-${VER}-x86_64.rpm \;
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: pchome-desktop/target/${{ matrix.target }}/release/${{ matrix.binary_name }}
+          name: desktop-packages
+          path: |
+            pchome-desktop-*-x86_64.tar.gz
+            PChome-*-x86_64.AppImage
+            pchome-desktop-*.rpm
 
   build-signal:
-    name: Build Signal Server
+    name: Signal server (tar.gz)
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -56,14 +116,23 @@ jobs:
         working-directory: pchome-signal
         run: cargo build --release
 
-      - name: Upload artifact
+      - name: Package
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          mkdir -p staging
+          install -m 755 pchome-signal/target/release/pchome-signal staging/
+          install -m 644 pchome-signal/README.md staging/
+          tar -czf pchome-signal-${VERSION}-x86_64.tar.gz -C staging pchome-signal README.md
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: pchome-signal-linux-amd64
-          path: pchome-signal/target/release/pchome-signal
+          name: signal-package
+          path: pchome-signal-*-x86_64.tar.gz
 
   build-android:
-    name: Build Android APK
+    name: Android APK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -78,12 +147,6 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           api-level: 34
-          ndk: 25.2.9519653
-
-      - name: Install Gradle
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq gradle
 
       - name: Generate Gradle Wrapper
         run: |
@@ -96,18 +159,23 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Rename APK
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          cd pchome-mobile/app/build/outputs/apk/debug
+          mv app-debug.apk pchome-mobile-${VERSION}.apk
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pchome-mobile-apk
-          path: pchome-mobile/app/build/outputs/apk/debug/app-debug.apk
+          name: android-apk
+          path: pchome-mobile/app/build/outputs/apk/debug/pchome-mobile-*.apk
 
   create-release:
     name: Create GitHub Release
     needs: [build-desktop, build-signal, build-android]
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -118,57 +186,22 @@ jobs:
         with:
           path: ./release-artifacts
 
-      - name: List downloaded files
-        run: find ./release-artifacts -type f
+      - name: Flatten artifact layout
+        run: |
+          mkdir -p dist
+          find ./release-artifacts -type f -exec mv {} dist/ \;
+          ls -la dist/
 
       - name: Generate changelog
-        id: changelog
         run: |
-          git log $(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo $(git rev-parse --short HEAD~1))..HEAD --oneline --no-merges > changelog.txt || echo "No changelog available" > changelog.txt
+          PREV=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          RANGE="${PREV:+$PREV..}${GITHUB_REF_NAME}"
+          { echo "## Changes"; git log ${RANGE} --oneline --no-merges | sed 's/^/- /'; } > changelog.md
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: PChome ${{ github.ref_name }}
-          body_path: changelog.txt
-          files: |
-            release-artifacts/**/*
-          draft: false
-          prerelease: false
-
-  build-docker:
-    name: Build Docker Image
-    runs-on: ubuntu-latest
-    needs: [create-release]
-    if: github.ref == 'refs/tags/*'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Extract version
-        id: version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: pchome-signal
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            colgecen/pchome-signal:${{ steps.version.outputs.version }}
-            colgecen/pchome-signal:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          body_path: changelog.md
+          files: dist/*
