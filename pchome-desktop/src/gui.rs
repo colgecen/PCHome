@@ -15,7 +15,16 @@ pub fn run(state: SharedState) {
     let _ = eframe::run_native(
         "PChome Desktop",
         options,
-        Box::new(|_cc| Ok(Box::new(DesktopGui { state }))),
+        Box::new(|_cc| {
+            let signal_url = crate::config::Config::from_env()
+                .map(|c| c.signal_url)
+                .unwrap_or_else(|_| "ws://localhost:8080".to_string());
+            Ok(Box::new(DesktopGui {
+                state,
+                signal_url,
+                show_settings: false,
+            }))
+        }),
     );
 }
 
@@ -34,6 +43,8 @@ fn app_icon() -> egui::IconData {
 
 struct DesktopGui {
     state: SharedState,
+    signal_url: String,
+    show_settings: bool,
 }
 
 impl eframe::App for DesktopGui {
@@ -124,6 +135,12 @@ impl eframe::App for DesktopGui {
         egui::TopBottomPanel::bottom("footer").show(ctx, |ui| {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
+                    .button(egui::RichText::new("SETTINGS").color(glow))
+                    .clicked()
+                {
+                    self.show_settings = !self.show_settings;
+                }
+                if ui
                     .add(
                         egui::Button::new(
                             egui::RichText::new("TERMINATE SESSION")
@@ -138,6 +155,31 @@ impl eframe::App for DesktopGui {
                 }
             });
         });
+
+        if self.show_settings {
+            egui::Window::new("Settings")
+                .resizable(false)
+                .show(ctx, |ui| {
+                    ui.label(egui::RichText::new("Signal Server URL").strong());
+                    ui.label("wss://your-host.onrender.com/ws");
+                    ui.text_edit_singleline(&mut self.signal_url);
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        if ui.button("Save").clicked() {
+                            let url = self.signal_url.trim().to_string();
+                            if !url.is_empty() {
+                                let _ = crate::config::Config::save_signal_url(&url);
+                                *self.state.status.lock().unwrap() =
+                                    "SIGNAL: restart to apply".to_string();
+                            }
+                            self.show_settings = false;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            self.show_settings = false;
+                        }
+                    });
+                });
+        }
 
         ctx.request_repaint_after(Duration::from_millis(120));
     }
