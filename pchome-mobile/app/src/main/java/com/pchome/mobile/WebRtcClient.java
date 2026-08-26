@@ -317,7 +317,8 @@ public class WebRtcClient {
             JSONObject hello = new JSONObject();
             hello.put("type", "hello");
             hello.put("role", "mobile");
-            signalClient.sendMessage(hello);
+            boolean sent = signalClient.sendMessage(hello);
+            Log.i(TAG, "hello sent to server: " + sent);
         } catch (JSONException e) {
             Log.e(TAG, "Failed to send hello", e);
         }
