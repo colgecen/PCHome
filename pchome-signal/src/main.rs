@@ -156,9 +156,11 @@ async fn main() -> Result<()> {
     }
 }
 
-/// Peeks at the request head: when it is a plain `GET /health` or
-/// `GET /metrics`, writes the response and returns None (connection done).
-/// Anything else returns the untouched stream for WebSocket handling.
+/// Peeks at the request head: plain HTTP requests that are NOT WebSocket
+/// upgrades are answered inline (`GET /health` and `GET /metrics` with 200,
+/// anything else with 404) and None is returned (connection done).
+/// Everything else — including WebSocket handshakes and undecodable traffic —
+/// returns the untouched stream for WebSocket handling.
 async fn serve_http_probe(
     mut stream: tokio::net::TcpStream,
     registry: &Arc<Mutex<Registry>>,
@@ -170,26 +172,33 @@ async fn serve_http_probe(
         Err(_) => return Some(stream),
     };
     let head = String::from_utf8_lossy(&buf[..n]);
-    let path = head.split_whitespace().nth(1).unwrap_or("");
-    if !(path == "/health" || path == "/metrics") {
+    let lower = head.to_ascii_lowercase();
+    let is_upgrade = lower.contains("upgrade: websocket");
+    let looks_http = ["GET ", "HEAD ", "POST ", "PUT ", "DELETE ", "OPTIONS "]
+        .iter()
+        .any(|m| head.starts_with(m));
+    if is_upgrade || !looks_http {
         return Some(stream);
     }
-    let (status, body) = if path == "/health" {
-        ("200 OK", "OK".to_string())
-    } else {
-        let reg = registry.lock().await;
-        let rooms = reg.rooms.len();
-        let desktops = reg.rooms.values().filter(|r| r.desktop.is_some()).count();
-        let mobiles = reg.rooms.values().filter(|r| r.mobile.is_some()).count();
-        (
-            "200 OK",
-            format!(
-                "# TYPE pchome_rooms_active gauge\npchome_rooms_active {}\n\
-                 # TYPE pchome_desktops_connected gauge\npchome_desktops_connected {}\n\
-                 # TYPE pchome_mobiles_connected gauge\npchome_mobiles_connected {}\n",
-                rooms, desktops, mobiles
-            ),
-        )
+    let path = head.split_whitespace().nth(1).unwrap_or("");
+    let (status, body) = match path {
+        "/health" => ("200 OK", "OK".to_string()),
+        "/metrics" => {
+            let reg = registry.lock().await;
+            let rooms = reg.rooms.len();
+            let desktops = reg.rooms.values().filter(|r| r.desktop.is_some()).count();
+            let mobiles = reg.rooms.values().filter(|r| r.mobile.is_some()).count();
+            (
+                "200 OK",
+                format!(
+                    "# TYPE pchome_rooms_active gauge\npchome_rooms_active {}\n\
+                     # TYPE pchome_desktops_connected gauge\npchome_desktops_connected {}\n\
+                     # TYPE pchome_mobiles_connected gauge\npchome_mobiles_connected {}\n",
+                    rooms, desktops, mobiles
+                ),
+            )
+        }
+        _ => ("404 Not Found", "not found\n".to_string()),
     };
     let resp = format!(
         "HTTP/1.1 {}\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
