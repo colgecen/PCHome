@@ -6,6 +6,6 @@
 services:
   signal:
     dockerfile: Dockerfile
-    healthcheckPath: /
+    healthcheckPath: /health
     variables:
       PORT: 8080
