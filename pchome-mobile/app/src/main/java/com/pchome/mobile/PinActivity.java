@@ -78,6 +78,16 @@ public class PinActivity extends AppCompatActivity {
                 statusText.setText(R.string.error + ": enter server + PIN");
                 return;
             }
+            // Normalize: force wss:// and ensure /ws path so Android cleartext
+            // policy never blocks the connection and the server routes to relay.
+            if (!server.startsWith("wss://") && !server.startsWith("ws://")) {
+                server = "wss://" + server;
+            } else if (server.startsWith("ws://")) {
+                server = "wss://" + server.substring(5);
+            }
+            if (!server.endsWith("/ws")) {
+                server = server.replaceAll("/+$", "") + "/ws";
+            }
             prefs.addServer(server);
             prefs.addPin(pin);
 
