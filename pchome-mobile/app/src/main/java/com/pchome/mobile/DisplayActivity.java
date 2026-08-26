@@ -123,6 +123,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     }
 
     private void setupKeyboard() {
+        Button btnKeyboard = findViewById(R.id.btn_keyboard);
         // Use the system IME picker so a real on-screen keyboard can be used
         // for text entry on the remote desktop, instead of the custom grid.
         btnKeyboard.setOnClickListener(v -> {
