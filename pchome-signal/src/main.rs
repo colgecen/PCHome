@@ -142,11 +142,64 @@ async fn main() -> Result<()> {
         }
         let registry = Arc::clone(&registry);
         tokio::spawn(async move {
+            // Plain-HTTP probes (/health, /metrics) are answered on the SAME
+            // port as the WebSocket relay so hosting platforms that expose a
+            // single port (Render, Railway, Fly...) always reach both.
+            let stream = match serve_http_probe(stream, &registry).await {
+                Some(s) => s,
+                None => return,
+            };
             if let Err(e) = handle_conn(stream, registry).await {
                 log::warn!("connection ended: {}", e);
             }
         });
     }
+}
+
+/// Peeks at the request head: when it is a plain `GET /health` or
+/// `GET /metrics`, writes the response and returns None (connection done).
+/// Anything else returns the untouched stream for WebSocket handling.
+async fn serve_http_probe(
+    mut stream: tokio::net::TcpStream,
+    registry: &Arc<Mutex<Registry>>,
+) -> Option<tokio::net::TcpStream> {
+    use tokio::io::AsyncWriteExt;
+    let mut buf = [0u8; 1024];
+    let n = match stream.peek(&mut buf).await {
+        Ok(n) => n,
+        Err(_) => return Some(stream),
+    };
+    let head = String::from_utf8_lossy(&buf[..n]);
+    let path = head.split_whitespace().nth(1).unwrap_or("");
+    if !(path == "/health" || path == "/metrics") {
+        return Some(stream);
+    }
+    let (status, body) = if path == "/health" {
+        ("200 OK", "OK".to_string())
+    } else {
+        let reg = registry.lock().await;
+        let rooms = reg.rooms.len();
+        let desktops = reg.rooms.values().filter(|r| r.desktop.is_some()).count();
+        let mobiles = reg.rooms.values().filter(|r| r.mobile.is_some()).count();
+        (
+            "200 OK",
+            format!(
+                "# TYPE pchome_rooms_active gauge\npchome_rooms_active {}\n\
+                 # TYPE pchome_desktops_connected gauge\npchome_desktops_connected {}\n\
+                 # TYPE pchome_mobiles_connected gauge\npchome_mobiles_connected {}\n",
+                rooms, desktops, mobiles
+            ),
+        )
+    };
+    let resp = format!(
+        "HTTP/1.1 {}\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        status,
+        body.len(),
+        body
+    );
+    let _ = stream.write_all(resp.as_bytes()).await;
+    let _ = stream.shutdown().await;
+    None
 }
 
 /// Minimal HTTP sidecar serving `/health` and Prometheus-style `/metrics`
