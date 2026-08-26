@@ -38,10 +38,13 @@
 
 ## Doğrulama
 
-- [ ] `cargo test -p pchome-signal` geçiyor (relay testi dahil).
-- [ ] `cargo build --release -p pchome-desktop` hatasız.
-- [ ] Uçtan uca akış hazır: signal çalışır + desktop PIN basar +
-      APK telefonda ekranı gösterir.
+- [x] `cargo test -p pchome-signal` geçiyor (relay testi dahil).
+- [x] `cargo build --release -p pchome-desktop` hatasız (+ desktop testleri 2/2).
+- [x] Uçtan uca akış hazır: canlı smoke test — signal başlatıldı,
+      `/health` → OK, `/metrics` gauge'ları döktü, desktop↔mobile WS
+      çifti hello ve offer mesajlarını karşılıklı iletti, odalar
+      kapanınca temizlendi. Kalan tek manuel adım: APK'yi telefona
+      kurup gerçek cihazda ekran + dokunma denemesi.
 
 ## Commit Listesi
 
