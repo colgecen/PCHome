@@ -7,7 +7,9 @@ use std::time::Duration;
 /// called from the main thread).
 pub fn run(state: SharedState) {
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([960.0, 640.0]),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([960.0, 640.0])
+            .with_icon(app_icon()),
         ..Default::default()
     };
     let _ = eframe::run_native(
@@ -15,6 +17,19 @@ pub fn run(state: SharedState) {
         options,
         Box::new(|_cc| Ok(Box::new(DesktopGui { state }))),
     );
+}
+
+/// Decodes the bundled wallpaper into the window/taskbar icon at startup.
+fn app_icon() -> egui::IconData {
+    const ICON_JPG: &[u8] = include_bytes!("../../assets/PCHome-Wallpaper.jpg");
+    let img = image::load_from_memory(ICON_JPG).expect("bundled icon is a valid JPEG");
+    let img = img.resize_exact(128, 128, image::imageops::FilterType::Lanczos3);
+    let rgba = img.to_rgba8();
+    egui::IconData {
+        width: rgba.width(),
+        height: rgba.height(),
+        rgba: rgba.into_raw(),
+    }
 }
 
 struct DesktopGui {

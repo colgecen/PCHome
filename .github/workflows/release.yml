@@ -52,7 +52,7 @@ jobs:
           exec "$HERE/usr/bin/pchome-desktop" "$@"
           EOF
           chmod +x staging/AppDir/AppRun
-          echo iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAIAAABMXPacAAAA+UlEQVR4nO3RsQkAMAzAsKyFDv3/2p6RwQIfYNCc+7TYrB/EAwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2Hy4tQIiJm9zzAAAAAElFTkSuQmCC | base64 -d > staging/AppDir/pchome.png
+          install -m 644 assets/icon.png staging/AppDir/pchome.png
 
       - name: tar.gz
         env:
