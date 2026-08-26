@@ -34,7 +34,8 @@ jobs:
             staging/AppDir/usr/bin/pchome-desktop
           install -m 644 pchome-desktop/BUILD.md README.md staging/
 
-          # .desktop entry + placeholder icon for the AppImage
+          # .desktop entry + placeholder icon for the AppImage (base64 PNG,
+          # no ImageMagick needed on the runner)
           cat > staging/AppDir/pchome.desktop <<'EOF'
           [Desktop Entry]
           Type=Application
@@ -43,9 +44,7 @@ jobs:
           Exec=pchome-desktop
           Categories=Network;RemoteAccess;
           EOF
-          convert -size 128x128 xc:'#090C10' \
-            -fill '#00F4FF' -pointsize 48 -gravity center -annotate +0+0 'PC' \
-            staging/AppDir/pchome.png
+          echo iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAIAAABMXPacAAAA+UlEQVR4nO3RsQkAMAzAsKyFDv3/2p6RwQIfYNCc+7TYrB/EAwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2Hy4tQIiJm9zzAAAAAElFTkSuQmCC | base64 -d > staging/AppDir/pchome.png
 
       - name: tar.gz
         env:
@@ -147,6 +146,11 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           api-level: 34
+
+      - name: Install Gradle
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gradle
 
       - name: Generate Gradle Wrapper
         run: |
