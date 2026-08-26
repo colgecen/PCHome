@@ -13,12 +13,18 @@ const UI_SET_KEYBIT: libc::c_ulong = 0x40045565;
 const UI_SET_RELBIT: libc::c_ulong = 0x40045566;
 #[cfg(target_family = "unix")]
 const UI_SET_ABSBIT: libc::c_ulong = 0x40045567;
+// _IOW('U', 3, struct uinput_setup)
 #[cfg(target_family = "unix")]
-const UI_DEV_SETUP: libc::c_ulong = 0x40105568;
+const UI_DEV_SETUP: libc::c_ulong = 0x405c_5503;
+// _IOW('U', 4, struct uinput_abs_setup)
 #[cfg(target_family = "unix")]
-const UI_DEV_CREATE: libc::c_ulong = 0x40045569;
+const UI_ABS_SETUP: libc::c_ulong = 0x401c_5504;
+// _IO('U', 1)
 #[cfg(target_family = "unix")]
-const UI_DEV_DESTROY: libc::c_ulong = 0x4004556a;
+const UI_DEV_CREATE: libc::c_ulong = 0x5501;
+// _IO('U', 2)
+#[cfg(target_family = "unix")]
+const UI_DEV_DESTROY: libc::c_ulong = 0x5502;
 
 #[cfg(target_family = "unix")]
 const UINPUT_MAX_NAME_SIZE: usize = 80;
@@ -72,16 +78,33 @@ struct UinputId {
     version: u16,
 }
 
+/// Mirrors `struct uinput_setup` (linux/uinput.h) used by UI_DEV_SETUP.
 #[cfg(target_family = "unix")]
 #[repr(C)]
 struct UinputSetup {
     id: UinputId,
     name: [u8; UINPUT_MAX_NAME_SIZE],
     ff_effects_max: u32,
-    absmax: [i32; 64],
-    absmin: [i32; 64],
-    absfuzz: [i32; 64],
-    absflat: [i32; 64],
+}
+
+/// Mirrors `struct input_absinfo` (linux/input.h).
+#[cfg(target_family = "unix")]
+#[repr(C)]
+struct InputAbsInfo {
+    value: i32,
+    minimum: i32,
+    maximum: i32,
+    fuzz: i32,
+    flat: i32,
+    resolution: i32,
+}
+
+/// Mirrors `struct uinput_abs_setup` (linux/uinput.h) used by UI_ABS_SETUP.
+#[cfg(target_family = "unix")]
+#[repr(C)]
+struct UinputAbsSetup {
+    code: u32,
+    absinfo: InputAbsInfo,
 }
 
 #[cfg(target_family = "unix")]
@@ -120,30 +143,74 @@ impl UInputDevice {
         ioctl(raw_fd, UI_SET_ABSBIT, ABS_X as libc::c_ulong);
         ioctl(raw_fd, UI_SET_ABSBIT, ABS_Y as libc::c_ulong);
 
-        let mut setup: UinputSetup = unsafe { std::mem::zeroed() };
-        setup.id.bustype = BUS_VIRTUAL;
-        setup.id.vendor = 0x1234;
-        setup.id.product = 0x5678;
-        setup.id.version = 1;
-        setup.absmin[ABS_X as usize] = 0;
-        setup.absmax[ABS_X as usize] = width as i32;
-        setup.absmin[ABS_Y as usize] = 0;
-        setup.absmax[ABS_Y as usize] = height as i32;
-        let name_bytes = name.as_bytes();
-        let len = name_bytes.len().min(UINPUT_MAX_NAME_SIZE - 1);
-        setup.name[..len].copy_from_slice(&name_bytes[..len]);
+        let abs_x = UinputAbsSetup {
+            code: ABS_X as u32,
+            absinfo: InputAbsInfo {
+                value: 0,
+                minimum: 0,
+                maximum: width as i32,
+                fuzz: 0,
+                flat: 0,
+                resolution: 0,
+            },
+        };
+        let abs_y = UinputAbsSetup {
+            code: ABS_Y as u32,
+            absinfo: InputAbsInfo {
+                value: 0,
+                minimum: 0,
+                maximum: height as i32,
+                fuzz: 0,
+                flat: 0,
+                resolution: 0,
+            },
+        };
 
         unsafe {
+            if libc::ioctl(
+                raw_fd,
+                UI_ABS_SETUP as libc::c_ulong,
+                &abs_x as *const UinputAbsSetup as *const libc::c_void,
+            ) < 0
+            {
+                anyhow::bail!("uinput UI_ABS_SETUP(ABS_X) failed: errno {}", unsafe {
+                    *libc::__errno_location()
+                });
+            }
+            if libc::ioctl(
+                raw_fd,
+                UI_ABS_SETUP as libc::c_ulong,
+                &abs_y as *const UinputAbsSetup as *const libc::c_void,
+            ) < 0
+            {
+                anyhow::bail!("uinput UI_ABS_SETUP(ABS_Y) failed: errno {}", unsafe {
+                    *libc::__errno_location()
+                });
+            }
+
+            let mut setup: UinputSetup = unsafe { std::mem::zeroed() };
+            setup.id.bustype = BUS_VIRTUAL;
+            setup.id.vendor = 0x1234;
+            setup.id.product = 0x5678;
+            setup.id.version = 1;
+            let name_bytes = name.as_bytes();
+            let len = name_bytes.len().min(UINPUT_MAX_NAME_SIZE - 1);
+            setup.name[..len].copy_from_slice(&name_bytes[..len]);
+
             if libc::ioctl(
                 raw_fd,
                 UI_DEV_SETUP as libc::c_ulong,
                 &setup as *const UinputSetup as *const libc::c_void,
             ) < 0
             {
-                anyhow::bail!("uinput UI_DEV_SETUP failed: errno {}", *libc::__errno_location());
+                anyhow::bail!("uinput UI_DEV_SETUP failed: errno {}", unsafe {
+                    *libc::__errno_location()
+                });
             }
-            if libc::ioctl(raw_fd, UI_DEV_CREATE as libc::c_ulong, 0) < 0 {
-                anyhow::bail!("uinput UI_DEV_CREATE failed: errno {}", *libc::__errno_location());
+            if libc::ioctl(raw_fd, UI_DEV_CREATE, 0) < 0 {
+                anyhow::bail!("uinput UI_DEV_CREATE failed: errno {}", unsafe {
+                    *libc::__errno_location()
+                });
             }
         }
 
@@ -245,7 +312,7 @@ fn ioctl(fd: i32, request: libc::c_ulong, value: libc::c_ulong) {
 impl Drop for UInputDevice {
     fn drop(&mut self) {
         unsafe {
-            libc::ioctl(self.fd.as_raw_fd(), UI_DEV_DESTROY as libc::c_ulong, 0);
+            libc::ioctl(self.fd.as_raw_fd(), UI_DEV_DESTROY, 0);
         }
     }
 }

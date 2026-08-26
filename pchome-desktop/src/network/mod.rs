@@ -51,7 +51,14 @@ impl ConnectionManager {
         }
 
         let pin_str = format!("{:06}", pin);
-        let url = format!("{}/ws?pin={}&role=desktop", self.signal_url, pin_str);
+        // Accept both ws://host[:port] and ws://host[:port]/ws spellings
+        // without ever producing a doubled /ws/ws path.
+        let base = self.signal_url.trim_end_matches('/');
+        let url = if base.ends_with("/ws") {
+            format!("{}?pin={}&role=desktop", base, pin_str)
+        } else {
+            format!("{}/ws?pin={}&role=desktop", base, pin_str)
+        };
         log::info!("Connecting to signal server at {}", url);
 
         let (ws, _resp) = connect_async(url)

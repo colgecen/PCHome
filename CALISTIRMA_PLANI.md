@@ -46,6 +46,20 @@
       kapanınca temizlendi. Kalan tek manuel adım: APK'yi telefona
       kurup gerçek cihazda ekran + dokunma denemesi.
 
+## Denetim Turu (baştan kontrol — bulgular)
+
+- [ ] D1 [KRİTİK] `ffmpeg -f pipewire` sistemde desteklenmiyor →
+      `encoder.rs`'e capture-input otomatik seçimi ekle:
+      pipewire destekliyse pipewire, yoksa `$DISPLAY` ile x11grab.
+- [ ] D2 `prometheus.yml` hâlâ 8080'i scrape ediyor; `/metrics` 8081'e taşındı.
+- [ ] D3 `docs/handshake-sequence.md`: "(Go)" etiketi, "GET /ws",
+      "mesaj TTL'i yeniler" ifadeleri gerçek davranışa aykırı.
+- [ ] D4 `scripts/test-e2e.sh` bozuk (tek client'a relay echo beklemez,
+      python `websocket` bağımlılığı) ve `run-local.sh` desktop'u
+      sudo'suz başlatıp uinput'ta düşürüyor.
+- [ ] D5 AndroidManifest'teki `FOREGROUND_SERVICE_MEDIA_PROJECTION`
+      izinleri Flow B kaldırıldığından artık gereksiz.
+
 ## Commit Listesi
 
 | # | Görev | Commit |

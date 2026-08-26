@@ -11,6 +11,33 @@ pub enum EncoderBackend {
     Software,
 }
 
+/// How ffmpeg reads the desktop. `-f pipewire` only exists in custom
+/// ffmpeg builds, so we probe for it and fall back to x11grab.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureInput {
+    PipeWire,
+    X11Grab,
+}
+
+pub fn detect_capture_input() -> Result<CaptureInput> {
+    if let Ok(output) = std::process::Command::new("ffmpeg")
+        .args(["-hide_banner", "-formats"])
+        .output()
+    {
+        if String::from_utf8_lossy(&output.stdout).contains("pipewire") {
+            return Ok(CaptureInput::PipeWire);
+        }
+    }
+    if std::env::var_os("DISPLAY").is_some_and(|d| !d.is_empty()) {
+        log::info!("ffmpeg lacks pipewire demuxer; falling back to x11grab");
+        return Ok(CaptureInput::X11Grab);
+    }
+    anyhow::bail!(
+        "no usable ffmpeg capture input: build ffmpeg with pipewire support \
+         or run the daemon inside a session with DISPLAY set (X11/XWayland)"
+    )
+}
+
 pub fn detect_backend() -> EncoderBackend {
     if std::path::Path::new("/dev/dri/renderD128").exists() {
         return EncoderBackend::Vaapi;
@@ -18,13 +45,63 @@ pub fn detect_backend() -> EncoderBackend {
     if std::path::Path::new("/dev/nvidia0").exists() {
         return EncoderBackend::Nvenc;
     }
-    log::warn!("No hardware encoder found, falling back to software (libx264)");
+    log::warn!("No hardware encoder found, falling back to software");
     EncoderBackend::Software
 }
 
+/// Software H.264 encoders to try, in order of preference. Fedora ships
+/// `libopenh264` (no libx264), most other distros ship `libx264`.
+const SOFTWARE_CODECS: [&str; 3] = ["libx264", "libopenh264", "h264"];
+
+fn detect_software_codec() -> &'static str {
+    if let Ok(output) = std::process::Command::new("ffmpeg")
+        .args(["-hide_banner", "-encoders"])
+        .output()
+    {
+        let list = String::from_utf8_lossy(&output.stdout);
+        for codec in SOFTWARE_CODECS {
+            if list.contains(codec) {
+                return codec;
+            }
+        }
+    }
+    "h264"
+}
+
+/// Ordered ffmpeg configurations to attempt: hardware first, then software.
+fn candidate_configs(
+    capture_input: CaptureInput,
+    width: u32,
+    height: u32,
+    fps: u32,
+    bitrate: u32,
+) -> Vec<(EncoderBackend, Vec<String>)> {
+    let mut out = Vec::new();
+    match detect_backend() {
+        EncoderBackend::Vaapi => out.push((
+            EncoderBackend::Vaapi,
+            build_args(EncoderBackend::Vaapi, "h264_vaapi", capture_input, width, height, fps, bitrate),
+        )),
+        EncoderBackend::Nvenc => out.push((
+            EncoderBackend::Nvenc,
+            build_args(EncoderBackend::Nvenc, "h264_nvenc", capture_input, width, height, fps, bitrate),
+        )),
+        EncoderBackend::Software => {}
+    }
+    let sw = detect_software_codec();
+    out.push((
+        EncoderBackend::Software,
+        build_args(EncoderBackend::Software, sw, capture_input, width, height, fps, bitrate),
+    ));
+    out
+}
+
 /// Spawns an `ffmpeg` process that captures the desktop via PipeWire and encodes
-/// it to an Annex-B H.264 elementary stream on stdout, using VA-API / NVENC when
-/// available and falling back to libx264.
+/// it to an Annex-B H.264 elementary stream on stdout, trying hardware
+/// encoders (VA-API / NVENC) first and falling back to a working software
+/// codec (libx264 / libopenh264). A candidate is only accepted once ffmpeg
+/// actually produces its first H.264 bytes, so broken hardware init (e.g.
+/// VA-API driver failures) transparently falls through to the next option.
 pub struct H264Capture {
     child: tokio::process::Child,
     reader: BufReader<tokio::process::ChildStdout>,
@@ -41,13 +118,42 @@ impl H264Capture {
         fps: u32,
         bitrate: u32,
     ) -> Result<Self> {
-        let backend = detect_backend();
-        log::info!("Capture encoder backend: {:?}", backend);
+        let capture_input = detect_capture_input()?;
+        log::info!("Capture input: {:?}", capture_input);
 
         let ff = which("ffmpeg").unwrap_or_else(|_| std::path::PathBuf::from("ffmpeg"));
-        let args = build_args(backend, width, height, fps, bitrate);
-        log::debug!("ffmpeg args: {:?} {:?}", ff, args);
+        let candidates = candidate_configs(capture_input, width, height, fps, bitrate);
 
+        let mut last_err = None;
+        for (backend, args) in &candidates {
+            log::info!("Trying encoder backend {:?}: {} ...", backend, args.join(" "));
+            match Self::try_start(&ff, args.clone(), width, height, fps).await {
+                Ok(capture) => {
+                    log::info!("Encoder backend {:?} is producing frames", backend);
+                    return Ok(capture);
+                }
+                Err(e) => {
+                    log::warn!("Encoder backend {:?} failed: {}", backend, e);
+                    last_err = Some(e);
+                }
+            }
+        }
+        anyhow::bail!(
+            "no working ffmpeg encoder configuration: {}",
+            last_err.map(|e| e.to_string()).unwrap_or_default()
+        )
+    }
+
+    /// Spawns ffmpeg with `args` and waits up to 8s for the first H.264
+    /// output bytes; on failure the process is killed and the error returned
+    /// so the caller can try the next candidate.
+    async fn try_start(
+        ff: &std::path::Path,
+        args: Vec<String>,
+        width: u32,
+        height: u32,
+        fps: u32,
+    ) -> Result<Self> {
         let mut child = Command::new(ff)
             .args(&args)
             .stdout(Stdio::piped())
@@ -58,16 +164,31 @@ impl H264Capture {
             .stdout
             .take()
             .ok_or_else(|| anyhow::anyhow!("ffmpeg stdout unavailable"))?;
-        let reader = BufReader::new(stdout);
+        let mut reader = BufReader::new(stdout);
 
-        Ok(Self {
-            child,
-            reader,
-            width,
-            height,
-            fps,
-            buf: Vec::with_capacity(65_536),
-        })
+        let mut buf = Vec::with_capacity(65_536);
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(8);
+        loop {
+            if find_start(&buf, 0).is_some() {
+                return Ok(Self {
+                    child,
+                    reader,
+                    width,
+                    height,
+                    fps,
+                    buf,
+                });
+            }
+            let mut tmp = [0u8; 8192];
+            let n = match tokio::time::timeout_at(deadline, reader.read(&mut tmp)).await {
+                Ok(r) => r?,
+                Err(_) => anyhow::bail!("timeout waiting for first encoded bytes"),
+            };
+            if n == 0 {
+                anyhow::bail!("ffmpeg exited before producing output");
+            }
+            buf.extend_from_slice(&tmp[..n]);
+        }
     }
 
     /// Read the next encoded H.264 frame (one or more NALs up to the next start
@@ -118,6 +239,8 @@ impl Drop for H264Capture {
 
 fn build_args(
     backend: EncoderBackend,
+    codec: &str,
+    capture_input: CaptureInput,
     _width: u32,
     _height: u32,
     fps: u32,
@@ -125,20 +248,40 @@ fn build_args(
 ) -> Vec<String> {
     let gop = (fps * 2).to_string();
     let br = bitrate.to_string();
-    match backend {
-        EncoderBackend::Vaapi => vec![
-            "-loglevel".into(),
-            "error".into(),
+    let fps_str = fps.to_string();
+    let input: Vec<String> = match capture_input {
+        CaptureInput::PipeWire => vec![
             "-f".into(),
             "pipewire".into(),
             "-i".into(),
             "default".into(),
+        ],
+        CaptureInput::X11Grab => vec![
+            "-f".into(),
+            "x11grab".into(),
+            "-framerate".into(),
+            fps_str,
+            "-i".into(),
+            format!(
+                "{}",
+                std::env::var("DISPLAY").unwrap_or_else(|_| ":0".to_string())
+            ),
+        ],
+    };
+    match backend {
+        EncoderBackend::Vaapi => vec![
+            "-loglevel".into(),
+            "error".into(),
+        ]
+        .into_iter()
+        .chain(input)
+        .chain(vec![
             "-vaapi_device".into(),
             "/dev/dri/renderD128".into(),
             "-vf".into(),
             "format=nv12,hwupload".into(),
             "-c:v".into(),
-            "h264_vaapi".into(),
+            codec.into(),
             "-g".into(),
             gop,
             "-b:v".into(),
@@ -146,49 +289,52 @@ fn build_args(
             "-f".into(),
             "h264".into(),
             "-".into(),
-        ],
-        EncoderBackend::Nvenc => vec![
-            "-loglevel".into(),
-            "error".into(),
-            "-f".into(),
-            "pipewire".into(),
-            "-i".into(),
-            "default".into(),
-            "-c:v".into(),
-            "h264_nvenc".into(),
-            "-preset".into(),
-            "p1".into(),
-            "-g".into(),
-            gop,
-            "-b:v".into(),
-            br,
-            "-f".into(),
-            "h264".into(),
-            "-".into(),
-        ],
-        EncoderBackend::Software => vec![
-            "-loglevel".into(),
-            "error".into(),
-            "-f".into(),
-            "pipewire".into(),
-            "-i".into(),
-            "default".into(),
-            "-vf".into(),
-            "format=yuv420p".into(),
-            "-c:v".into(),
-            "libx264".into(),
-            "-preset".into(),
-            "ultrafast".into(),
-            "-tune".into(),
-            "zerolatency".into(),
-            "-g".into(),
-            gop,
-            "-b:v".into(),
-            br,
-            "-f".into(),
-            "h264".into(),
-            "-".into(),
-        ],
+        ])
+        .collect::<Vec<_>>(),
+        EncoderBackend::Nvenc => vec!["-loglevel".into(), "error".into()]
+            .into_iter()
+            .chain(input)
+            .chain(vec![
+                "-c:v".into(),
+                codec.into(),
+                "-preset".into(),
+                "p1".into(),
+                "-g".into(),
+                gop,
+                "-b:v".into(),
+                br,
+                "-f".into(),
+                "h264".into(),
+                "-".into(),
+            ])
+            .collect::<Vec<_>>(),
+        EncoderBackend::Software => {
+            let mut args: Vec<String> = vec!["-loglevel".into(), "error".into()]
+                .into_iter()
+                .chain(input)
+                .chain(vec![
+                    "-vf".into(),
+                    "format=yuv420p".into(),
+                    "-c:v".into(),
+                    codec.into(),
+                ])
+                .collect();
+            // libx264-only latency tuning; other codecs ignore unknown
+            // options with an error, so only add them when applicable.
+            if codec == "libx264" {
+                args.extend(["-preset".into(), "ultrafast".into(), "-tune".into(), "zerolatency".into()]);
+            }
+            args.extend([
+                "-g".into(),
+                gop,
+                "-b:v".into(),
+                br,
+                "-f".into(),
+                "h264".into(),
+                "-".into(),
+            ]);
+            args
+        }
     }
 }
 
