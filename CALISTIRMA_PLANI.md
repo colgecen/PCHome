@@ -34,7 +34,7 @@
       `DECISIONS.md`, `TODO.md`.
 - [x] 4.11 `calistirma-rehberi.txt`: ffmpeg şartı, sudo, APK build adımı,
       signal'i `cargo run` ile başlatma.
-- [ ] 4.13 Kullanılmayan `activity_touchpad.xml` sil.
+- [x] 4.13 Kullanılmayan `activity_touchpad.xml` sil.
 
 ## Doğrulama
 
