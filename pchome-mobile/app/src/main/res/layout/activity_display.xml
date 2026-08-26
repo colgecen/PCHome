@@ -108,7 +108,7 @@
                 android:text="ROT"
                 android:textSize="11sp" />
         </LinearLayout>
-    </com.google.android.material.bottomappbar>
+    </com.google.android.material.bottomappbar.BottomAppBar>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/btn_disconnect"
