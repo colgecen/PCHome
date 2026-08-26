@@ -36,9 +36,8 @@ Always prefer the following native APIs over alternatives:
 
 ### Module Boundaries
 Code must remain within its designated module:
-- **Rust code** stays in `pchome-desktop/`
+- **Rust code** stays in `pchome-desktop/` (desktop daemon) or `pchome-signal/` (signaling relay)
 - **Java code** stays in `pchome-mobile/`
-- **Go code** stays in `pchome-signal/`
 - Cross-module dependencies must be explicitly documented and minimal
 
 ## Security Requirements

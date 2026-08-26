@@ -141,7 +141,6 @@ Each checked box corresponds to a created file included in the combined commit b
 
 ## Detailed Remediation Backlog (Build / Compile / Test Errors & Improvements)
 
-> Each item below maps 1:1 to a conventional commit enumerated in `COMMITS.md`.
 > These are non-trivial tasks derived from actual build/compile/test failures and
 > engineering recommendations for the three modules.
 
@@ -221,5 +220,5 @@ Each checked box corresponds to a created file included in the combined commit b
 63. **docs: add a TLS certificate generation script** and document the mandatory WebSocket-TLS requirement from `AGENT.md`.
 64. **test: add an e2e script** that boots the Signal server + Desktop and asserts a PIN can be reserved and relayed.
 65. **fix: align PIN string format across modules** — desktop uses zero-padded `{:06}`, mobile UI shows `849-204`; normalize on both ends.
-66. **chore: add a conventional-commit lint hook** (commitlint / pre-commit) to enforce the commit format used in `COMMITS.md`.
+66. **chore: add a conventional-commit lint hook** (commitlint / pre-commit) to enforce the commit format.
 67. **docs: add sequence diagram for Flow A and Flow B** to `ARCHITECTURE.md`.
