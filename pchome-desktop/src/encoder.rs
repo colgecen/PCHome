@@ -146,7 +146,11 @@ impl H264Capture {
                     return Ok(capture);
                 }
                 Err(e) => {
-                    log::warn!("Encoder backend {:?} failed: {}", backend, e);
+                    log::info!(
+                        "Encoder backend {:?} unavailable ({}), falling back",
+                        backend,
+                        e
+                    );
                     last_err = Some(e);
                 }
             }
