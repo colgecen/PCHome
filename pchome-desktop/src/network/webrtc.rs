@@ -12,9 +12,11 @@ use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::peer_connection::RTCPeerConnection;
 use webrtc::api::media_engine::MediaEngine;
+use webrtc::api::setting_engine::SettingEngine;
 use webrtc::rtp_transceiver::rtp_codec::{
     RTCRtpCodecCapability, RTCRtpCodecParameters, RTPCodecType,
 };
+use webrtc_ice::network_type::NetworkType;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
 
@@ -64,7 +66,15 @@ impl WebRtcEngine {
                 RTPCodecType::Video,
             )
             .map_err(|e| anyhow::anyhow!("failed to register H264 codec: {}", e))?;
-        let api = APIBuilder::new().with_media_engine(media_engine).build();
+        let mut setting_engine = SettingEngine::default();
+        // Restrict ICE to IPv4 UDP only. Binding to IPv6 link-local (fe80::)
+        // addresses fails with EINVAL on Linux and only produces spurious
+        // warnings; link-local can't route across the signal server anyway.
+        setting_engine.set_network_types(vec![NetworkType::Udp4]);
+        let api = APIBuilder::new()
+            .with_media_engine(media_engine)
+            .with_setting_engine(setting_engine)
+            .build();
         let config = RTCConfiguration {
             ice_servers: vec![RTCIceServer {
                 urls: vec!["stun:stun.l.google.com:19302".to_string()],

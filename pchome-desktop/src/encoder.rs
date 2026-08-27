@@ -39,14 +39,27 @@ pub fn detect_capture_input() -> Result<CaptureInput> {
 }
 
 pub fn detect_backend() -> EncoderBackend {
-    if std::path::Path::new("/dev/dri/renderD128").exists() {
+    if std::path::Path::new("/dev/dri/renderD128").exists() && has_encoder("h264_vaapi") {
         return EncoderBackend::Vaapi;
     }
-    if std::path::Path::new("/dev/nvidia0").exists() {
+    if std::path::Path::new("/dev/nvidia0").exists() && has_encoder("h264_nvenc") {
         return EncoderBackend::Nvenc;
     }
-    log::warn!("No hardware encoder found, falling back to software");
+    log::info!("No usable hardware encoder found, falling back to software");
     EncoderBackend::Software
+}
+
+/// Returns true if ffmpeg advertises the given video encoder in its
+/// `-encoders` list. Used to skip hardware backends whose driver/codec is
+/// missing so we don't spawn a process that exits immediately.
+fn has_encoder(codec: &str) -> bool {
+    if let Ok(output) = std::process::Command::new("ffmpeg")
+        .args(["-hide_banner", "-encoders"])
+        .output()
+    {
+        return String::from_utf8_lossy(&output.stdout).contains(codec);
+    }
+    false
 }
 
 /// Software H.264 encoders to try, in order of preference. Fedora ships
