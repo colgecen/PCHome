@@ -34,7 +34,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 prometheus = "0.13"
 lazy_static = "1.4"
-thiserror = "1.0"
+thiserror = "2.0"
 futures-util = "0.3"
 
 # WebRTC peer connection + media (offerer, H.264 video track, control DataChannel)
