@@ -11,7 +11,10 @@ use webrtc::media::Sample;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::peer_connection::RTCPeerConnection;
-use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
+use webrtc::api::media_engine::MediaEngine;
+use webrtc::rtp_transceiver::rtp_codec::{
+    RTCRtpCodecCapability, RTCRtpCodecParameters, RTPCodecType,
+};
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
 
@@ -42,7 +45,26 @@ impl WebRtcEngine {
         height: u32,
         fps: u32,
     ) -> Result<Arc<Self>> {
-        let api = APIBuilder::new().build();
+        let mut media_engine = MediaEngine::default();
+        media_engine
+            .register_codec(
+                RTCRtpCodecParameters {
+                    capability: RTCRtpCodecCapability {
+                        mime_type: "video/H264".to_string(),
+                        clock_rate: 90_000,
+                        channels: 0,
+                        sdp_fmtp_line:
+                            "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01e"
+                                .to_string(),
+                        rtcp_feedback: vec![],
+                    },
+                    payload_type: 102,
+                    ..Default::default()
+                },
+                RTPCodecType::Video,
+            )
+            .map_err(|e| anyhow::anyhow!("failed to register H264 codec: {}", e))?;
+        let api = APIBuilder::new().with_media_engine(media_engine).build();
         let config = RTCConfiguration {
             ice_servers: vec![RTCIceServer {
                 urls: vec!["stun:stun.l.google.com:19302".to_string()],
