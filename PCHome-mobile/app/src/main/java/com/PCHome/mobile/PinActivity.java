@@ -42,7 +42,9 @@ public class PinActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Diag.init(this);
         setContentView(R.layout.activity_pin);
+        showPendingCrash();
 
         serverEdit = findViewById(R.id.server);
         pcIdEdit = findViewById(R.id.pc_id_input);
@@ -122,6 +124,39 @@ public class PinActivity extends AppCompatActivity {
 
         MaterialButton connectButton = findViewById(R.id.connect_button);
         connectButton.setOnClickListener(v -> attemptConnect());
+    }
+
+    /**
+     * Önceki çalışta çökme olduysa raporu gösterir (kopyalanabilir tanı).
+     * Çökme yoksa sessiz geçilir.
+     */
+    private void showPendingCrash() {
+        String crash = Diag.readCrash(this);
+        if (crash.isEmpty() || isFinishing()) {
+            return;
+        }
+        String phases = Diag.readPhases(this);
+        String body = crash;
+        if (!phases.isEmpty()) {
+            String tail = phases.length() > 2000
+                    ? phases.substring(phases.length() - 2000) : phases;
+            body += "\n--- son aşamalar ---\n" + tail;
+        }
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        android.widget.TextView tv = new android.widget.TextView(this);
+        tv.setText(body);
+        tv.setTextIsSelectable(true);
+        tv.setPadding(24, 24, 24, 24);
+        scroll.addView(tv);
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Önceki çalışta çökme oldu")
+                .setMessage("Bu rapor bağlantı sorununun sebebini gösterir:")
+                .setView(scroll)
+                .setPositiveButton("Temizle", (d, w) -> Diag.clear(this))
+                .setNegativeButton("Kapat", (d, w) -> {
+                })
+                .setOnDismissListener(d -> Diag.clear(this))
+                .show();
     }
 
     /** Kısa hata balonu (eski durum çipinin yerini tutar). */

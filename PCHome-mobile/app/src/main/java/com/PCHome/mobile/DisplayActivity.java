@@ -56,6 +56,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private AlertDialog fatalDialog;
     private final Runnable timeoutCheck = () -> {
         if (!connectedOnce && !isFinishing()) {
+            Diag.phase(DisplayActivity.this, "zaman-aşımı");
             showFatal(
                     "PC cevap vermedi",
                     "Sinyale ulaşıldı ama PC'den yanıt yok.\n\n"
@@ -87,6 +88,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Diag.phase(this, "ekran-açıldı");
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_display);
 
@@ -122,9 +124,17 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         streamStatus.setText(R.string.conn_phase_signal);
         streamStatus.setVisibility(View.VISIBLE);
         recentStore = new RecentStore(this);
-        webRtcClient = new WebRtcClient(this, null, surfaceView);
-        webRtcClient.setListener(this);
-        webRtcClient.connect(signalUrl, pcId, password);
+        try {
+            webRtcClient = new WebRtcClient(this, null, surfaceView);
+            webRtcClient.setListener(this);
+            webRtcClient.connect(signalUrl, pcId, password);
+            Diag.phase(this, "rtc-başlatıldı");
+        } catch (Exception e) {
+            Diag.phase(this, "rtc-hata: " + e.getMessage());
+            showFatal("Başlatılamadı",
+                    "Medya motoru kurulamadı:\n" + String.valueOf(e.getMessage()));
+            return;
+        }
         uiHandler.postDelayed(timeoutCheck, CONNECT_TIMEOUT_MS);
 
         setupHud();
@@ -422,6 +432,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
 
     private void markConnected() {
         connectedOnce = true;
+        Diag.phase(this, "bağlandı");
         if (uiHandler != null) {
             uiHandler.removeCallbacks(timeoutCheck);
         }
@@ -476,6 +487,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             return;
         }
         fatalShown = true;
+        Diag.phase(this, "ölümcül-hata: " + title);
         if (uiHandler != null) {
             uiHandler.removeCallbacks(timeoutCheck);
         }

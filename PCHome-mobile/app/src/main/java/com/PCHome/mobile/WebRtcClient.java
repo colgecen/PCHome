@@ -108,6 +108,7 @@ public class WebRtcClient {
     public void connect(String signalUrl, String pcId, String password) {
         state = ConnectionState.CONNECTING;
         notifyStateChanged();
+        Diag.phase(appContext, "bağlan-başladı pc=" + pcId);
         // Yeniden denemede fabrika bırakılmış olabilir; gerekirse kur.
         if (factory == null || eglBase == null) {
             try {
@@ -128,12 +129,14 @@ public class WebRtcClient {
         signalClient = new SignalClient(signalUrl, pcId, password, new SignalClient.SignalListener() {
             @Override
             public void onConnected() {
+                Diag.phase(appContext, "sinyal-açık");
                 // Sinyal koptu-yeniden bağlandıysa medyaya DOKUNMA; join
                 // otomatik gitti, hello auth_ok ile gidecek.
                 if (!mediaStarted) {
                     mediaStarted = true;
                     startLocalMedia();
                     createPeerConnection();
+                    Diag.phase(appContext, "medya-hazır");
                 }
                 // join SignalClient tarafından otomatik gönderildi;
                 // hello yalnız auth_ok gelince gider.
@@ -141,6 +144,7 @@ public class WebRtcClient {
 
             @Override
             public void onDisconnected() {
+                Diag.phase(appContext, "sinyal-kapandı");
                 state = ConnectionState.DISCONNECTED;
                 notifyStateChanged();
             }
@@ -152,6 +156,7 @@ public class WebRtcClient {
 
             @Override
             public void onError(String error) {
+                Diag.phase(appContext, "sinyal-hata: " + error);
                 state = ConnectionState.FAILED;
                 notifyStateChanged();
                 if (listener != null) listener.onError(error);
@@ -239,6 +244,7 @@ public class WebRtcClient {
                 org.webrtc.MediaStreamTrack track = transceiver.getReceiver().track();
                 Log.i(TAG, "onTrack fired: " + (track != null ? track.kind() : "null"));
                 if (track instanceof VideoTrack) {
+                    Diag.phase(appContext, "video-kare");
                     VideoTrack vt = (VideoTrack) track;
                     if (remoteRenderer != null) {
                         vt.addSink(remoteRenderer);
@@ -251,6 +257,7 @@ public class WebRtcClient {
 
             @Override
             public void onDataChannel(DataChannel dc) {
+                Diag.phase(appContext, "veri-kanalı");
                 dataChannel = dc;
                 dataChannel.registerObserver(new DataChannel.Observer() {
                     @Override
@@ -269,12 +276,19 @@ public class WebRtcClient {
 
             @Override
             public void onIceConnectionChange(PeerConnection.IceConnectionState newState) {
+                Diag.phase(appContext, "ice-durum: " + newState);
                 if (newState == PeerConnection.IceConnectionState.CONNECTED) {
                     state = ConnectionState.CONNECTED;
                     notifyStateChanged();
                 } else if (newState == PeerConnection.IceConnectionState.DISCONNECTED) {
                     state = ConnectionState.DISCONNECTED;
                     notifyStateChanged();
+                } else if (newState == PeerConnection.IceConnectionState.FAILED) {
+                    state = ConnectionState.FAILED;
+                    notifyStateChanged();
+                    if (listener != null) {
+                        listener.onError("Ortam bağlantısı kurulamadı (ICE FAILED)");
+                    }
                 }
             }
 
@@ -317,6 +331,7 @@ public class WebRtcClient {
             @Override
             public void onCreateSuccess(SessionDescription sessionDescription) {
                 localSdp = sessionDescription.description;
+                Diag.phase(appContext, "cevap-gönderildi");
                 peerConnection.setLocalDescription(this, sessionDescription);
 
                 try {
@@ -367,6 +382,7 @@ public class WebRtcClient {
             hello.put("role", "mobile");
             boolean sent = signalClient.sendMessage(hello);
             Log.i(TAG, "hello sent to server: " + sent);
+            Diag.phase(appContext, "hello-gönderildi");
             if (sent) {
                 helloTries++;
                 scheduleHelloRetry();
@@ -401,6 +417,7 @@ public class WebRtcClient {
             switch (type) {
                 case "auth_ok":
                     Log.i(TAG, "Kimlik doğrulandı, hello gönderiliyor");
+                    Diag.phase(appContext, "auth-ok");
                     if (listener != null) listener.onDeviceInfo(message);
                     sendHello();
                     // Cihaz kartı + çözünürlük bilgisini de iste (yedeklilik).
@@ -414,6 +431,7 @@ public class WebRtcClient {
                 case "auth_rejected":
                     String reason = message.optString("reason", "şifre hatalı");
                     Log.w(TAG, "Kimlik reddedildi: " + reason);
+                    Diag.phase(appContext, "auth-red: " + reason);
                     if (signalClient != null) {
                         signalClient.setAuthFailed();
                         signalClient.disconnect();
@@ -434,6 +452,7 @@ public class WebRtcClient {
                     break;
                 case "offer":
                     offerReceived = true;
+                    Diag.phase(appContext, "offer-alındı");
                     if (peerConnection != null) {
                         setRemoteDescription(message);
                     }
@@ -494,6 +513,7 @@ public class WebRtcClient {
     }
 
     public void disconnect() {
+        Diag.phase(appContext, "kapatıldı");
         try {
             if (videoCapturer != null) {
                 try {
