@@ -37,6 +37,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private SurfaceViewRenderer surfaceView;
     private ReticleView reticle;
     private TextView streamStatus;
+    private TextView infoChip;
     private LinearLayout keyboardContainer;
     private WebRtcClient webRtcClient;
     private RecentStore recentStore;
@@ -75,6 +76,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         surfaceView = findViewById(R.id.surface_view);
         reticle = findViewById(R.id.reticle);
         streamStatus = findViewById(R.id.stream_status);
+        infoChip = findViewById(R.id.info_chip);
         keyboardContainer = findViewById(R.id.keyboard_container);
 
         surfaceView.init(null, null);
@@ -98,6 +100,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         if (password == null) password = "";
         pcId = pcId.replaceAll("[^0-9]", "");
         password = password.replaceAll("[^0-9]", "");
+        infoChip.setText("PC " + pcId);
         recentStore = new RecentStore(this);
         webRtcClient = new WebRtcClient(this, null, surfaceView);
         webRtcClient.setListener(this);
@@ -119,10 +122,19 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
 
         btnMode.setOnClickListener(v -> {
             mode = (mode == MODE_DIRECT) ? MODE_TRACKPAD : MODE_DIRECT;
-            btnMode.setText(mode == MODE_DIRECT ? "DIRECT" : "TRACKPAD");
+            boolean direct = mode == MODE_DIRECT;
+            btnMode.setText(direct ? "DOĞRUDAN" : "TOUCHPAD");
+            infoChip.setText("PC " + pcId + " • " + (direct ? "DOĞRUDAN" : "TOUCHPAD"));
+            tick();
         });
-        btnLeft.setOnClickListener(v -> sendClick("left", "click"));
-        btnRight.setOnClickListener(v -> sendClick("right", "click"));
+        btnLeft.setOnClickListener(v -> {
+            sendClick("left", "click");
+            tick();
+        });
+        btnRight.setOnClickListener(v -> {
+            sendClick("right", "click");
+            tick();
+        });
         btnRotate.setOnClickListener(v -> rotateScreen());
         btnEsc.setOnClickListener(v -> {
             sendKey(KeyCodeMap.KEY_ESC, true);
@@ -429,6 +441,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         deviceMac = info.optString("mac", deviceMac);
         deviceRes = info.optString("resolution", deviceRes);
         persistDeviceFields();
+        runOnUiThread(this::refreshInfoChip);
     }
 
     @Override
@@ -437,6 +450,34 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         pcHeight = height;
         deviceRes = width + "x" + height;
         persistDeviceFields();
+        runOnUiThread(this::refreshInfoChip);
+    }
+
+    /** Üst bilgi çipi: isim • çözünürlük • kip. */
+    private void refreshInfoChip() {
+        String name = deviceName.isEmpty() ? ("PC " + pcId) : deviceName;
+        String res = deviceRes.isEmpty() ? "" : (" • " + deviceRes);
+        String kip = mode == MODE_DIRECT ? "DOĞRUDAN" : "TOUCHPAD";
+        infoChip.setText(name + res + " • " + kip);
+    }
+
+    /** Tuşlara hafif dokunsal geri bildirim (25ms). */
+    private void tick() {
+        try {
+            android.os.Vibrator vib =
+                    (android.os.Vibrator) getSystemService(VIBRATOR_SERVICE);
+            if (vib == null || !vib.hasVibrator()) {
+                return;
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vib.vibrate(android.os.VibrationEffect.createOneShot(
+                        25, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                vib.vibrate(25);
+            }
+        } catch (Exception e) {
+            // Titreşim yoksa sessiz geç.
+        }
     }
 
     /** Cihaz kartı alanlarını beklemeden diske yazar (görüntü kapanışta eklenir). */

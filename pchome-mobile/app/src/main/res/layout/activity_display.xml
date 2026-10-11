@@ -29,6 +29,19 @@
         app:chipStrokeColor="@color/pchome_cyan"
         android:textColor="@color/pchome_text" />
 
+    <com.google.android.material.chip.Chip
+        android:id="@+id/info_chip"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="12dp"
+        android:layout_gravity="top|end"
+        android:checkable="false"
+        android:textSize="12sp"
+        app:chipBackgroundColor="@color/pchome_panel"
+        app:chipStrokeWidth="1dp"
+        app:chipStrokeColor="@color/pchome_border"
+        android:textColor="@color/pchome_muted" />
+
     <!-- Cyber keyboard overlay (hidden until toggled) -->
     <LinearLayout
         android:id="@+id/keyboard_container"
@@ -60,7 +73,7 @@
                 style="@style/Widget.PChome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="DIRECT"
+                android:text="DOĞRUDAN"
                 android:textSize="11sp" />
 
             <com.google.android.material.button.MaterialButton
@@ -68,7 +81,7 @@
                 style="@style/Widget.PChome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="L"
+                android:text="SOL"
                 android:textSize="11sp" />
 
             <com.google.android.material.button.MaterialButton
@@ -76,7 +89,7 @@
                 style="@style/Widget.PChome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="R"
+                android:text="SAĞ"
                 android:textSize="11sp" />
 
             <com.google.android.material.button.MaterialButton

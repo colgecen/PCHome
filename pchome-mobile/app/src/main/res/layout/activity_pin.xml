@@ -237,5 +237,45 @@
             android:nestedScrollingEnabled="false"
             android:clipToPadding="false" />
 
+        <!-- Hareket rehberi -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            style="@style/Widget.PChome.ConnectCard">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/gesture_hint_title"
+                    android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:textColor="@color/pchome_cyan"
+                    android:layout_marginBottom="6dp" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/gesture_hint_body"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="@color/pchome_muted"
+                    android:lineSpacingExtra="3dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/version_footer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?attr/textAppearanceLabelSmall"
+            android:textColor="@color/pchome_muted"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="8dp" />
+
     </LinearLayout>
 </ScrollView>

@@ -50,6 +50,8 @@ public class PinActivity extends AppCompatActivity {
         statusText = findViewById(R.id.status);
         recentGrid = findViewById(R.id.recent_grid);
         recentEmpty = findViewById(R.id.recent_empty);
+        MaterialTextView versionFooter = findViewById(R.id.version_footer);
+        versionFooter.setText("PChome v" + BuildConfig.VERSION_NAME);
         prefs = new Prefs(this);
         recentStore = new RecentStore(this);
 

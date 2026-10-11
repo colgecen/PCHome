@@ -9,6 +9,8 @@
     <string name="connect_subtitle">ID + şifreyle PC\'ne bağlan</string>
     <string name="connect_card_title">🔌 Yeni Bağlantı</string>
     <string name="recent_hint">aç: dokun • sil: çöp kutusu</string>
+    <string name="gesture_hint_title">👆 Kumanda hareketleri</string>
+    <string name="gesture_hint_body">• Dokun: sol tık\n• Uzun bas: sağ tık\n• Çift dokun: çift tık\n• İki parmak: kaydır\n• TOUCHPAD kipi: telefon touchpad gibi çalışır</string>
     <string name="recent_title">Son Girilenler</string>
     <string name="recent_empty">Henüz bağlantı yok — yukarıdan ilk bağlantını kur.</string>
     <string name="recent_thumb_desc">PC son görüntüsü</string>
