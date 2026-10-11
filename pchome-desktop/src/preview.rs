@@ -6,11 +6,14 @@ use std::time::Duration;
 use crate::state::SharedState;
 
 /// Önizleme aynası: RustDesk mantığıyla ekranın birebir görüntüsü.
-/// Tek uzun-ömürlü ffmpeg prosesi (`x11grab` → küçük MJPEG akışı, ~5fps)
-/// çalışır; JPEG kareler SOI/EOI işaretlerinden ayıklanıp
-/// `state.preview_jpeg`'e yazılır. İmleç konumu ayrıca normalize edilip
-/// `state.preview_cursor`'da tutulur; GUI dokuyu basarken üstüne ok çizer
-/// (x11grab imleci yakalayamaz).
+/// X11'de tek uzun-ömürlü ffmpeg prosesi (`x11grab` → küçük MJPEG akışı,
+/// ~5fps) çalışır; JPEG kareler SOI/EOI işaretlerinden ayıklanıp
+/// `state.preview_jpeg`'e yazılır. Wayland'da x11grab kapkara çektiği için
+/// hiç başlatılmaz; yerine masaüstü aracıyla sessiz ekran görüntüsü döngüsü
+/// (spectacle → gnome-screenshot → grim) çalışır. İmleç konumu ayrıca
+/// normalize edilip `state.preview_cursor`'da tutulur; GUI dokuyu basarken
+/// üstüne ok çizer (x11grab imleci yakalayamaz; ekran görüntülerinde imleç
+/// çoğunlukla dosyanın içindedir).
 pub fn spawn_preview(state: SharedState, width: u32, height: u32) {
     std::thread::Builder::new()
         .name("pchome-preview".to_string())
@@ -18,11 +21,103 @@ pub fn spawn_preview(state: SharedState, width: u32, height: u32) {
             if state.terminate.load(Ordering::SeqCst) {
                 break;
             }
-            run_mirror(&state, width, height);
+            if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+                run_wayland_loop(&state);
+            } else {
+                run_mirror(&state, width, height);
+            }
             state.preview_alive.store(false, Ordering::SeqCst);
             std::thread::sleep(Duration::from_secs(5));
         })
         .ok();
+}
+
+/// Wayland döngüsü: 2 sn'de 1 sessiz tam-ekran görüntüsü.
+/// Araç yoksa uyarıp 30 sn bekler (GUI bekleme mesajı basar).
+fn run_wayland_loop(state: &SharedState) {
+    let tool = match detect_wayland_tool() {
+        Some(t) => t,
+        None => {
+            log::warn!("Wayland önizleme: spectacle/gnome-screenshot/grim yok");
+            std::thread::sleep(Duration::from_secs(30));
+            return;
+        }
+    };
+    log::info!("Wayland önizleme başladı ({})", tool.name);
+    state.preview_alive.store(true, Ordering::SeqCst);
+    let path = std::env::temp_dir().join(format!("pchome-preview-{}.png", std::process::id()));
+    loop {
+        if state.terminate.load(Ordering::SeqCst) {
+            break;
+        }
+        if tool.shoot(&path) {
+            if let Ok(bytes) = std::fs::read(&path) {
+                if !bytes.is_empty() {
+                    let (w, h) = png_size(&bytes).unwrap_or((0, 0));
+                    *state.preview_jpeg.lock().unwrap() = Some((bytes, w, h));
+                }
+            }
+        }
+        std::thread::sleep(Duration::from_secs(2));
+    }
+    let _ = std::fs::remove_file(&path);
+    state.preview_alive.store(false, Ordering::SeqCst);
+}
+
+struct WaylandTool {
+    name: &'static str,
+    bin: &'static str,
+    args: &'static [&'static str],
+    out_flag: &'static str,
+}
+
+impl WaylandTool {
+    fn shoot(&self, path: &std::path::Path) -> bool {
+        let mut cmd = std::process::Command::new(self.bin);
+        cmd.args(self.args);
+        if !self.out_flag.is_empty() {
+            cmd.arg(self.out_flag); // grim: çıktı yolu konumsal argümandır
+        }
+        cmd.arg(path)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+}
+
+/// Plazma → GNOME → wlroots sırasıyla ilk bulunan araç.
+fn detect_wayland_tool() -> Option<WaylandTool> {
+    const CANDIDATES: [WaylandTool; 3] = [
+        WaylandTool { name: "spectacle", bin: "spectacle", args: &["-b", "-n", "-f"], out_flag: "-o" },
+        WaylandTool { name: "gnome-screenshot", bin: "gnome-screenshot", args: &["-p"], out_flag: "-f" },
+        WaylandTool { name: "grim", bin: "grim", args: &[], out_flag: "" },
+    ];
+    CANDIDATES.into_iter().find(|t| {
+        std::process::Command::new(t.bin)
+            .arg("--help")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    })
+}
+
+/// PNG IHDR'den boyut (bulunamazsa None; GUI harf-korumayı atlar).
+fn png_size(bytes: &[u8]) -> Option<(u32, u32)> {
+    if bytes.len() >= 24
+        && &bytes[..8] == b"\x89PNG\r\n\x1a\n"
+        && &bytes[12..16] == b"IHDR"
+    {
+        let w = u32::from_be_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]);
+        let h = u32::from_be_bytes([bytes[20], bytes[21], bytes[22], bytes[23]]);
+        if w > 0 && h > 0 {
+            return Some((w, h));
+        }
+    }
+    None
 }
 
 fn run_mirror(state: &SharedState, width: u32, height: u32) {
@@ -204,5 +299,18 @@ mod tests {
             0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x01, 0x2C, 0x02, 0x20, 0xFF, 0xD9,
         ];
         assert_eq!(jpeg_size(&frame), Some((544, 300)));
+    }
+
+    #[test]
+    fn png_boyutu_ihdr() {
+        // İmza(8) + len(4) + "IHDR" + w=1920(4) + h=1080(4)
+        let mut bytes = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+        bytes.extend_from_slice(&[0, 0, 0, 13]);
+        bytes.extend_from_slice(b"IHDR");
+        bytes.extend_from_slice(&[0, 0, 0x07, 0x80]); // 1920
+        bytes.extend_from_slice(&[0, 0, 0x04, 0x38]); // 1080
+        assert_eq!(png_size(&bytes), Some((1920, 1080)));
+        assert_eq!(png_size(&[0xFF, 0xD8, 0xFF, 0xD9]), None);
+        assert_eq!(png_size(&[]), None);
     }
 }

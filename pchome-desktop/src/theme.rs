@@ -94,7 +94,15 @@ fn draw_button(
     border: egui::Color32,
     full_width: bool,
 ) -> egui::Response {
-    let width = if full_width { ui.available_width() } else { 0.0 };
+    let font = egui::FontId::proportional(14.0);
+    let width = if full_width {
+        ui.available_width()
+    } else {
+        // Yazı genişliğini ölç: sıfır genişlikli kutuya çizim üst üste
+        // binmeye yol açıyordu (bozuk "GGöster" görünümü).
+        let galley = ui.fonts(|f| f.layout(label.to_owned(), font.clone(), text_color, f32::INFINITY));
+        galley.size().x + 28.0
+    };
     let (rect, resp) = ui.allocate_exact_size(
         egui::vec2(width, 36.0),
         egui::Sense::click(),

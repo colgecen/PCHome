@@ -141,7 +141,7 @@ impl DesktopGui {
                         .fill(theme::card())
                         .stroke(egui::Stroke::new(1.0_f32, pill))
                         .rounding(egui::Rounding::same(8.0))
-                        .inner_margin(egui::Margin::symmetric(10.0, 3.0))
+                        .inner_margin(egui::Margin::symmetric(8.0, 2.0))
                         .show(ui, |ui| {
                             ui.label(egui::RichText::new(status).color(pill).strong().small());
                         });
@@ -209,19 +209,21 @@ impl DesktopGui {
             };
             ui.label(egui::RichText::new(shown).monospace().size(28.0).color(theme::text()));
             ui.add_space(4.0);
-            ui.horizontal(|ui| {
+            // Butonlar ayrı satırda ızgara: dar panelde yazılar üst üste binmez.
+            egui::Grid::new("pw_buttons").num_columns(3).spacing([6.0, 4.0]).show(ui, |ui| {
                 let eye = if self.show_password { "🙈 Gizle" } else { "👁 Göster" };
-                if theme::ghost_button_auto(ui, eye).clicked() {
+                if theme::ghost_button(ui, eye).clicked() {
                     self.show_password = !self.show_password;
                 }
-                if theme::ghost_button_auto(ui, "🔄 Yenile").on_hover_text("Şifreyi yenile").clicked() {
+                if theme::ghost_button(ui, "🔄 Yenile").on_hover_text("Şifreyi yenile").clicked() {
                     self.refresh_password();
                 }
-                if theme::ghost_button_auto(ui, "📋").on_hover_text("ID + şifreyi kopyala").clicked() {
+                if theme::ghost_button(ui, "📋 Kopyala").on_hover_text("ID + şifreyi kopyala").clicked() {
                     let id = self.state.pc_id.lock().unwrap().clone();
                     let pw = self.state.password.lock().unwrap().clone();
                     ctx.copy_text(format!("ID:{} Şifre:{}", id, pw));
                 }
+                ui.end_row();
             });
             if !self.settings_msg.is_empty() {
                 ui.label(egui::RichText::new(&self.settings_msg).color(theme::danger()).small());
@@ -433,27 +435,41 @@ impl DesktopGui {
                     ));
                 }
                 self.preview_click(ctx, ui, area, fit);
+            } else {
+                // Kare var ama doku hazır değil (çözümleme patladı) → bekleme.
+                self.waiting_screen(ui, area);
             }
         } else {
-            // Bekleme ekranı: ayna henüz akmıyor.
-            let alive = self.state.preview_alive.load(Ordering::SeqCst);
-            let msg = if alive { "kare bekleniyor…" } else { "önizleme yakalama yok (X11 gerekli)" };
-            ui.painter().text(
-                area.center() + egui::vec2(0.0, -12.0),
-                egui::Align2::CENTER_CENTER,
-                "⬢",
-                egui::FontId::proportional(44.0),
-                theme::primary(),
-            );
-            ui.painter().text(
-                area.center() + egui::vec2(0.0, 26.0),
-                egui::Align2::CENTER_CENTER,
-                msg,
-                egui::FontId::proportional(16.0),
-                theme::muted(),
-            );
-            ui.allocate_rect(area, egui::Sense::hover());
+            self.waiting_screen(ui, area);
         }
+    }
+
+    /// Bekleme ekranı: ayna akmıyorsa ya da doku hazır değilse siyah yerine bilgi bas.
+    fn waiting_screen(&mut self, ui: &mut egui::Ui, area: egui::Rect) {
+        let alive = self.state.preview_alive.load(Ordering::SeqCst);
+        let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some();
+        let msg = if alive {
+            "kare bekleniyor…"
+        } else if wayland {
+            "Wayland: önizleme spectacle/gnome-screenshot/grim'den birini kur"
+        } else {
+            "önizleme yakalama yok (X11 gerekli)"
+        };
+        ui.painter().text(
+            area.center() + egui::vec2(0.0, -12.0),
+            egui::Align2::CENTER_CENTER,
+            "⬢",
+            egui::FontId::proportional(44.0),
+            theme::primary(),
+        );
+        ui.painter().text(
+            area.center() + egui::vec2(0.0, 26.0),
+            egui::Align2::CENTER_CENTER,
+            msg,
+            egui::FontId::proportional(16.0),
+            theme::muted(),
+        );
+        ui.allocate_rect(area, egui::Sense::hover());
     }
 
     /// Önizleme tıklaması: dokun = sol tık, 500ms basılı = sağ tık.
