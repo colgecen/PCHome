@@ -20,6 +20,10 @@ mod state;
 mod theme;
 #[cfg(feature = "gui")]
 mod updater;
+#[cfg(feature = "gui")]
+mod preview;
+#[cfg(feature = "gui")]
+mod local_input;
 #[cfg(all(feature = "capture", target_family = "unix"))]
 mod uinput;
 
@@ -54,6 +58,16 @@ fn main() -> Result<()> {
     runtime.spawn(async move {
         daemon(daemon_state).await;
     });
+
+    #[cfg(feature = "gui")]
+    {
+        // Ekran aynası: GUI'deki canlı önizlemeyi besler (daemon'dan bağımsız).
+        let preview_state = Arc::clone(&state);
+        let (pw, ph) = config::Config::from_env()
+            .map(|c| (c.capture_width, c.capture_height))
+            .unwrap_or((1920, 1080));
+        preview::spawn_preview(preview_state, pw, ph);
+    }
 
     #[cfg(feature = "gui")]
     gui::run(state);

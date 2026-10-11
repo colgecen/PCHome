@@ -43,6 +43,10 @@ pub struct AppState {
     pub peer_fails: AtomicU32,
     /// Canlı önizleme için son JPEG kare (ham bayt + genişlik + yükseklik).
     pub preview_jpeg: Mutex<Option<(Vec<u8>, u32, u32)>>,
+    /// Önizlemedeki imleç konumu (0..1 normalize ekran koordinatı).
+    pub preview_cursor: Mutex<Option<(f32, f32)>>,
+    /// Önizleme yakalama akışı çalışıyor mu.
+    pub preview_alive: AtomicBool,
 }
 
 impl AppState {
