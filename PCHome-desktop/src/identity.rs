@@ -23,6 +23,7 @@ impl Identity {
     /// (testler gerçek kullanıcı dosyasını ezmesin diye).
     pub fn load_or_create() -> Result<Self> {
         let path = identity_path();
+        log::info!("kimlik dosyası: {}", path.display());
         if path.exists() {
             let text = std::fs::read_to_string(&path)
                 .with_context(|| format!("kimlik dosyası okunamadı: {}", path.display()))?;
