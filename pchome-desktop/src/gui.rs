@@ -209,23 +209,23 @@ impl DesktopGui {
             });
     }
 
-    /// Sol pano: 5 kart, hepsi aynı stilde (PC Kimliği görünümü referans).
+    /// Sol pano: kartlar + olay akışı; panel üstten alta boydan boya dolu.
     fn side_panel(&mut self, ctx: &egui::Context) {
         egui::SidePanel::left("side")
             .resizable(false)
             .exact_width(326.0)
             .show(ctx, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    self.card_identity(ctx, ui);
-                    ui.add_space(8.0);
-                    self.card_device(ui);
-                    ui.add_space(8.0);
-                    self.card_signal(ui);
-                    ui.add_space(8.0);
-                    self.card_update(ui);
-                    ui.add_space(8.0);
-                    self.card_peer(ui);
-                });
+                self.card_identity(ctx, ui);
+                ui.add_space(6.0);
+                self.card_device(ui);
+                ui.add_space(6.0);
+                self.card_signal(ui);
+                ui.add_space(6.0);
+                self.card_update(ui);
+                ui.add_space(6.0);
+                self.card_peer(ui);
+                ui.add_space(6.0);
+                self.card_events(ui);
             });
     }
 
@@ -248,12 +248,13 @@ impl DesktopGui {
             };
             ui.label(egui::RichText::new(shown).monospace().size(28.0).color(theme::text()));
             ui.add_space(4.0);
-            // Butonlar ayrı satırda ızgara: dar panelde yazılar üst üste binmez.
-            egui::Grid::new("pw_buttons").num_columns(3).spacing([6.0, 4.0]).show(ui, |ui| {
-                let eye = if self.show_password { "🙈 Gizle" } else { "👁 Göster" };
-                if theme::ghost_button(ui, eye).clicked() {
-                    self.show_password = !self.show_password;
-                }
+            // Tek Göster/Gizle düğmesi + yenile/kopyala ayrı satırda.
+            let eye = if self.show_password { "🙈 Gizle" } else { "👁 Göster" };
+            if theme::ghost_button(ui, eye).clicked() {
+                self.show_password = !self.show_password;
+            }
+            ui.add_space(4.0);
+            egui::Grid::new("pw_buttons").num_columns(2).spacing([6.0, 4.0]).show(ui, |ui| {
                 if theme::ghost_button(ui, "🔄 Yenile").on_hover_text("Şifreyi yenile").clicked() {
                     self.refresh_password();
                 }
@@ -279,23 +280,27 @@ impl DesktopGui {
                 ("Çözünürlük", self.state.resolution.lock().unwrap().clone()),
                 ("Kip", self.state.mode.lock().unwrap().clone()),
             ];
-            egui::Grid::new("device_grid").num_columns(2).spacing([8.0, 3.0]).show(ui, |ui| {
-                for (k, v) in rows {
+            // Tam genişlik satırlar: etiket solda, değer sağda.
+            for (k, v) in rows {
+                ui.horizontal(|ui| {
                     ui.label(egui::RichText::new(k).color(theme::muted()).small());
-                    ui.label(egui::RichText::new(v).monospace().small().color(theme::text()));
-                    ui.end_row();
-                }
-            });
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.label(egui::RichText::new(v).monospace().small().color(theme::text()));
+                    });
+                });
+            }
             ui.add_space(2.0);
             let uinput = self.state.uinput_active.load(Ordering::SeqCst);
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new("Giriş (uinput)").color(theme::muted()).small());
-                ui.label(
-                    egui::RichText::new(if uinput { "● ETKİN" } else { "○ KAPALI" })
-                        .color(if uinput { theme::success() } else { theme::danger() })
-                        .strong()
-                        .small(),
-                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(
+                        egui::RichText::new(if uinput { "● ETKİN" } else { "○ KAPALI" })
+                            .color(if uinput { theme::success() } else { theme::danger() })
+                            .strong()
+                            .small(),
+                    );
+                });
             });
         });
     }
@@ -750,22 +755,22 @@ impl DesktopGui {
     }
 
     /// Alta sabit olay akışı paneli.
-    fn events_bottom(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::bottom("events")
-            .resizable(true)
-            .default_height(132.0)
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("OLAY AKIŞI").color(theme::primary()).strong());
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if theme::ghost_button_auto(ui, "🗑 Temizle").clicked() {
-                            self.state.clear_events();
-                        }
-                    });
+    /// Olay akışı kartı: sol panelin en altında, kalan boşluğu doldurur.
+    fn card_events(&mut self, ui: &mut egui::Ui) {
+        theme::card_frame().show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("OLAY AKIŞI").color(theme::primary()).strong());
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if theme::ghost_button_auto(ui, "🗑 Temizle").clicked() {
+                        self.state.clear_events();
+                    }
                 });
-                let lines: Vec<String> =
-                    self.state.events.lock().unwrap().iter().rev().take(40).cloned().collect();
-                egui::ScrollArea::vertical().auto_shrink([false, true]).show(ui, |ui| {
+            });
+            let lines: Vec<String> =
+                self.state.events.lock().unwrap().iter().rev().take(60).cloned().collect();
+            // Kalan dikey boşluğun tamamı kaydırma alanına verilir.
+            let h = ui.available_height().max(90.0);
+            egui::ScrollArea::vertical().max_height(h).auto_shrink([false, true]).show(ui, |ui| {
                     if lines.is_empty() {
                         ui.label(
                             egui::RichText::new("Henüz olay yok — telefon bağlanınca burada görünür.")
@@ -782,7 +787,7 @@ impl DesktopGui {
                         );
                     }
                 });
-            });
+        });
     }
 
     /// Ayarlar penceresi: sinyal + ad + şifre.
@@ -884,7 +889,6 @@ impl eframe::App for DesktopGui {
         theme::apply(ctx);
         self.top_bar(ctx);
         self.side_panel(ctx);
-        self.events_bottom(ctx);
         self.central(ctx);
         self.settings_window(ctx);
         self.update_modal_window(ctx);
