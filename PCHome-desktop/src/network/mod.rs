@@ -27,6 +27,8 @@ pub struct ConnectionManager {
     /// Her connect() çağrısında artar; eski soket görevlerinin yeni
     /// bağlantının durumunu ezmesini engeller.
     epoch: Arc<AtomicU64>,
+    /// Soketten gelen son mesajın zamanı (kalp atışı bekçisi için).
+    last_seen: Arc<Mutex<std::time::Instant>>,
     signal_url: String,
     outgoing: Arc<Mutex<Option<mpsc::UnboundedSender<String>>>>,
     incoming_rx: Arc<Mutex<mpsc::UnboundedReceiver<Value>>>,
@@ -39,6 +41,7 @@ impl ConnectionManager {
         Self {
             state: Arc::new(RwLock::new(ConnectionState::Disconnected)),
             epoch: Arc::new(AtomicU64::new(0)),
+            last_seen: Arc::new(Mutex::new(std::time::Instant::now())),
             signal_url: signal_url.into(),
             outgoing: Arc::new(Mutex::new(None)),
             incoming_rx: Arc::new(Mutex::new(irx)),
@@ -110,12 +113,15 @@ impl ConnectionManager {
         }
 
         // Reader task: parse inbound JSON and forward to the engine.
+        // Her gelen mesaj (tick dahil) soketin canlı kanıtıdır.
         let itx = self.incoming_tx.clone();
         {
             let state = Arc::clone(&self.state);
             let epoch = Arc::clone(&self.epoch);
+            let seen = Arc::clone(&self.last_seen);
             tokio::spawn(async move {
                 while let Some(Ok(msg)) = read.next().await {
+                    *seen.lock().await = std::time::Instant::now();
                     match msg {
                         Message::Text(t) => {
                             if let Ok(v) = serde_json::from_str::<Value>(&t) {
@@ -127,6 +133,31 @@ impl ConnectionManager {
                     }
                 }
                 mark_dropped(state, epoch, my_epoch, "okuma").await;
+            });
+        }
+
+        // Sessizlik bekçisi: sunucu her 25 sn'de tick yollar; 75 sn
+        // hiç ses çıkmazsa soket yarı-açık ölmüştür, kopuk ilan edilir ve
+        // yeniden bağlanma gözcüsü devreye girer.
+        {
+            let state = Arc::clone(&self.state);
+            let epoch = Arc::clone(&self.epoch);
+            let seen = Arc::clone(&self.last_seen);
+            tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+                    if epoch.load(Ordering::SeqCst) != my_epoch {
+                        break; // yerimize yeni bağlantı geldi
+                    }
+                    let silent = seen.lock().await.elapsed();
+                    if silent >= std::time::Duration::from_secs(75) {
+                        *state.write().await = ConnectionState::Disconnected;
+                        log::warn!(
+                            "sinyal 75 sn sessiz kaldı, yeniden bağlanılıyor (ölü soket?)"
+                        );
+                        break;
+                    }
+                }
             });
         }
 
