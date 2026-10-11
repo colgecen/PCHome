@@ -18,7 +18,7 @@ pub fn run(state: SharedState) {
         ..Default::default()
     };
     let _ = eframe::run_native(
-        "PChome Desktop",
+        "PCHome Desktop",
         options,
         Box::new(|_cc| {
             let signal_url = crate::config::Config::from_env()
@@ -55,6 +55,8 @@ pub fn run(state: SharedState) {
                 update_modal: UpdateModalState::Closed,
                 update_tx,
                 update_rx,
+                settings_rect: None,
+                update_rect: None,
             }))
         }),
     );
@@ -92,6 +94,8 @@ struct DesktopGui {
     update_modal: UpdateModalState,
     update_tx: Sender<UpdateEvent>,
     update_rx: Receiver<UpdateEvent>,
+    settings_rect: Option<egui::Rect>,
+    update_rect: Option<egui::Rect>,
 }
 
 /// Güncelleme modalının durum makinesi. Kurulum bitmeden modal
@@ -155,7 +159,7 @@ impl DesktopGui {
             .exact_height(54.0)
             .show(ctx, |ui| {
                 ui.horizontal_centered(|ui| {
-                    ui.label(egui::RichText::new("⬢ PChome").color(theme::primary()).strong().size(17.0));
+                    ui.label(egui::RichText::new("PCHome").color(theme::primary()).strong().size(17.0));
                     ui.label(
                         egui::RichText::new(format!("v{}", crate::updater::current_version()))
                             .color(theme::muted())
@@ -338,8 +342,10 @@ impl DesktopGui {
     /// Güncelleme modalı: denetle → sonuç → kur (kilitli) → otomatik yeniden başlat.
     fn update_modal_window(&mut self, ctx: &egui::Context) {
         if matches!(self.update_modal, UpdateModalState::Closed) {
+            self.update_rect = None;
             return;
         }
+        let was_open = self.update_rect.is_some();
         // Olay pompası: arka plan iş parçacıklarından gelen sonuçlar.
         while let Ok(ev) = self.update_rx.try_recv() {
             match ev {
@@ -366,7 +372,7 @@ impl DesktopGui {
         }
 
         let locked = self.update_modal.busy();
-        egui::Window::new("⬆ Güncelleme")
+        let resp = egui::Window::new("⬆ Güncelleme")
             .resizable(false)
             .collapsible(false)
             .min_width(430.0)
@@ -452,6 +458,14 @@ impl DesktopGui {
                     }
                 }
             });
+        if let Some(r) = resp {
+            self.update_rect = Some(r.response.rect);
+        }
+        // Kurulum bitmeden dışarı tıklamak kapatmaz (kilit korunur).
+        if was_open && !locked && outside_tap(ctx, self.update_rect) {
+            self.update_modal = UpdateModalState::Closed;
+            self.update_rect = None;
+        }
     }
 
     fn start_check(&mut self) {
@@ -663,20 +677,20 @@ impl DesktopGui {
             && !self.state.peer_connected.load(Ordering::SeqCst);
         let (title, title_color, msg) = if went_away {
             (
-                "✖ BAĞLANTI GİTTİ",
+                "● BAĞLANTI GİTTİ",
                 theme::danger(),
                 "cihaz ayrıldı — yeniden bekleniyor…",
             )
         } else if alive {
-            ("⬢", theme::primary(), "kare bekleniyor…")
+            ("●", theme::primary(), "kare bekleniyor…")
         } else if wayland {
             (
-                "⬢",
+                "●",
                 theme::primary(),
                 "Wayland: önizleme spectacle/gnome-screenshot/grim'den birini kur",
             )
         } else {
-            ("⬢", theme::primary(), "cihaz bekleniyor — telefondan bağlan")
+            ("●", theme::primary(), "cihaz bekleniyor — telefondan bağlan")
         };
         ui.painter().text(
             area.center() + egui::vec2(0.0, -12.0),
@@ -791,17 +805,32 @@ impl DesktopGui {
     }
 
     /// Ayarlar penceresi: sinyal + ad + şifre.
+    /// Pencere dışına tıklanınca kapanır.
     fn settings_window(&mut self, ctx: &egui::Context) {
         if !self.show_settings {
+            self.settings_rect = None;
             return;
         }
-        egui::Window::new("⚙ Ayarlar")
+        let was_open = self.settings_rect.is_some();
+        let resp = egui::Window::new("⚙ Ayarlar")
             .resizable(false)
             .collapsible(false)
             .min_width(380.0)
             .show(ctx, |ui| {
                 ui.label(egui::RichText::new("Sinyal Sunucusu").strong().color(theme::primary()));
-                ui.text_edit_singleline(&mut self.signal_url);
+                egui::Frame::none()
+                    .fill(theme::bg_panel())
+                    .stroke(egui::Stroke::new(1.0_f32, theme::border()))
+                    .rounding(egui::Rounding::same(8.0))
+                    .inner_margin(egui::Margin::symmetric(10.0, 6.0))
+                    .show(ui, |ui| {
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.signal_url)
+                                .frame(false)
+                                .hint_text("wss://sunucu-adresi/ws")
+                                .text_color(theme::text()),
+                        );
+                    });
                 ui.add_space(6.0);
                 ui.label(egui::RichText::new("PC Adı").strong().color(theme::primary()));
                 ui.text_edit_singleline(&mut self.new_pc_name);
@@ -820,6 +849,14 @@ impl DesktopGui {
                     self.show_settings = false;
                 }
             });
+        if let Some(r) = resp {
+            self.settings_rect = Some(r.response.rect);
+        }
+        // Dışarı tıklayınca kapat (açıldığı kare hariç).
+        if was_open && outside_tap(ctx, self.settings_rect) {
+            self.show_settings = false;
+            self.settings_rect = None;
+        }
     }
 
     fn refresh_password(&mut self) {
@@ -839,6 +876,11 @@ impl DesktopGui {
     fn save_settings(&mut self) {
         let url = self.signal_url.trim().to_string();
         if !url.is_empty() {
+            if !(url.starts_with("ws://") || url.starts_with("wss://")) {
+                self.settings_msg =
+                    "adres ws:// ya da wss:// ile başlamalı".to_string();
+                return;
+            }
             let _ = crate::config::Config::save_signal_url(&url);
             *self.state.status.lock().unwrap() =
                 "SİNYAL: yeniden başlatınca uygulanır".to_string();
@@ -865,6 +907,21 @@ impl DesktopGui {
         }
         self.show_settings = false;
     }
+}
+
+/// Pencere dışına basıldıysa true: modal/pencereler dışarı tıklanınca kapanır.
+/// `rect` yoksa (henüz çizilmedi) her zaman false.
+fn outside_tap(ctx: &egui::Context, rect: Option<egui::Rect>) -> bool {
+    let Some(r) = rect else {
+        return false;
+    };
+    ctx.input(|i| {
+        i.pointer.button_pressed(egui::PointerButton::Primary)
+            && i.pointer
+                .press_origin()
+                .map(|p| !r.contains(p))
+                .unwrap_or(false)
+    })
 }
 
 /// Harf-korumalı sığdırma: dokuyu bozmadan kutunun içine ortala.

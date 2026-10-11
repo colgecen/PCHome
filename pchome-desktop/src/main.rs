@@ -47,7 +47,7 @@ use crate::uinput::UInputDevice;
 
 fn main() -> Result<()> {
     env_logger::init();
-    log::info!("PChome Desktop starting");
+    log::info!("PCHome Desktop starting");
 
     let state = new_state();
     let runtime = tokio::runtime::Builder::new_multi_thread()
