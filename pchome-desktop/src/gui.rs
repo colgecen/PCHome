@@ -255,7 +255,7 @@ impl DesktopGui {
             }
             ui.add_space(4.0);
             egui::Grid::new("pw_buttons").num_columns(2).spacing([6.0, 4.0]).show(ui, |ui| {
-                if theme::ghost_button(ui, "🔄 Yenile").on_hover_text("Şifreyi yenile").clicked() {
+                if theme::ghost_button(ui, "🔄").on_hover_text("Şifreyi yenile").clicked() {
                     self.refresh_password();
                 }
                 if theme::ghost_button(ui, "📋 Kopyala").on_hover_text("ID + şifreyi kopyala").clicked() {
