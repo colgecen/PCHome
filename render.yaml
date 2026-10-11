@@ -1,0 +1,16 @@
+# Render Blueprint — PCHome sinyal sunucusu.
+# NOT: Panoda elle kurulu servisin "Root Directory" ayarı
+# "PCHome-signal" olmalı (klasör yeniden adlandırmasından sonra).
+# Bu dosya ayarı belgeler ve yeni kurulumlarda otomatik uygular.
+services:
+  - type: web
+    name: PCHome
+    runtime: docker
+    rootDir: PCHome-signal
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: RATE_LIMIT
+        value: 20
