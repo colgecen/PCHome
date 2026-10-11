@@ -67,6 +67,17 @@ public class SignalClient {
         return base + "/ws?pc_id=" + clean + "&role=mobile";
     }
 
+    /** Tanı için sunucu adresi (hata mesajlarında görünür). */
+    public static String hostOf(String serverUrl) {
+        try {
+            android.net.Uri u = android.net.Uri.parse(serverUrl.trim());
+            String host = u.getHost();
+            return host == null || host.isEmpty() ? serverUrl : host;
+        } catch (Exception e) {
+            return serverUrl;
+        }
+    }
+
     /** Kimlik doğrulama mesajı (test edilebilir saf fonksiyon). */
     public static JSONObject buildJoinMessage(String pcId, String password) throws JSONException {
         JSONObject join = new JSONObject();
@@ -129,8 +140,10 @@ public class SignalClient {
             @Override
             public void onFailure(@NonNull WebSocket ws, @NonNull Throwable t, Response response) {
                 connected = false;
-                Log.e(TAG, "WebSocket hatası: " + t.getMessage(), t);
-                if (listener != null) listener.onError(t.getMessage());
+                String detail = "Sinyal (" + hostOf(serverUrl) + "): "
+                        + String.valueOf(t.getMessage());
+                Log.e(TAG, "WebSocket hatası: " + detail, t);
+                if (listener != null) listener.onError(detail);
                 if (!manualClose && !authFailed) {
                     scheduleReconnect();
                 }
@@ -192,6 +205,11 @@ public class SignalClient {
                 reconnectAttempts++;
                 Log.i(TAG, "Yeniden bağlanma denemesi " + reconnectAttempts);
                 connect();
+            }
+            // Denemeler bitti, hâlâ kopuğuz: arayüz sonsuz beklemesin.
+            if (!connected && !authFailed && !manualClose && listener != null) {
+                listener.onError("Sinyal sunucusuna ulaşılamadı ("
+                        + hostOf(serverUrl) + ", " + MAX_RECONNECT_ATTEMPTS + " deneme)");
             }
         });
         reconnectThread.start();

@@ -57,22 +57,17 @@ public class PinActivity extends AppCompatActivity {
         prefs = new Prefs(this);
         recentStore = new RecentStore(this);
 
-        // Kayıtlı kişisel sunucu adresi (derleme anında local.properties'ten
-        // gömülür); kullanıcı yine de değiştirebilir.
-        String baked = BuildConfig.SIGNAL_URL;
+        // Sunucu adresi gömülü GELMEZ (anonim): kullanıcı eliyle yazar.
+        // Daha önce yazılan adresler aşağıda öneri olarak çıkar.
         List<String> servers = prefs.getServers();
-        if (!servers.contains(baked) && !baked.isEmpty()) {
-            servers.add(0, baked);
-        }
-        if (servers.isEmpty()) {
-            servers.add(0, "wss://pchome.onrender.com/ws");
-        }
 
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
                 this, android.R.layout.simple_dropdown_item_1line, servers);
         serverEdit.setAdapter(adapter);
-        int lastIdx = Math.min(prefs.getLastServerIndex(), servers.size() - 1);
-        serverEdit.setText(servers.get(Math.max(0, lastIdx)), false);
+        if (!servers.isEmpty()) {
+            int lastIdx = Math.min(prefs.getLastServerIndex(), servers.size() - 1);
+            serverEdit.setText(servers.get(Math.max(0, lastIdx)), false);
+        }
 
         // En alt güncelleme bölümü: modalı açar (masaüstüyle aynı mantık).
         findViewById(R.id.update_open_button).setOnClickListener(v -> openUpdateDialog());

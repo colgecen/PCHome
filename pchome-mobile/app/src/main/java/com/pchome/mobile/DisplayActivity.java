@@ -15,6 +15,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.pchome.mobile.control.KeyCodeMap;
@@ -33,6 +34,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private static final float MOVE_THRESHOLD = 12f;
     private static final long LONG_PRESS_MS = 250;
     private static final long DOUBLE_TAP_MS = 300;
+    private static final long CONNECT_TIMEOUT_MS = 25000;
 
     private SurfaceViewRenderer surfaceView;
     private ReticleView reticle;
@@ -42,11 +44,26 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private WebRtcClient webRtcClient;
     private RecentStore recentStore;
     private String pcId = "";
+    private String signalUrl = "";
+    private String password = "";
     private String deviceName = "";
     private String deviceIp = "";
     private String deviceMac = "";
     private String deviceRes = "";
     private boolean recentSaved = false;
+    private boolean connectedOnce = false;
+    private boolean fatalShown = false;
+    private AlertDialog fatalDialog;
+    private final Runnable timeoutCheck = () -> {
+        if (!connectedOnce && !isFinishing()) {
+            showFatal(
+                    "PC cevap vermedi",
+                    "Sinyale ulaşıldı ama PC'den yanıt yok.\n\n"
+                            + "• PC uygulaması açık mı?\n"
+                            + "• İki tarafta da aynı sinyal adresi mi?\n"
+                            + "• PC ID doğru mu?");
+        }
+    };
 
     private int pcWidth = 1920;
     private int pcHeight = 1080;
@@ -86,12 +103,13 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         touchThread.start();
         touchHandler = new Handler(touchThread.getLooper());
 
-        String signalUrl = getIntent().getStringExtra("signalUrl");
-        if (signalUrl == null || signalUrl.isEmpty()) {
-            signalUrl = "ws://localhost:8080/ws";
+        String signalUrlExtra = getIntent().getStringExtra("signalUrl");
+        if (signalUrlExtra == null || signalUrlExtra.isEmpty()) {
+            signalUrlExtra = "ws://localhost:8080/ws";
         }
+        signalUrl = signalUrlExtra;
         pcId = getIntent().getStringExtra("pcId");
-        String password = getIntent().getStringExtra("password");
+        password = getIntent().getStringExtra("password");
         if (pcId == null || pcId.isEmpty()) {
             // Eski sürümden gelen "pin" ekine yedek uyumluluk.
             pcId = getIntent().getStringExtra("pin");
@@ -101,10 +119,13 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         pcId = pcId.replaceAll("[^0-9]", "");
         password = password.replaceAll("[^0-9]", "");
         infoChip.setText("PC " + pcId);
+        streamStatus.setText(R.string.conn_phase_signal);
+        streamStatus.setVisibility(View.VISIBLE);
         recentStore = new RecentStore(this);
         webRtcClient = new WebRtcClient(this, null, surfaceView);
         webRtcClient.setListener(this);
         webRtcClient.connect(signalUrl, pcId, password);
+        uiHandler.postDelayed(timeoutCheck, CONNECT_TIMEOUT_MS);
 
         setupHud();
         setupKeyboard();
@@ -385,6 +406,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     public void onStateChanged(WebRtcClient.ConnectionState state) {
         runOnUiThread(() -> {
             if (state == WebRtcClient.ConnectionState.CONNECTED) {
+                markConnected();
                 streamStatus.setVisibility(View.GONE);
             } else if (state == WebRtcClient.ConnectionState.DISCONNECTED) {
                 saveRecent();
@@ -398,9 +420,19 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         });
     }
 
+    private void markConnected() {
+        connectedOnce = true;
+        if (uiHandler != null) {
+            uiHandler.removeCallbacks(timeoutCheck);
+        }
+    }
+
     @Override
     public void onRemoteTrack(org.webrtc.MediaStream stream) {
-        runOnUiThread(() -> streamStatus.setVisibility(View.GONE));
+        runOnUiThread(() -> {
+            markConnected();
+            streamStatus.setVisibility(View.GONE);
+        });
     }
 
     @Override
@@ -424,14 +456,59 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         runOnUiThread(() -> {
             streamStatus.setText(getString(R.string.error) + ": " + error);
             streamStatus.setVisibility(View.VISIBLE);
-            Toast.makeText(DisplayActivity.this,
-                    getString(R.string.error) + ": " + error, Toast.LENGTH_LONG).show();
-            // Şifre reddi gibi ölümcül hatalarda kartı kaydedip çık.
+            // Ölümcül hatalarda sessizce başa atma: sebebi göster, seçim sun.
             if (error.contains("reddedildi") || error.contains("hatalı")) {
                 saveRecent();
-                finish();
+                showFatal("Bağlantı reddedildi", error);
+            } else {
+                Toast.makeText(DisplayActivity.this,
+                        getString(R.string.error) + ": " + error, Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    /**
+     * Ölümcül bağlantı hatası diyaloğu: ekranda kalır, [Tekrar Dene]
+     * aynı bilgilerle yeniden bağlanır, [Geri Dön] kartı kaydedip çıkar.
+     */
+    private void showFatal(String title, String detail) {
+        if (isFinishing() || fatalShown) {
+            return;
+        }
+        fatalShown = true;
+        if (uiHandler != null) {
+            uiHandler.removeCallbacks(timeoutCheck);
+        }
+        fatalDialog = new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(detail)
+                .setCancelable(false)
+                .setPositiveButton(R.string.retry, (d, w) -> {
+                    fatalShown = false;
+                    retryConnection();
+                })
+                .setNegativeButton(R.string.go_back, (d, w) -> {
+                    saveRecent();
+                    finish();
+                })
+                .create();
+        fatalDialog.show();
+    }
+
+    private void retryConnection() {
+        recentSaved = false;
+        connectedOnce = false;
+        fatalShown = false;
+        streamStatus.setText(R.string.conn_phase_signal);
+        streamStatus.setVisibility(View.VISIBLE);
+        if (webRtcClient != null) {
+            webRtcClient.disconnect();
+            webRtcClient.connect(signalUrl, pcId, password);
+        }
+        if (uiHandler != null) {
+            uiHandler.removeCallbacks(timeoutCheck);
+            uiHandler.postDelayed(timeoutCheck, CONNECT_TIMEOUT_MS);
+        }
     }
 
     @Override
@@ -441,7 +518,13 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         deviceMac = info.optString("mac", deviceMac);
         deviceRes = info.optString("resolution", deviceRes);
         persistDeviceFields();
-        runOnUiThread(this::refreshInfoChip);
+        runOnUiThread(() -> {
+            refreshInfoChip();
+            if (!connectedOnce) {
+                streamStatus.setText(R.string.conn_phase_verified);
+                streamStatus.setVisibility(View.VISIBLE);
+            }
+        });
     }
 
     @Override
@@ -557,6 +640,12 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (uiHandler != null) {
+            uiHandler.removeCallbacks(timeoutCheck);
+        }
+        if (fatalDialog != null && fatalDialog.isShowing()) {
+            fatalDialog.dismiss();
+        }
         saveRecent();
         if (webRtcClient != null) {
             webRtcClient.disconnect();

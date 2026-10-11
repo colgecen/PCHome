@@ -50,6 +50,14 @@ public class WebRtcClient {
     private String localSdp;
     private final List<IceCandidate> iceCandidates = new ArrayList<>();
     private WebRtcListener listener;
+    // Sinyal dalgalanmasında el sıkışmayı öldürmemek için: medya tek kez
+    // başlatılır, PeerConnection sinyal yeniden bağlanışlarında YENİDEN
+    // kurulmaz (var olan bağlantı üzerinden hello/offer devam eder).
+    private boolean mediaStarted = false;
+    private volatile boolean offerReceived = false;
+    private volatile int helloTries = 0;
+    private static final int MAX_HELLO_TRIES = 4;
+    private static final long HELLO_RETRY_MS = 8000;
 
     public interface WebRtcListener {
         void onStateChanged(ConnectionState state);
@@ -89,12 +97,21 @@ public class WebRtcClient {
     public void connect(String signalUrl, String pcId, String password) {
         state = ConnectionState.CONNECTING;
         notifyStateChanged();
+        mediaStarted = false;
+        offerReceived = false;
+        helloTries = 0;
+        iceCandidates.clear();
 
         signalClient = new SignalClient(signalUrl, pcId, password, new SignalClient.SignalListener() {
             @Override
             public void onConnected() {
-                startLocalMedia();
-                createPeerConnection();
+                // Sinyal koptu-yeniden bağlandıysa medyaya DOKUNMA; join
+                // otomatik gitti, hello auth_ok ile gidecek.
+                if (!mediaStarted) {
+                    mediaStarted = true;
+                    startLocalMedia();
+                    createPeerConnection();
+                }
                 // join SignalClient tarafından otomatik gönderildi;
                 // hello yalnız auth_ok gelince gider.
             }
@@ -327,9 +344,32 @@ public class WebRtcClient {
             hello.put("role", "mobile");
             boolean sent = signalClient.sendMessage(hello);
             Log.i(TAG, "hello sent to server: " + sent);
+            if (sent) {
+                helloTries++;
+                scheduleHelloRetry();
+            }
         } catch (JSONException e) {
             Log.e(TAG, "Failed to send hello", e);
         }
+    }
+
+    /**
+     * Offer 8 sn içinde gelmezse hello'yu en fazla 4 kez yinea gönder.
+     * (Sinyal/karşı taraf yarışı kaybederse el sıkışma sonsuza takılmaz.)
+     */
+    private void scheduleHelloRetry() {
+        new Thread(() -> {
+            try {
+                Thread.sleep(HELLO_RETRY_MS);
+            } catch (InterruptedException e) {
+                return;
+            }
+            if (!offerReceived && helloTries < MAX_HELLO_TRIES
+                    && signalClient != null && signalClient.isConnected()) {
+                Log.i(TAG, "Offer gelmedi, hello yineleniyor (" + helloTries + ")");
+                sendHello();
+            }
+        }).start();
     }
 
     private void handleSignalMessage(JSONObject message) {
@@ -370,12 +410,20 @@ public class WebRtcClient {
                     }
                     break;
                 case "offer":
-                    setRemoteDescription(message);
+                    offerReceived = true;
+                    if (peerConnection != null) {
+                        setRemoteDescription(message);
+                    }
                     break;
                 case "answer":
-                    setRemoteDescription(message);
+                    if (peerConnection != null) {
+                        setRemoteDescription(message);
+                    }
                     break;
                 case "ice-candidate":
+                    if (peerConnection == null) {
+                        break;
+                    }
                     String sdp = message.getString("candidate");
                     String sdpMid = message.getString("sdpMid");
                     int sdpMLineIndex = message.getInt("sdpMLineIndex");
@@ -393,6 +441,10 @@ public class WebRtcClient {
     }
 
     private void drainIceCandidates() {
+        if (peerConnection == null) {
+            iceCandidates.clear();
+            return;
+        }
         for (IceCandidate candidate : iceCandidates) {
             peerConnection.addIceCandidate(candidate);
         }
@@ -419,19 +471,34 @@ public class WebRtcClient {
     }
 
     public void disconnect() {
-        if (videoCapturer != null) {
-            try {
-                videoCapturer.stopCapture();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+        try {
+            if (videoCapturer != null) {
+                try {
+                    videoCapturer.stopCapture();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
             }
+        } catch (Exception e) {
+            Log.w(TAG, "Capturer durdurulamadı: " + e.getMessage());
         }
-        if (peerConnection != null) {
-            peerConnection.close();
+        try {
+            if (peerConnection != null) {
+                peerConnection.close();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "PeerConnection kapatılamadı: " + e.getMessage());
         }
-        if (signalClient != null) {
-            signalClient.disconnect();
+        try {
+            if (signalClient != null) {
+                signalClient.disconnect();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Signal kapatılamadı: " + e.getMessage());
         }
+        peerConnection = null;
+        dataChannel = null;
+        mediaStarted = false;
         state = ConnectionState.DISCONNECTED;
         notifyStateChanged();
     }

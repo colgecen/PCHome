@@ -167,11 +167,6 @@ jobs:
           "$SDM" --list_installed || true
           "$SDM" "platforms;android-34" "build-tools;34.0.0" "platform-tools"
 
-      - name: Write release signal URL
-        # Dağıtılan APK kutudan çıkar çıkmaz canlı sunucuya bağlansın.
-        run: echo "signalUrl=wss://pchome.onrender.com/ws" > local.properties
-        working-directory: pchome-mobile
-
       - name: Build APK
         run: |
           cd pchome-mobile
