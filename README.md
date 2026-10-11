@@ -2,7 +2,7 @@
 
 > Turn your Linux PC into a remote-controlled machine — stream the screen to your Android phone over a direct WebRTC connection and control mouse & keyboard from your pocket.
 
-PChome is a self-hosted remote control system consisting of three components: a Linux desktop daemon that captures and hardware-encodes the screen, an Android app that renders the stream and sends touch input back, and a tiny WebSocket signaling server that pairs the two via a 6-digit PIN. Media never touches the server — it flows peer-to-peer.
+PChome is a self-hosted remote control system consisting of three components: a Linux desktop daemon with a permanent PC ID and fixed password, an Android app that connects with ID + password and keeps a "Recent" grid with thumbnails, and a tiny WebSocket signaling server that pairs the two. Media never touches the server — it flows peer-to-peer. Both apps update themselves from GitHub Releases.
 
 | | |
 |---|---|
@@ -26,7 +26,8 @@ PChome is a self-hosted remote control system consisting of three components: a 
 
 - **Low-latency P2P streaming** — screen video travels over a direct WebRTC peer connection; the relay only handles handshake.
 - **Hardware-accelerated encoding** — VA-API or NVENC H.264 on the desktop, MediaCodec on Android, automatic software fallback.
-- **6-digit PIN pairing** — cryptographically secure PIN shown in the desktop HUD, valid for 300 seconds.
+- **Permanent PC ID + fixed password** — the desktop creates a 6-digit ID and 6-digit password once (`~/.config/pchome/identity.toml`); the phone connects with ID + password, no rotating PINs.
+- **Recent grid** — the phone keeps the last PCs with a thumbnail square plus ID/IP/MAC underneath; tap to reconnect, long-press to delete.
 - **Remote input** — tap, swipe and hotkeys from the phone, injected via `/dev/uinput`.
 - **Zero-config cloud deploy** — ship the signal server anywhere with the included Dockerfile; `/health` and `/metrics` are served on the same port for platforms that expose only one.
 - **Built-in HUD** — the desktop daemon opens an egui window showing the active PIN and live telemetry.
@@ -43,10 +44,10 @@ PChome is a self-hosted remote control system consisting of three components: a 
           \____________________ direct WebRTC (video + data channel) ____________________/
 ```
 
-1. The desktop daemon generates a secure 6-digit PIN and registers it with the signal server.
-2. You type the PIN into the Android app.
-3. The server matches the two peers and relays SDP offers/answers plus ICE candidates.
-4. A direct WebRTC connection carries the video stream and input events from then on.
+ 1. The desktop daemon loads (or generates) its permanent PC ID + password and registers the ID with the signal server.
+ 2. You type the PC ID + password into the Android app.
+ 3. The desktop verifies the password itself (`auth_ok` / `auth_rejected`, 60 s lockout after 5 wrong tries) and the server relays SDP offers/answers plus ICE candidates.
+ 4. A direct WebRTC connection carries the video stream and input events from then on.
 
 ## Installation
 
@@ -125,11 +126,21 @@ cd pchome-desktop
 sudo ./target/release/pchome-desktop
 ```
 
-An egui window opens showing the 6-digit PIN. (`sudo` is needed for `/dev/uinput`; see [pchome-desktop/etc/udev/rules.d](pchome-desktop/etc/udev/rules.d) for passwordless setups.)
+An egui window opens showing the permanent PC ID and password. (`sudo` is needed for `/dev/uinput`; see [pchome-desktop/etc/udev/rules.d](pchome-desktop/etc/udev/rules.d) for passwordless setups.)
 
 ### 3. Connect the phone
 
-Install the APK, enter the signal server address and the PIN shown on the desktop — the two peers pair and streaming starts.
+Install the APK, enter the signal server address, the PC ID and the password shown on the desktop — the desktop verifies you and streaming starts. The PC is saved to the "Recent" grid with its last screenshot.
+
+## Updates
+
+Both apps check GitHub Releases automatically (desktop: 20 s after start, then every 6 h; mobile: at most once a day on the connect screen):
+
+- **Desktop** — the "Ayarlar" panel shows the status; "Şimdi Güncelle" downloads and installs the new AppImage/tarball (`.bak` backup kept next to the binary).
+- **Mobile** — an update card appears on the connect screen; "Güncelle" downloads the APK and opens the system installer.
+- Every release also ships a `latest.json` with direct asset URLs, and the signal server reports its version at `GET /version`.
+
+Live signal server: `wss://pchome.onrender.com/ws` (health: `https://pchome.onrender.com/health`).
 
 ### One-liner for local development
 

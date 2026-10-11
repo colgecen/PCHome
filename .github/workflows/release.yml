@@ -202,6 +202,26 @@ jobs:
           RANGE="${PREV:+$PREV..}${GITHUB_REF_NAME}"
           { echo "## Changes"; git log ${RANGE} --oneline --no-merges | sed 's/^/- /'; } > changelog.md
 
+      # Hafif güncelleme bildirimi: iki istemcideki OTA denetçiler ve
+      # harici araçlar sürümü tek dosyadan okur (GitHub API kotasız).
+      - name: Generate latest.json
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          APPIMAGE=$(ls dist/*.AppImage 2>/dev/null | head -n 1 | xargs -n1 basename 2>/dev/null || true)
+          TARBALL=$(ls dist/pchome-desktop-*.tar.gz 2>/dev/null | head -n 1 | xargs -n1 basename 2>/dev/null || true)
+          APK=$(ls dist/pchome-mobile-*.apk 2>/dev/null | head -n 1 | xargs -n1 basename 2>/dev/null || true)
+          BASE="https://github.com/${{ github.repository }}/releases/download/${VERSION}"
+          {
+            echo "{"
+            echo "  \"version\": \"${VERSION}\","
+            echo "  \"desktop_appimage\": \"${BASE}/${APPIMAGE}\","
+            echo "  \"desktop_tarball\": \"${BASE}/${TARBALL}\","
+            echo "  \"mobile_apk\": \"${BASE}/${APK}\""
+            echo "}"
+          } > dist/latest.json
+          cat dist/latest.json
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
