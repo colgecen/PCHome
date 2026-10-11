@@ -29,35 +29,35 @@ The Rust Signal server operates as a relay only:
 #### udev Rule for /dev/uinput
 ```bash
 # Allow only PCHome user to access uinput
-KERNEL=="uinput", GROUP="PCHome", MODE="0660"
+KERNEL=="uinput", GROUP="pchome", MODE="0660"
 RUN+="/usr/bin/chmod 0660 /dev/%k"
-RUN+="/usr/bin/chown root:PCHome /dev/%k"
+RUN+="/usr/bin/chown root:pchome /dev/%k"
 ```
 
 #### Required Group
-- Create `PCHome` group
-- Add authorized users to `PCHome` group
+- Create `pchome` group
+- Add authorized users to `pchome` group
 - Ensure proper permissions on `/dev/uinput`
 
 #### Verification
 ```bash
 # Check uinput permissions
 ls -la /dev/uinput
-# Should show: crw-rw---- root PCHome /dev/uinput
+# Should show: crw-rw---- root pchome /dev/uinput
 
 # Verify user group membership
 groups <username>
-# Should include PCHome
+# Should include pchome
 ```
 
 #### Complete udev Rule File
 Create `/etc/udev/rules.d/99-PCHome-uinput.rules`:
 ```udev
 # PCHome uinput access control
-KERNEL=="uinput", GROUP="PCHome", MODE="0660", TAG+="uaccess"
+KERNEL=="uinput", GROUP="pchome", MODE="0660", TAG+="uaccess"
 
 # Optional: Restrict to specific device node
-SUBSYSTEM=="misc", KERNEL=="uinput", GROUP="PCHome", MODE="0660"
+SUBSYSTEM=="misc", KERNEL=="uinput", GROUP="pchome", MODE="0660"
 ```
 
 Apply rules:
@@ -93,7 +93,7 @@ match std::fs::metadata("/dev/uinput") {
 
 #### Input Injection Security
 - /dev/uinput events are injected at kernel level
-- Only authorized users (PCHome group) can create uinput devices
+- Only authorized users (pchome group) can create uinput devices
 - Events are scoped to the virtual input device only
 
 ### Threat Model
@@ -119,7 +119,7 @@ match std::fs::metadata("/dev/uinput") {
 
 #### Trust Boundaries
 1. **Signal Server Boundary**: Untrusted relay; only validates PIN mapping, never sees media
-2. **Desktop Trust Boundary**: Requires local group membership (`PCHome`) for `/dev/uinput`
+2. **Desktop Trust Boundary**: Requires local group membership (`pchome`) for `/dev/uinput`
 3. **Mobile Trust Boundary**: AccessibilityService scoped to package `com.PCHome.mobile`
 4. **Network Boundary**: WebRTC is P2P; signal server cannot intercept media even with TLS
 
@@ -171,10 +171,10 @@ PCHome Desktop daemon should run with minimal privileges:
 
 ```bash
 # Create dedicated system user
-sudo useradd -r -s /usr/sbin/nologin PCHome
+sudo useradd -r -s /usr/sbin/nologin pchome
 
 # Run daemon as non-root
-sudo -u PCHome PCHome-desktop
+sudo -u pchome PCHome-desktop
 
 # Optional: systemd service with sandboxing
 ```

@@ -100,7 +100,7 @@ Run the desktop daemon — the HUD is the native egui window it opens.
 
 1. **uinput permission denied**
    - Run the daemon with sudo, or verify udev rules loaded: `ls -la /dev/uinput`
-   - Add user to pchome group: `usermod -aG PCHome $USER`
+   - Add user to pchome group: `usermod -aG pchome $USER`
 
 2. **Capture failure / no frames**
    - Check ffmpeg is installed and supports `-f pipewire`: `ffmpeg -formats | grep pipewire`

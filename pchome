@@ -3,17 +3,17 @@
 # PCHome — PCHome interaktif derleme aracı
 #
 # Kullanim:
-#   ./PCHome                      -> interaktif menü (bilesen sec -> format sec -> derle)
-#   ./PCHome --list               -> tüm derleme seceneklerini listele
-#   ./PCHome all                  -> ücünü de derle (desktop AppImage + signal tar.gz + mobile APK)
-#   ./PCHome desktop appimage     -> direkt derle (argümanli, menüsüz)
-#   ./PCHome desktop targz
-#   ./PCHome signal targz
-#   ./PCHome mobile apk
-#   ./PCHome --install            -> ~/.local/bin'e sembolik bag kur,
-#                                    sonra her klasörden `PCHome` yazman yeterli
-#   ./PCHome --doctor             -> derleme ortamini denetle (rust, jdk17, sdk...)
-#   ./PCHome --help               -> yardim
+#   ./pchome                      -> interaktif menü (bilesen sec -> format sec -> derle)
+#   ./pchome --list               -> tüm derleme seceneklerini listele
+#   ./pchome all                  -> ücünü de derle (desktop AppImage + signal tar.gz + mobile APK)
+#   ./pchome desktop appimage     -> direkt derle (argümanli, menüsüz)
+#   ./pchome desktop targz
+#   ./pchome signal targz
+#   ./pchome mobile apk
+#   ./pchome --install            -> ~/.local/bin'e sembolik bag kur,
+#                                    sonra her klasörden `pchome` yazman yeterli
+#   ./pchome --doctor             -> derleme ortamini denetle (rust, jdk17, sdk...)
+#   ./pchome --help               -> yardim
 #
 # Ciktilar hep tek klasöre: ./dist/
 #   dist/PCHome-<sürüm>-x86_64.AppImage
@@ -61,13 +61,13 @@ usage() {
   banner
   echo
   echo "Kullanim:"
-  echo "  ./PCHome                       Interaktif menü"
-  echo "  ./PCHome <bilesen> <format>    Direkt derle"
-  echo "  ./PCHome all                   Ücünü de derle (cikti: ./dist/)"
-  echo "  ./PCHome --list                Secenekleri listele"
-  echo "  ./PCHome --doctor              Ortami denetle"
-  echo "  ./PCHome --install             Komutu sisteme kur (her yerden 'PCHome')"
-  echo "  ./PCHome --help                Bu yardim"
+  echo "  ./pchome                       Interaktif menü"
+  echo "  ./pchome <bilesen> <format>    Direkt derle"
+  echo "  ./pchome all                   Ücünü de derle (cikti: ./dist/)"
+  echo "  ./pchome --list                Secenekleri listele"
+  echo "  ./pchome --doctor              Ortami denetle"
+  echo "  ./pchome --install             Komutu sisteme kur (her yerden 'pchome')"
+  echo "  ./pchome --help                Bu yardim"
   echo
   echo "Hedefler:"
   echo "  desktop : appimage | targz | rpm | binary"
@@ -75,10 +75,10 @@ usage() {
   echo "  mobile  : apk"
   echo
   echo "Ornekler:"
-  echo "  ./PCHome desktop appimage"
-  echo "  ./PCHome signal targz"
-  echo "  ./PCHome mobile apk"
-  echo "  VERSION=0.3.0 ./PCHome all"
+  echo "  ./pchome desktop appimage"
+  echo "  ./pchome signal targz"
+  echo "  ./pchome mobile apk"
+  echo "  VERSION=0.3.0 ./pchome all"
 }
 
 list_targets() {
@@ -91,10 +91,10 @@ list_targets() {
 do_install() {
   local bindir="$HOME/.local/bin"
   mkdir -p "$bindir"
-  ln -sf "$ROOT/PCHome" "$bindir/PCHome"
-  echo "Kuruldu: $bindir/PCHome -> $ROOT/PCHome"
+  ln -sf "$ROOT/pchome" "$bindir/pchome"
+  echo "Kuruldu: $bindir/pchome -> $ROOT/pchome"
   case ":$PATH:" in
-    *":$bindir:"*) echo "PATH zaten '$bindir' iceriyor. Artik her klasorden 'PCHome' yazabilirsin." ;;
+    *":$bindir:"*) echo "PATH zaten '$bindir' iceriyor. Artik her klasorden 'pchome' yazabilirsin." ;;
     *)
       echo "NOT: '$bindir' PATH'te yok. Su satiri ~/.bashrc'ye ekle:"
       echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
@@ -452,7 +452,7 @@ case "${1:-}" in
     echo "PCHome $VERSION"
     ;;
   all)
-    # 2. argüman sürüm olabilir: ./PCHome all 0.3.0
+    # 2. argüman sürüm olabilir: ./pchome all 0.3.0
     if [ $# -ge 2 ]; then
       VERSION="$2"
     fi
@@ -460,12 +460,12 @@ case "${1:-}" in
     ;;
   desktop|signal|mobile)
     if [ $# -lt 2 ]; then
-      echo "Format eksik. Ornek: ./PCHome $1 <format>"
+      echo "Format eksik. Ornek: ./pchome $1 <format>"
       list_targets
       exit 1
     fi
     COMP="$1"; FMT="$2"
-    # 3. argüman sürüm olabilir: ./PCHome desktop appimage 0.3.0
+    # 3. argüman sürüm olabilir: ./pchome desktop appimage 0.3.0
     if [ $# -ge 3 ]; then
       VERSION="$3"
     fi
