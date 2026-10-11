@@ -1,18 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.PChome" parent="Theme.Material3.DayNight">
+    <style name="Theme.PChome" parent="Theme.Material3.Dark">
         <item name="colorPrimary">@color/pchome_cyan</item>
         <item name="colorPrimaryVariant">@color/pchome_cyan</item>
         <item name="colorOnPrimary">@color/black</item>
-        <item name="colorSecondary">@color/pchome_pink</item>
-        <item name="colorSecondaryVariant">@color/pchome_pink</item>
+        <item name="colorSecondary">@color/pchome_blue</item>
+        <item name="colorSecondaryVariant">@color/pchome_blue</item>
         <item name="colorOnSecondary">@color/white</item>
         <item name="android:colorBackground">@color/pchome_background</item>
         <item name="colorSurface">@color/pchome_surface</item>
-        <item name="colorOnSurface">@color/white</item>
+        <item name="colorSurfaceVariant">@color/pchome_panel</item>
+        <item name="colorOnSurface">@color/pchome_text</item>
+        <item name="colorOnSurfaceVariant">@color/pchome_muted</item>
+        <item name="colorError">@color/pchome_danger</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
+        <item name="textInputStyle">@style/Widget.Material3.TextInputLayout.OutlinedBox</item>
     </style>
 
     <style name="Theme.PChome.Fullscreen" parent="Theme.PChome">
@@ -29,7 +33,7 @@
     </style>
 
     <style name="StatusText">
-        <item name="android:textColor">@color/pchome_text_primary</item>
+        <item name="android:textColor">@color/pchome_muted</item>
         <item name="android:textSize">16sp</item>
     </style>
 

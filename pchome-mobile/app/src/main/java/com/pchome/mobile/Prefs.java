@@ -20,6 +20,7 @@ public class Prefs {
     private static final String KEY_SERVERS = "servers";
     private static final String KEY_PINS = "pins";
     private static final String KEY_LAST_SERVER = "last_server";
+    private static final String KEY_LAST_UPDATE_CHECK = "last_update_check";
     private static final int MAX_RECENT = 8;
 
     private final SharedPreferences sp;
@@ -38,6 +39,14 @@ public class Prefs {
 
     public int getLastServerIndex() {
         return sp.getInt(KEY_LAST_SERVER, 0);
+    }
+
+    public long getLastUpdateCheck() {
+        return sp.getLong(KEY_LAST_UPDATE_CHECK, 0);
+    }
+
+    public void setLastUpdateCheck(long now) {
+        sp.edit().putLong(KEY_LAST_UPDATE_CHECK, now).apply();
     }
 
     /** Records a used server URL (most-recent-first) and marks it last-used. */

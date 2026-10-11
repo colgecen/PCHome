@@ -163,8 +163,31 @@ public class PinActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
-    /** Faz 5: GitHub Releases denetimine bağlanacak kanca. */
+    /** Güncelleme denetimi: günde en fazla 1 kez, kart hazırsa gösterilir. */
     private void checkForUpdate() {
-        // TODO(Faz 5): UpdateChecker ile doldurulacak.
+        long now = System.currentTimeMillis();
+        if (now - prefs.getLastUpdateCheck() < 24L * 3600 * 1000) {
+            return;
+        }
+        prefs.setLastUpdateCheck(now);
+        android.os.Handler main = new android.os.Handler(getMainLooper());
+        UpdateChecker.check(BuildConfig.VERSION_NAME, new UpdateChecker.Callback() {
+            @Override
+            public void onResult(UpdateChecker.UpdateInfo info) {
+                if (info.available && !isFinishing()) {
+                    View card = findViewById(R.id.update_card);
+                    MaterialTextView banner = findViewById(R.id.update_banner);
+                    banner.setText(getString(R.string.update_available, info.version));
+                    card.setVisibility(View.VISIBLE);
+                    findViewById(R.id.update_button).setOnClickListener(v ->
+                            UpdateChecker.downloadAndInstall(PinActivity.this, info));
+                }
+            }
+
+            @Override
+            public void onFailure(String error) {
+                // Sessiz geç: bağlantı ekranı etkilenmez.
+            }
+        }, main);
     }
 }
