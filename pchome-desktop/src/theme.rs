@@ -75,3 +75,90 @@ pub fn card_frame() -> egui::Frame {
         .rounding(egui::Rounding::same(10.0))
         .inner_margin(egui::Margin::same(12.0))
 }
+
+/// Kart başlığı: ikon + neon başlık, tek satır.
+pub fn card_title(ui: &mut egui::Ui, icon: &str, title: &str) {
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(format!("{} {}", icon, title)).color(primary()).strong().size(14.0));
+    });
+    ui.add_space(4.0);
+}
+
+fn draw_button(
+    ui: &mut egui::Ui,
+    label: &str,
+    fill: egui::Color32,
+    hover_fill: egui::Color32,
+    press_fill: egui::Color32,
+    text_color: egui::Color32,
+    border: egui::Color32,
+    full_width: bool,
+) -> egui::Response {
+    let width = if full_width { ui.available_width() } else { 0.0 };
+    let (rect, resp) = ui.allocate_exact_size(
+        egui::vec2(width, 36.0),
+        egui::Sense::click(),
+    );
+    let bg = if resp.is_pointer_button_down_on() {
+        press_fill
+    } else if resp.hovered() {
+        hover_fill
+    } else {
+        fill
+    };
+    if ui.is_rect_visible(rect) {
+        ui.painter().rect_filled(rect, 10.0, bg);
+        ui.painter()
+            .rect_stroke(rect, 10.0, egui::Stroke::new(1.0_f32, border));
+        ui.painter().text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            label,
+            egui::FontId::proportional(14.0),
+            text_color,
+        );
+    }
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// Birincil neon buton (tam genişlik, cyan dolgu + hover parlaması).
+pub fn neon_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
+    draw_button(
+        ui,
+        label,
+        primary(),
+        hex("#4DEBFF"),
+        secondary(),
+        hex("#04121A"),
+        secondary(),
+        true,
+    )
+}
+
+/// Tehlikeli işlem butonu (kırmızı dolgu, beyaz yazı).
+pub fn danger_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
+    draw_button(
+        ui,
+        label,
+        danger(),
+        hex("#FF5C7A"),
+        hex("#C40F38"),
+        egui::Color32::WHITE,
+        hex("#FF5C7A"),
+        true,
+    )
+}
+
+/// Hayalet buton (koyu zemin, neon yazı + çerçeve; ikincil işler için).
+pub fn ghost_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
+    draw_button(
+        ui,
+        label,
+        hex("#0F2036"),
+        hex("#16294A"),
+        hex("#0A1828"),
+        primary(),
+        border(),
+        true,
+    )
+}
