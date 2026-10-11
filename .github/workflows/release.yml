@@ -156,9 +156,16 @@ jobs:
         # paketini kurdurup sdkmanager'ı patlatıyor. ubuntu-runner'da SDK
         # hazır kurulu geliyor; gereken platform doğrudan alınıyor.
         run: |
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+          set -x
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          echo "SDK=$SDK"
+          SDM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SDM" ] || SDM="$(command -v sdkmanager || true)"
+          [ -n "$SDM" ] || { echo "sdkmanager bulunamadı:"; ls "$SDK" || true; exit 1; }
+          echo "sdkmanager: $SDM"
+          yes | "$SDM" --licenses > /dev/null || true
+          "$SDM" --list_installed || true
+          "$SDM" "platforms;android-34" "build-tools;34.0.0" "platform-tools"
 
       - name: Write release signal URL
         # Dağıtılan APK kutudan çıkar çıkmaz canlı sunucuya bağlansın.

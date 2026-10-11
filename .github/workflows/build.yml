@@ -60,8 +60,15 @@ jobs:
       - name: Setup Android SDK
         # Bkz. release.yml: setup-android@v3 çürük, hazır SDK kullanılıyor.
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+          set -x
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          echo "SDK=$SDK"
+          SDM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SDM" ] || SDM="$(command -v sdkmanager || true)"
+          [ -n "$SDM" ] || { echo "sdkmanager bulunamadı:"; ls "$SDK" || true; exit 1; }
+          echo "sdkmanager: $SDM"
+          yes | "$SDM" --licenses > /dev/null || true
+          "$SDM" "platforms;android-34" "build-tools;34.0.0" "platform-tools"
       - name: Grant execute permission
         run: chmod +x ./gradlew
       - name: Assemble debug APK
