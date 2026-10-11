@@ -15,6 +15,15 @@ import okhttp3.Response;
 import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
 
+/**
+ * Sinyal sunucusuna WebSocket istemcisi (protokol v2).
+ *
+ * <p>Oda anahtarı kalıcı PC kimliğidir: {@code ?pc_id=...&role=mobile}.
+ * Bağlantı açılınca {@code {"type":"join","pc_id":..,"password":..}} gönderilir;
+ * desktop şifreyi kendi identity dosyasıyla karşılaştırıp {@code auth_ok} /
+ * {@code auth_rejected} döner. Kimlik reddinde otomatik yeniden bağlanma
+ * YAPILMAZ (şifre yanlışsa 10 kez denemenin anlamı yok).
+ */
 public class SignalClient {
     private static final String TAG = "SignalClient";
     private static final long RECONNECT_DELAY_MS = 2000;
@@ -22,9 +31,12 @@ public class SignalClient {
 
     private OkHttpClient httpClient;
     private WebSocket webSocket;
-    private String serverUrl;
-    private String pin;
+    private final String serverUrl;
+    private final String pcId;
+    private final String password;
     private boolean connected;
+    private boolean authFailed;
+    private boolean manualClose;
     private int reconnectAttempts;
     private Thread reconnectThread;
 
@@ -35,27 +47,49 @@ public class SignalClient {
         void onError(String error);
     }
 
-    private SignalListener listener;
+    private final SignalListener listener;
 
-    public SignalClient(String serverUrl, String pin, SignalListener listener) {
+    public SignalClient(String serverUrl, String pcId, String password, SignalListener listener) {
         this.serverUrl = serverUrl;
-        this.pin = pin;
+        this.pcId = pcId == null ? "" : pcId.replaceAll("[^A-Za-z0-9]", "");
+        this.password = password == null ? "" : password.replaceAll("[^0-9]", "");
         this.listener = listener;
         this.connected = false;
+    }
+
+    /** Sinyal URL'sine oda anahtarını ekler (test edilebilir saf fonksiyon). */
+    public static String buildUrl(String serverUrl, String pcId) {
+        String base = serverUrl.trim().replaceAll("/+$", "");
+        String clean = pcId.replaceAll("[^A-Za-z0-9]", "");
+        if (base.endsWith("/ws")) {
+            return base + "?pc_id=" + clean + "&role=mobile";
+        }
+        return base + "/ws?pc_id=" + clean + "&role=mobile";
+    }
+
+    /** Kimlik doğrulama mesajı (test edilebilir saf fonksiyon). */
+    public static JSONObject buildJoinMessage(String pcId, String password) throws JSONException {
+        JSONObject join = new JSONObject();
+        join.put("type", "join");
+        join.put("pc_id", pcId);
+        join.put("password", password);
+        return join;
     }
 
     public void connect() {
         if (webSocket != null && connected) {
             return;
         }
+        manualClose = false;
+        authFailed = false;
 
         httpClient = new OkHttpClient.Builder()
-                // Cloudflare closes idle sockets after ~100s; a periodic ping
-                // keeps the signaling connection alive behind the proxy.
+                // Cloudflare ~100 sn'de boş soketi kapatır; periyodik ping
+                // sinyal bağlantısını proxy arkasında canlı tutar.
                 .pingInterval(20, TimeUnit.SECONDS)
                 .build();
 
-        String url = serverUrl + "?pin=" + pin + "&role=mobile";
+        String url = buildUrl(serverUrl, pcId);
         Request request = new Request.Builder().url(url).build();
 
         webSocket = httpClient.newWebSocket(request, new WebSocketListener() {
@@ -63,7 +97,12 @@ public class SignalClient {
             public void onOpen(@NonNull WebSocket ws, @NonNull Response response) {
                 connected = true;
                 reconnectAttempts = 0;
-                Log.i(TAG, "WebSocket connected");
+                Log.i(TAG, "WebSocket bağlandı, join gönderiliyor");
+                try {
+                    ws.send(buildJoinMessage(pcId, password).toString());
+                } catch (JSONException e) {
+                    Log.e(TAG, "join kurulamadı", e);
+                }
                 if (listener != null) listener.onConnected();
             }
 
@@ -73,35 +112,48 @@ public class SignalClient {
                     JSONObject json = new JSONObject(text);
                     if (listener != null) listener.onMessage(json);
                 } catch (JSONException e) {
-                    Log.e(TAG, "Failed to parse message", e);
+                    Log.e(TAG, "Mesaj çözülemedi", e);
                 }
             }
 
             @Override
             public void onClosed(@NonNull WebSocket ws, int code, @NonNull String reason) {
                 connected = false;
-                Log.i(TAG, "WebSocket closed: " + reason);
+                Log.i(TAG, "WebSocket kapandı: " + reason);
                 if (listener != null) listener.onDisconnected();
-                scheduleReconnect();
+                if (!manualClose && !authFailed) {
+                    scheduleReconnect();
+                }
             }
 
             @Override
             public void onFailure(@NonNull WebSocket ws, @NonNull Throwable t, Response response) {
                 connected = false;
-                Log.e(TAG, "WebSocket error: " + t.getMessage(), t);
+                Log.e(TAG, "WebSocket hatası: " + t.getMessage(), t);
                 if (listener != null) listener.onError(t.getMessage());
-                scheduleReconnect();
+                if (!manualClose && !authFailed) {
+                    scheduleReconnect();
+                }
             }
         });
     }
 
+    /** Şifre reddedildi: yeniden deneme döngüsünü durdur. */
+    public void setAuthFailed() {
+        authFailed = true;
+        if (reconnectThread != null) {
+            reconnectThread.interrupt();
+        }
+    }
+
     public void disconnect() {
+        manualClose = true;
         connected = false;
         if (reconnectThread != null) {
             reconnectThread.interrupt();
         }
         if (webSocket != null) {
-            webSocket.close(1000, "client disconnect");
+            webSocket.close(1000, "istemci kapattı");
             webSocket = null;
         }
         if (httpClient != null) {
@@ -115,7 +167,7 @@ public class SignalClient {
                 webSocket.send(message.toString());
                 return true;
             } catch (Exception e) {
-                Log.e(TAG, "Send failed", e);
+                Log.e(TAG, "Gönderim başarısız", e);
             }
         }
         return false;
@@ -130,14 +182,15 @@ public class SignalClient {
             return;
         }
         reconnectThread = new Thread(() -> {
-            while (reconnectAttempts < MAX_RECONNECT_ATTEMPTS && !connected) {
+            while (reconnectAttempts < MAX_RECONNECT_ATTEMPTS && !connected
+                    && !authFailed && !manualClose) {
                 try {
                     Thread.sleep(RECONNECT_DELAY_MS);
                 } catch (InterruptedException e) {
                     return;
                 }
                 reconnectAttempts++;
-                Log.i(TAG, "Reconnecting attempt " + reconnectAttempts);
+                Log.i(TAG, "Yeniden bağlanma denemesi " + reconnectAttempts);
                 connect();
             }
         });

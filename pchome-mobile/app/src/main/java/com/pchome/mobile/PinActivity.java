@@ -9,21 +9,33 @@ import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.material.chip.Chip;
-import com.google.android.material.chip.ChipGroup;
-import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
 
 import java.util.List;
 
+/**
+ * Bağlantı ekranı: sunucu adresi + kalıcı PC ID + sabit şifre.
+ * Altta "Son Girilenler" ızgarası: kare kutucukta PC son görüntüsü,
+ * altında isim + ID/IP/MAC + son görülme. Karta dokununca kayıtlı
+ * bilgilerle doğrudan bağlanılır (uzun basınca silinir).
+ */
 public class PinActivity extends AppCompatActivity {
     private AutoCompleteTextView serverEdit;
-    private TextInputEditText pinEdit;
+    private TextInputEditText pcIdEdit;
+    private TextInputEditText passwordEdit;
+    private MaterialCheckBox rememberCheck;
     private MaterialTextView statusText;
-    private ChipGroup recentServers;
+    private RecyclerView recentGrid;
+    private MaterialTextView recentEmpty;
     private Prefs prefs;
+    private RecentStore recentStore;
+    private RecentAdapter recentAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,13 +43,17 @@ public class PinActivity extends AppCompatActivity {
         setContentView(R.layout.activity_pin);
 
         serverEdit = findViewById(R.id.server);
-        pinEdit = findViewById(R.id.pin_edit);
+        pcIdEdit = findViewById(R.id.pc_id_input);
+        passwordEdit = findViewById(R.id.password_input);
+        rememberCheck = findViewById(R.id.remember_check);
         statusText = findViewById(R.id.status);
-        recentServers = findViewById(R.id.recent_servers);
+        recentGrid = findViewById(R.id.recent_grid);
+        recentEmpty = findViewById(R.id.recent_empty);
         prefs = new Prefs(this);
+        recentStore = new RecentStore(this);
 
-        // Pre-fill the personal signal URL baked in from local.properties
-        // (signalUrl=...) at build time; the user can still override it here.
+        // Kayıtlı kişisel sunucu adresi (derleme anında local.properties'ten
+        // gömülür); kullanıcı yine de değiştirebilir.
         String baked = BuildConfig.SIGNAL_URL;
         List<String> servers = prefs.getServers();
         if (!servers.contains(baked) && !baked.isEmpty()) {
@@ -53,49 +69,102 @@ public class PinActivity extends AppCompatActivity {
         int lastIdx = Math.min(prefs.getLastServerIndex(), servers.size() - 1);
         serverEdit.setText(servers.get(Math.max(0, lastIdx)), false);
 
-        // Recent server chips (tap to fill the field).
-        if (servers.size() > 1) {
-            recentServers.setVisibility(View.VISIBLE);
-            for (String s : servers.subList(1, servers.size())) {
-                Chip chip = new Chip(this);
-                chip.setText(s.replace("wss://", "").replace("ws://", "").replace("/ws", ""));
-                chip.setCheckable(false);
-                chip.setOnClickListener(v -> serverEdit.setText(s, false));
-                recentServers.addView(chip);
-            }
-        }
-
-        serverEdit.addTextChangedListener(new TextWatcher() {
+        TextWatcher clearStatus = new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
             @Override public void onTextChanged(CharSequence s, int a, int b, int c) {}
             @Override public void afterTextChanged(Editable s) { statusText.setText(R.string.idle); }
-        });
+        };
+        serverEdit.addTextChangedListener(clearStatus);
+        pcIdEdit.addTextChangedListener(clearStatus);
+        passwordEdit.addTextChangedListener(clearStatus);
 
-        findViewById(R.id.connect_button).setOnClickListener(v -> {
+        // Son Girilenler ızgarası (2 sütun kare kart).
+        recentGrid.setLayoutManager(new GridLayoutManager(this, 2));
+        recentAdapter = new RecentAdapter(new RecentAdapter.Listener() {
+            @Override
+            public void onOpen(RecentPc pc) {
+                openConnection(serverEdit.getText().toString().trim(), pc.pcId,
+                        pc.rememberPassword ? pc.password : "", pc.rememberPassword);
+            }
+
+            @Override
+            public void onDelete(RecentPc pc) {
+                recentStore.remove(pc.pcId);
+                refreshRecent();
+            }
+        });
+        recentGrid.setAdapter(recentAdapter);
+
+        MaterialButton connectButton = findViewById(R.id.connect_button);
+        connectButton.setOnClickListener(v -> {
             String server = serverEdit.getText().toString().trim();
-            String pin = pinEdit.getText().toString().replaceAll("[^0-9]", "");
-            if (server.isEmpty() || pin.isEmpty()) {
-                statusText.setText(R.string.error + ": enter server + PIN");
+            String pcId = pcIdEdit.getText().toString().replaceAll("[^0-9]", "");
+            String password = passwordEdit.getText().toString().replaceAll("[^0-9]", "");
+            if (server.isEmpty()) {
+                statusText.setText(getString(R.string.error) + ": sunucu adresi gir");
                 return;
             }
-            // Normalize: force wss:// and ensure /ws path so Android cleartext
-            // policy never blocks the connection and the server routes to relay.
-            if (!server.startsWith("wss://") && !server.startsWith("ws://")) {
-                server = "wss://" + server;
-            } else if (server.startsWith("ws://")) {
-                server = "wss://" + server.substring(5);
+            if (pcId.length() != 6) {
+                statusText.setText(getString(R.string.error) + ": PC ID 6 hane olmalı");
+                return;
             }
-            if (!server.endsWith("/ws")) {
-                server = server.replaceAll("/+$", "") + "/ws";
+            if (password.length() != 6) {
+                statusText.setText(getString(R.string.error) + ": şifre 6 hane olmalı");
+                return;
             }
-            prefs.addServer(server);
-            prefs.addPin(pin);
-
-            Intent intent = new Intent(this, DisplayActivity.class);
-            intent.putExtra("signalUrl", server);
-            intent.putExtra("pin", pin);
-            startActivity(intent);
-            finish();
+            openConnection(server, pcId, password, rememberCheck.isChecked());
         });
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        refreshRecent();
+        // Güncelleme denetimi (Faz 5'te UpdateChecker bağlanır).
+        checkForUpdate();
+    }
+
+    private void refreshRecent() {
+        List<RecentPc> items = recentStore.list();
+        recentAdapter.setItems(items);
+        recentEmpty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+    }
+
+    private String normalizeServer(String server) {
+        if (!server.startsWith("wss://") && !server.startsWith("ws://")) {
+            server = "wss://" + server;
+        } else if (server.startsWith("ws://")) {
+            server = "wss://" + server.substring(5);
+        }
+        if (!server.endsWith("/ws")) {
+            server = server.replaceAll("/+$", "") + "/ws";
+        }
+        return server;
+    }
+
+    private void openConnection(String server, String pcId, String password, boolean remember) {
+        server = normalizeServer(server);
+        prefs.addServer(server);
+
+        // Kartı hemen başa taşı (cihaz bilgisi + görüntü kapanışta dolar).
+        RecentPc entry = recentStore.find(pcId);
+        if (entry == null) {
+            entry = new RecentPc(pcId, "");
+        }
+        entry.password = remember ? password : "";
+        entry.rememberPassword = remember;
+        entry.lastSeen = System.currentTimeMillis();
+        recentStore.upsert(entry);
+
+        Intent intent = new Intent(this, DisplayActivity.class);
+        intent.putExtra("signalUrl", server);
+        intent.putExtra("pcId", pcId);
+        intent.putExtra("password", password);
+        startActivity(intent);
+    }
+
+    /** Faz 5: GitHub Releases denetimine bağlanacak kanca. */
+    private void checkForUpdate() {
+        // TODO(Faz 5): UpdateChecker ile doldurulacak.
     }
 }

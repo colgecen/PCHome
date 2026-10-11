@@ -1,9 +1,11 @@
 package com.pchome.mobile;
 
+import android.graphics.Bitmap;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.view.PixelCopy;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -11,6 +13,7 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -36,6 +39,13 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private TextView streamStatus;
     private LinearLayout keyboardContainer;
     private WebRtcClient webRtcClient;
+    private RecentStore recentStore;
+    private String pcId = "";
+    private String deviceName = "";
+    private String deviceIp = "";
+    private String deviceMac = "";
+    private String deviceRes = "";
+    private boolean recentSaved = false;
 
     private int pcWidth = 1920;
     private int pcHeight = 1080;
@@ -78,9 +88,20 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         if (signalUrl == null || signalUrl.isEmpty()) {
             signalUrl = "ws://localhost:8080/ws";
         }
+        pcId = getIntent().getStringExtra("pcId");
+        String password = getIntent().getStringExtra("password");
+        if (pcId == null || pcId.isEmpty()) {
+            // Eski sürümden gelen "pin" ekine yedek uyumluluk.
+            pcId = getIntent().getStringExtra("pin");
+        }
+        if (pcId == null) pcId = "";
+        if (password == null) password = "";
+        pcId = pcId.replaceAll("[^0-9]", "");
+        password = password.replaceAll("[^0-9]", "");
+        recentStore = new RecentStore(this);
         webRtcClient = new WebRtcClient(this, null, surfaceView);
         webRtcClient.setListener(this);
-        webRtcClient.connect(signalUrl, getIntent().getStringExtra("pin"));
+        webRtcClient.connect(signalUrl, pcId, password);
 
         setupHud();
         setupKeyboard();
@@ -119,7 +140,10 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             }
         });
 
-        findViewById(R.id.btn_disconnect).setOnClickListener(v -> finish());
+        findViewById(R.id.btn_disconnect).setOnClickListener(v -> {
+            saveRecent();
+            finish();
+        });
     }
 
     private void setupKeyboard() {
@@ -351,9 +375,11 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             if (state == WebRtcClient.ConnectionState.CONNECTED) {
                 streamStatus.setVisibility(View.GONE);
             } else if (state == WebRtcClient.ConnectionState.DISCONNECTED) {
+                saveRecent();
                 streamStatus.setText(R.string.disconnected);
                 streamStatus.setVisibility(View.VISIBLE);
             } else if (state == WebRtcClient.ConnectionState.FAILED) {
+                saveRecent();
                 streamStatus.setText(R.string.error);
                 streamStatus.setVisibility(View.VISIBLE);
             }
@@ -384,14 +410,105 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     @Override
     public void onError(String error) {
         runOnUiThread(() -> {
-            streamStatus.setText(R.string.error + ": " + error);
+            streamStatus.setText(getString(R.string.error) + ": " + error);
             streamStatus.setVisibility(View.VISIBLE);
+            Toast.makeText(DisplayActivity.this,
+                    getString(R.string.error) + ": " + error, Toast.LENGTH_LONG).show();
+            // Şifre reddi gibi ölümcül hatalarda kartı kaydedip çık.
+            if (error.contains("reddedildi") || error.contains("hatalı")) {
+                saveRecent();
+                finish();
+            }
         });
+    }
+
+    @Override
+    public void onDeviceInfo(org.json.JSONObject info) {
+        deviceName = info.optString("pc_name", deviceName);
+        deviceIp = info.optString("ip", deviceIp);
+        deviceMac = info.optString("mac", deviceMac);
+        deviceRes = info.optString("resolution", deviceRes);
+        persistDeviceFields();
+    }
+
+    @Override
+    public void onDisplayInfo(int width, int height) {
+        pcWidth = width;
+        pcHeight = height;
+        deviceRes = width + "x" + height;
+        persistDeviceFields();
+    }
+
+    /** Cihaz kartı alanlarını beklemeden diske yazar (görüntü kapanışta eklenir). */
+    private void persistDeviceFields() {
+        if (pcId.isEmpty() || recentStore == null) {
+            return;
+        }
+        RecentPc entry = recentStore.find(pcId);
+        if (entry == null) {
+            entry = new RecentPc(pcId, deviceName);
+        }
+        if (!deviceName.isEmpty()) entry.pcName = deviceName;
+        if (!deviceIp.isEmpty()) entry.ip = deviceIp;
+        if (!deviceMac.isEmpty()) entry.mac = deviceMac;
+        if (!deviceRes.isEmpty()) entry.resolution = deviceRes;
+        recentStore.upsert(entry);
+    }
+
+    /**
+     * "Son Girilenler" kartını tamamlar: ekrandaki son karenin küçük resmini
+     * JPEG olarak kaydedip cihaz bilgileriyle birlikte başa taşır.
+     * Tek seferliktir (idempotent).
+     */
+    private void saveRecent() {
+        if (recentSaved || pcId.isEmpty() || recentStore == null) {
+            return;
+        }
+        recentSaved = true;
+        persistDeviceFields();
+        try {
+            int w = surfaceView.getWidth();
+            int h = surfaceView.getHeight();
+            if (w <= 0 || h <= 0 || surfaceView.getHolder().getSurface() == null
+                    || !surfaceView.getHolder().getSurface().isValid()) {
+                return;
+            }
+            Bitmap full = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            PixelCopy.request(surfaceView.getHolder().getSurface(), full,
+                    copyResult -> {
+                        if (copyResult == PixelCopy.SUCCESS) {
+                            try {
+                                int tw = 320;
+                                int th = Math.max(1, (int) ((long) h * tw / Math.max(1, w)));
+                                Bitmap small = Bitmap.createScaledBitmap(full, tw, th, true);
+                                java.io.File dest = recentStore.thumbnailFile(pcId);
+                                java.io.FileOutputStream out =
+                                        new java.io.FileOutputStream(dest);
+                                small.compress(Bitmap.CompressFormat.JPEG, 80, out);
+                                out.close();
+                                small.recycle();
+                                RecentPc entry = recentStore.find(pcId);
+                                if (entry == null) {
+                                    entry = new RecentPc(pcId, deviceName);
+                                }
+                                entry.thumbnail = dest.getAbsolutePath();
+                                entry.lastSeen = System.currentTimeMillis();
+                                recentStore.upsert(entry);
+                            } catch (Exception e) {
+                                // Görüntü kaydedilemezse kart bilgisiz kalır.
+                            }
+                        }
+                        full.recycle();
+                    }, uiHandler);
+        } catch (Exception e) {
+            // PixelCopy yoksa sessiz geç (kart yine de durur).
+        }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        saveRecent();
         if (webRtcClient != null) {
             webRtcClient.disconnect();
         }

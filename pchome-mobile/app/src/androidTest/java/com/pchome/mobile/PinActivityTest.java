@@ -18,6 +18,8 @@ import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 import static org.hamcrest.Matchers.not;
 
+import static org.hamcrest.Matchers.allOf;
+
 @RunWith(AndroidJUnit4.class)
 @LargeTest
 public class PinActivityTest {
@@ -27,8 +29,9 @@ public class PinActivityTest {
             new ActivityScenarioRule<>(PinActivity.class);
 
     @Test
-    public void activityLaunches_displaysPinAndStatus() {
-        onView(withId(R.id.pin)).check(matches(isDisplayed()));
+    public void activityLaunches_displaysIdAndStatus() {
+        onView(withId(R.id.pc_id_input)).check(matches(isDisplayed()));
+        onView(withId(R.id.password_input)).check(matches(isDisplayed()));
         onView(withId(R.id.status)).check(matches(isDisplayed()));
         onView(withId(R.id.status)).check(matches(withText(R.string.idle)));
     }
@@ -40,15 +43,20 @@ public class PinActivityTest {
     }
 
     @Test
-    public void pinField_acceptsInput() {
-        onView(withId(R.id.pin)).perform(typeText("123456"), closeSoftKeyboard());
-        onView(withId(R.id.pin)).check(matches(withText("123456")));
+    public void recentGrid_isDisplayed() {
+        onView(withId(R.id.recent_grid)).check(matches(isDisplayed()));
     }
 
     @Test
-    public void connectWithShortPin_doesNotCrash() {
-        onView(withId(R.id.pin)).perform(typeText("12"), closeSoftKeyboard());
+    public void idField_acceptsInput() {
+        onView(withId(R.id.pc_id_input)).perform(typeText("482913"), closeSoftKeyboard());
+        onView(withId(R.id.pc_id_input)).check(matches(withText("482913")));
+    }
+
+    @Test
+    public void connectWithShortId_showsError() {
+        onView(withId(R.id.pc_id_input)).perform(typeText("12"), closeSoftKeyboard());
         onView(withId(R.id.connect_button)).perform(click());
-        onView(withId(R.id.connect_button)).check(matches(isDisplayed()));
+        onView(withId(R.id.status)).check(matches(not(withText(R.string.idle))));
     }
 }

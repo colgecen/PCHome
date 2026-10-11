@@ -56,6 +56,8 @@ public class WebRtcClient {
         void onRemoteTrack(MediaStream stream);
         void onDataChannelMessage(DataChannel.Buffer buffer);
         void onError(String error);
+        void onDeviceInfo(JSONObject info);
+        void onDisplayInfo(int width, int height);
     }
 
     public WebRtcClient(Context context, SurfaceViewRenderer localRenderer, SurfaceViewRenderer remoteRenderer) {
@@ -79,16 +81,22 @@ public class WebRtcClient {
                 .createPeerConnectionFactory();
     }
 
-    public void connect(String signalUrl, String pin) {
+    /**
+     * Sinyal sunucusuna kalıcı PC kimliğiyle bağlanır. Akış:
+     * join (otomatik) -&gt; auth_ok beklenir -&gt; hello -&gt; offer/answer.
+     * Şifre reddedilirse yeniden deneme yapılmaz, hata dinleyiciye iletilir.
+     */
+    public void connect(String signalUrl, String pcId, String password) {
         state = ConnectionState.CONNECTING;
         notifyStateChanged();
 
-        signalClient = new SignalClient(signalUrl, pin, new SignalClient.SignalListener() {
+        signalClient = new SignalClient(signalUrl, pcId, password, new SignalClient.SignalListener() {
             @Override
             public void onConnected() {
                 startLocalMedia();
                 createPeerConnection();
-                sendHello();
+                // join SignalClient tarafından otomatik gönderildi;
+                // hello yalnız auth_ok gelince gider.
             }
 
             @Override
@@ -328,6 +336,39 @@ public class WebRtcClient {
         try {
             String type = message.getString("type");
             switch (type) {
+                case "auth_ok":
+                    Log.i(TAG, "Kimlik doğrulandı, hello gönderiliyor");
+                    if (listener != null) listener.onDeviceInfo(message);
+                    sendHello();
+                    // Cihaz kartı + çözünürlük bilgisini de iste (yedeklilik).
+                    try {
+                        JSONObject req = new JSONObject();
+                        req.put("type", "get_device_info");
+                        signalClient.sendMessage(req);
+                    } catch (JSONException ignore) {
+                    }
+                    break;
+                case "auth_rejected":
+                    String reason = message.optString("reason", "şifre hatalı");
+                    Log.w(TAG, "Kimlik reddedildi: " + reason);
+                    if (signalClient != null) {
+                        signalClient.setAuthFailed();
+                        signalClient.disconnect();
+                    }
+                    state = ConnectionState.FAILED;
+                    notifyStateChanged();
+                    if (listener != null) listener.onError("Bağlantı reddedildi: " + reason);
+                    break;
+                case "device_info":
+                    if (listener != null) listener.onDeviceInfo(message);
+                    break;
+                case "display_info":
+                    if (listener != null) {
+                        listener.onDisplayInfo(
+                                message.optInt("width", 1920),
+                                message.optInt("height", 1080));
+                    }
+                    break;
                 case "offer":
                     setRemoteDescription(message);
                     break;
