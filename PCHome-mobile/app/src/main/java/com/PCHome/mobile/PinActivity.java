@@ -338,8 +338,36 @@ public class PinActivity extends AppCompatActivity {
                                 dialog.setCancelable(false);
                                 dialog.setCanceledOnTouchOutside(false);
                                 updateStateText.setText(getString(R.string.update_busy));
-                                UpdateChecker.downloadAndInstall(PinActivity.this, info);
-                                toast("Kurulum ekranı açılacak — bekle");
+                                UpdateChecker.downloadAndInstall(PinActivity.this, info,
+                                        new UpdateChecker.DownloadCallback() {
+                                            @Override
+                                            public void onInstalled() {
+                                                if (isFinishing()) {
+                                                    return;
+                                                }
+                                                progress.setVisibility(View.GONE);
+                                                text.setText("Kurulum ekranı açıldı ✓");
+                                                close.setVisibility(View.VISIBLE);
+                                                dialog.setCancelable(true);
+                                                updateStateText.setText("Kurulum ekranı açıldı ✓");
+                                            }
+
+                                            @Override
+                                            public void onFailed(String reason) {
+                                                if (isFinishing()) {
+                                                    return;
+                                                }
+                                                progress.setVisibility(View.GONE);
+                                                text.setText(getString(R.string.update_failed, reason));
+                                                action.setVisibility(View.VISIBLE);
+                                                action.setText(R.string.update_retry);
+                                                close.setVisibility(View.VISIBLE);
+                                                dialog.setCancelable(true);
+                                                dialog.setCanceledOnTouchOutside(true);
+                                                updateStateText.setText(
+                                                        getString(R.string.update_failed, reason));
+                                            }
+                                        });
                             });
                             updateStateText.setText(getString(R.string.update_available,
                                     info.version, UpdateChecker.humanSize(info.sizeBytes)));

@@ -84,7 +84,9 @@ fn curl_get(url: &str) -> Result<String> {
         .output()
         .context("curl çalıştırılamadı (curl kurulu mu?)")?;
     if !out.status.success() {
-        anyhow::bail!("indirme başarısız: {}", url);
+        // stderr korunur: oran sınırı / DNS / TLS sebebi burada yazar.
+        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        anyhow::bail!("denetim indirilemedi [{}]: {}", url, err);
     }
     String::from_utf8(out.stdout).context("yanıt UTF-8 değil")
 }
@@ -114,12 +116,17 @@ pub fn parse_release(json_text: &str) -> Result<UpdateInfo> {
 
 pub fn check_for_update() -> Result<Option<UpdateInfo>> {
     let body = curl_get(&latest_api_url())?;
-    let info = parse_release(&body)?;
-    if is_newer(&info.version, &current_version()) {
-        Ok(Some(info))
-    } else {
-        Ok(None)
+    let info = parse_release(&body).context("sürüm yanıtı çözülemedi")?;
+    if !is_newer(&info.version, &current_version()) {
+        return Ok(None);
     }
+    if std::env::var_os("APPIMAGE").is_some() && info.appimage_url.is_empty() {
+        anyhow::bail!("kurulum: sürümde AppImage dosyası yok ({})", info.version);
+    }
+    if std::env::var_os("APPIMAGE").is_none() && info.tarball_url.is_empty() {
+        anyhow::bail!("kurulum: sürümde masaüstü paketi yok ({})", info.version);
+    }
+    Ok(Some(info))
 }
 
 fn set_status(state: &SharedState, line: String) {
@@ -235,7 +242,7 @@ fn download_to(url: &str, dest: &std::path::Path) -> Result<()> {
         .status()
         .context("curl çalıştırılamadı")?;
     if !status.success() {
-        anyhow::bail!("paket indirilemedi");
+        anyhow::bail!("indirme: paket indirilemedi [{}]", url);
     }
     Ok(())
 }

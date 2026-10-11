@@ -151,47 +151,101 @@ public class UpdateChecker {
         }).start();
     }
 
-    /** APK'yı indirip sistem kurulum ekranını açar. */
-    public static void downloadAndInstall(Context ctx, UpdateInfo info) {
+    /** İndirme sonucu dinleyicisi (modal akışı buradan beslenir). */
+    public interface DownloadCallback {
+        void onInstalled();
+        void onFailed(String reason);
+    }
+
+    /**
+     * APK'yı indirip bitince kurulum ekranını açar.
+     * Sonucu {@code cb} ile bildirir; hata da buraya gelir (sessiz yutulmaz).
+     *
+     * @return indirme kimliği, hata varsa -1 (cb.onFailed çağrılmış olur).
+     */
+    public static long downloadAndInstall(Context ctx, UpdateInfo info, DownloadCallback cb) {
+        android.os.Handler main = new android.os.Handler(ctx.getMainLooper());
         try {
-            File dir = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
-                    "updates");
-            if (!dir.exists()) {
-                dir.mkdirs();
-            }
-            String fileName = "pchome-" + info.version + ".apk";
-            File dest = new File(dir, fileName);
-            if (dest.exists()) {
-                dest.delete();
-            }
+            String fileName = "PCHome-" + info.version + ".apk";
             DownloadManager.Request req = new DownloadManager.Request(Uri.parse(info.apkUrl));
             req.setTitle("PCHome " + info.version + " indiriliyor");
             req.setDescription("Güncelleme paketi");
             req.setNotificationVisibility(
                     DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            req.setDestinationUri(Uri.fromFile(dest));
+            // file:// hedef Android 7+ üstünde istisna fırlatır; API'nin
+            // kendi dış dosya hedefi kullanılır.
+            req.setDestinationInExternalFilesDir(ctx, Environment.DIRECTORY_DOWNLOADS,
+                    "updates/" + fileName);
             DownloadManager dm = (DownloadManager) ctx.getSystemService(Context.DOWNLOAD_SERVICE);
-            dm.enqueue(req);
-            // İndirme bitince kurulum ekranı sistem bildirimiyle açılır;
-            // dosya hazırsa doğrudan kurulum denenir (kısa beklemeyle).
-            new Thread(() -> {
-                for (int i = 0; i < 120; i++) {
-                    try {
-                        Thread.sleep(5000);
-                    } catch (InterruptedException e) {
+            if (dm == null) {
+                throw new Exception("DownloadManager yok");
+            }
+            long id = dm.enqueue(req);
+            android.content.BroadcastReceiver done =
+                    new android.content.BroadcastReceiver() {
+                @Override
+                public void onReceive(Context c, Intent intent) {
+                    if (intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) != id) {
                         return;
                     }
-                    if (dest.exists() && dest.length() > 1024 * 1024) {
-                        break;
+                    try {
+                        c.unregisterReceiver(this);
+                    } catch (Exception ignored) {
+                    }
+                    try {
+                        android.database.Cursor cur = dm.query(
+                                new DownloadManager.Query().setFilterById(id));
+                        int status = -1;
+                        String localUri = null;
+                        if (cur != null) {
+                            if (cur.moveToFirst()) {
+                                status = cur.getInt(cur.getColumnIndexOrThrow(
+                                        DownloadManager.COLUMN_STATUS));
+                                localUri = cur.getString(cur.getColumnIndexOrThrow(
+                                        DownloadManager.COLUMN_LOCAL_URI));
+                            }
+                            cur.close();
+                        }
+                        if (status == DownloadManager.STATUS_SUCCESSFUL && localUri != null) {
+                            File apk = new File(android.net.Uri.parse(localUri).getPath());
+                            installApk(ctx, apk);
+                            main.post(cb::onInstalled);
+                        } else {
+                            final int code = status;
+                            main.post(() -> cb.onFailed("indirme tamamlanamadı (durum=" + code + ")"));
+                        }
+                    } catch (Exception e) {
+                        main.post(() -> cb.onFailed(String.valueOf(e.getMessage())));
                     }
                 }
-                if (dest.exists()) {
-                    installApk(ctx, dest);
-                }
-            }).start();
+            };
+            android.content.IntentFilter filter =
+                    new android.content.IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                ctx.registerReceiver(done, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                ctx.registerReceiver(done, filter);
+            }
+            return id;
         } catch (Exception e) {
             Log.e(TAG, "İndirme başlatılamadı", e);
+            main.post(() -> cb.onFailed(String.valueOf(e.getMessage())));
+            return -1;
         }
+    }
+
+    /** APK'yı indirip sistem kurulum ekranını açar (ateşle-unut sürümü). */
+    public static void downloadAndInstall(Context ctx, UpdateInfo info) {
+        downloadAndInstall(ctx, info, new DownloadCallback() {
+            @Override
+            public void onInstalled() {
+            }
+
+            @Override
+            public void onFailed(String reason) {
+                Log.e(TAG, "Otomatik kurulum başarısız: " + reason);
+            }
+        });
     }
 
     /** İndirilen APK için sistem kurulum ekranını açar. */
