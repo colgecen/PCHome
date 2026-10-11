@@ -152,7 +152,7 @@ impl DesktopGui {
     /// İnce üst bar: logo + sürüm + durum hapı + telemetri + ayar/kapat.
     fn top_bar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("topbar")
-            .exact_height(46.0)
+            .exact_height(54.0)
             .show(ctx, |ui| {
                 ui.horizontal_centered(|ui| {
                     ui.label(egui::RichText::new("⬢ PChome").color(theme::primary()).strong().size(17.0));
@@ -638,11 +638,10 @@ impl DesktopGui {
                         self.state.fps.load(Ordering::SeqCst),
                         self.state.ping_ms.load(Ordering::SeqCst),
                     ),
-                    egui::FontId::proportional(13.0),
+                    egui::FontId::proportional(14.5),
                     theme::success(),
                 );
-                self.preview_click(ctx, ui, area, fit);
-            } else {
+                self.preview_click(ctx, ui, area, fit);            } else {
                 // Kare var ama doku hazır değil (çözümleme patladı) → bekleme.
                 self.waiting_screen(ui, area);
             }
@@ -685,7 +684,7 @@ impl DesktopGui {
             area.center() + egui::vec2(0.0, 26.0),
             egui::Align2::CENTER_CENTER,
             msg,
-            egui::FontId::proportional(16.0),
+            egui::FontId::proportional(19.0),
             theme::muted(),
         );
         ui.allocate_rect(area, egui::Sense::hover());

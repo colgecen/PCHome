@@ -51,6 +51,8 @@ pub fn success() -> egui::Color32 {
 }
 
 /// Koyu neon-mavi görselleri her karede uygular.
+/// Varsayılan egui yazıları küçük kaldığı için tüm metin stilleri
+/// okunur boyuta yükseltilir (gövde 16, küçük 13.5, düğme 16).
 pub fn apply(ctx: &egui::Context) {
     let mut visuals = egui::Visuals::dark();
     visuals.panel_fill = bg_deep();
@@ -65,6 +67,29 @@ pub fn apply(ctx: &egui::Context) {
     visuals.widgets.active.bg_fill = hex("#14324F");
     visuals.selection.bg_fill = secondary();
     ctx.set_visuals(visuals);
+
+    let mut style = (*ctx.style()).clone();
+    style.text_styles.insert(
+        egui::TextStyle::Body,
+        egui::FontId::proportional(16.0),
+    );
+    style.text_styles.insert(
+        egui::TextStyle::Small,
+        egui::FontId::proportional(13.5),
+    );
+    style.text_styles.insert(
+        egui::TextStyle::Button,
+        egui::FontId::proportional(16.0),
+    );
+    style.text_styles.insert(
+        egui::TextStyle::Heading,
+        egui::FontId::proportional(23.0),
+    );
+    style.text_styles.insert(
+        egui::TextStyle::Monospace,
+        egui::FontId::monospace(15.0),
+    );
+    ctx.set_style(style);
 }
 
 /// Neon çerçeveli kart.
@@ -79,7 +104,7 @@ pub fn card_frame() -> egui::Frame {
 /// Kart başlığı: ikon + neon başlık, tek satır.
 pub fn card_title(ui: &mut egui::Ui, icon: &str, title: &str) {
     ui.horizontal(|ui| {
-        ui.label(egui::RichText::new(format!("{} {}", icon, title)).color(primary()).strong().size(14.0));
+        ui.label(egui::RichText::new(format!("{} {}", icon, title)).color(primary()).strong().size(16.0));
     });
     ui.add_space(4.0);
 }
@@ -122,7 +147,7 @@ fn draw_button(
             rect.center(),
             egui::Align2::CENTER_CENTER,
             label,
-            egui::FontId::proportional(14.0),
+            egui::FontId::proportional(15.0),
             text_color,
         );
     }
