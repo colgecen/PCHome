@@ -162,3 +162,36 @@ pub fn ghost_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
         true,
     )
 }
+
+/// İçerik kadar genişlikte varyantlar (üst bar / kart içi satırlar için).
+pub fn neon_button_auto(ui: &mut egui::Ui, label: &str) -> egui::Response {
+    draw_button(ui, label, primary(), hex("#4DEBFF"), secondary(), hex("#04121A"), secondary(), false)
+}
+
+/// İçerik kadar genişlikte varyantlar (üst bar / kart içi satırlar için).
+pub fn danger_button_auto(ui: &mut egui::Ui, label: &str) -> egui::Response {
+    draw_button(
+        ui,
+        label,
+        danger(),
+        hex("#FF5C7A"),
+        hex("#C40F38"),
+        egui::Color32::WHITE,
+        hex("#FF5C7A"),
+        false,
+    )
+}
+
+/// İçerik kadar genişlikte varyantlar (üst bar / kart içi satırlar için).
+pub fn ghost_button_auto(ui: &mut egui::Ui, label: &str) -> egui::Response {
+    draw_button(
+        ui,
+        label,
+        hex("#0F2036"),
+        hex("#16294A"),
+        hex("#0A1828"),
+        primary(),
+        border(),
+        false,
+    )
+}
