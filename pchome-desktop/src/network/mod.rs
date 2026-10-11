@@ -5,6 +5,7 @@ pub mod webrtc;
 use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_tungstenite::tungstenite::Message;
@@ -22,7 +23,10 @@ pub enum ConnectionState {
 /// ICE JSON messages and exposes the bidirectional channel used by the WebRTC
 /// engine for signaling. Oda anahtarı kalıcı PC kimliğidir (`pc_id`).
 pub struct ConnectionManager {
-    state: RwLock<ConnectionState>,
+    state: Arc<RwLock<ConnectionState>>,
+    /// Her connect() çağrısında artar; eski soket görevlerinin yeni
+    /// bağlantının durumunu ezmesini engeller.
+    epoch: Arc<AtomicU64>,
     signal_url: String,
     outgoing: Arc<Mutex<Option<mpsc::UnboundedSender<String>>>>,
     incoming_rx: Arc<Mutex<mpsc::UnboundedReceiver<Value>>>,
@@ -33,7 +37,8 @@ impl ConnectionManager {
     pub fn new(signal_url: impl Into<String>) -> Self {
         let (itx, irx) = mpsc::unbounded_channel::<Value>();
         Self {
-            state: RwLock::new(ConnectionState::Disconnected),
+            state: Arc::new(RwLock::new(ConnectionState::Disconnected)),
+            epoch: Arc::new(AtomicU64::new(0)),
             signal_url: signal_url.into(),
             outgoing: Arc::new(Mutex::new(None)),
             incoming_rx: Arc::new(Mutex::new(irx)),
@@ -73,31 +78,57 @@ impl ConnectionManager {
 
         let (otx, mut o_rx) = mpsc::unbounded_channel::<String>();
         *self.outgoing.lock().await = Some(otx);
+        let my_epoch = self.epoch.fetch_add(1, Ordering::SeqCst) + 1;
+
+        /// Soket görevi bittiğinde, hâlâ güncel kuşaksa durumu kopuğa çeker.
+        /// (Eskiden durum takılı kalıyor, yeniden bağlanma gözcüsü hiç
+        /// devreye girmiyordu.)
+        async fn mark_dropped(
+            state: Arc<RwLock<ConnectionState>>,
+            epoch: Arc<AtomicU64>,
+            my_epoch: u64,
+            why: &str,
+        ) {
+            if epoch.load(Ordering::SeqCst) == my_epoch {
+                *state.write().await = ConnectionState::Disconnected;
+                log::warn!("sinyal bağlantısı koptu ({})", why);
+            }
+        }
 
         // Writer task: forward outbound signaling messages to the socket.
-        tokio::spawn(async move {
-            while let Some(msg) = o_rx.recv().await {
-                if write.send(Message::Text(msg)).await.is_err() {
-                    break;
+        {
+            let state = Arc::clone(&self.state);
+            let epoch = Arc::clone(&self.epoch);
+            tokio::spawn(async move {
+                while let Some(msg) = o_rx.recv().await {
+                    if write.send(Message::Text(msg)).await.is_err() {
+                        break;
+                    }
                 }
-            }
-        });
+                mark_dropped(state, epoch, my_epoch, "yazma").await;
+            });
+        }
 
         // Reader task: parse inbound JSON and forward to the engine.
         let itx = self.incoming_tx.clone();
-        tokio::spawn(async move {
-            while let Some(Ok(msg)) = read.next().await {
-                match msg {
-                    Message::Text(t) => {
-                        if let Ok(v) = serde_json::from_str::<Value>(&t) {
-                            let _ = itx.send(v);
+        {
+            let state = Arc::clone(&self.state);
+            let epoch = Arc::clone(&self.epoch);
+            tokio::spawn(async move {
+                while let Some(Ok(msg)) = read.next().await {
+                    match msg {
+                        Message::Text(t) => {
+                            if let Ok(v) = serde_json::from_str::<Value>(&t) {
+                                let _ = itx.send(v);
+                            }
                         }
+                        Message::Close(_) => break,
+                        _ => {}
                     }
-                    Message::Close(_) => break,
-                    _ => {}
                 }
-            }
-        });
+                mark_dropped(state, epoch, my_epoch, "okuma").await;
+            });
+        }
 
         *self.state.write().await = ConnectionState::Connected;
         log::info!("Connected to signal server");
