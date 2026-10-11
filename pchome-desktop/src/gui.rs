@@ -377,12 +377,17 @@ impl DesktopGui {
     }
 
     /// JPEG kareyi dokuya çevir (değişmişse) ve harf-korumalı bas + imleç çiz.
+    /// Cihaz bağlı değilse ayna yerine durum ekranı basılır.
     fn preview_area(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         let area_w = ui.available_width().max(200.0);
         let area_h = ui.available_height().max(200.0);
         let area = egui::Rect::from_min_size(ui.cursor().min, egui::vec2(area_w, area_h));
         ui.painter().rect_filled(area, 8.0, theme::bg_panel());
 
+        if !self.state.peer_connected.load(Ordering::SeqCst) {
+            self.waiting_screen(ui, area);
+            return;
+        }
         let frame = self.state.preview_jpeg.lock().unwrap().clone();
         if let Some((bytes, fw, fh)) = frame {
             if bytes.len() != self.tex_bytes || (fw, fh) != self.tex_dims {
@@ -434,6 +439,26 @@ impl DesktopGui {
                         egui::Stroke::new(1.0_f32, egui::Color32::BLACK),
                     ));
                 }
+                // BAĞLANDI rozeti: cihaz bilgisi görüntünün üstünde.
+                let since = self.state.peer_since.load(Ordering::SeqCst);
+                let bar = egui::Rect::from_min_size(
+                    fit.left_top() + egui::vec2(8.0, 8.0),
+                    egui::vec2(fit.width() - 16.0, 30.0),
+                );
+                ui.painter().rect_filled(bar, 6.0, egui::Color32::from_black_alpha(160));
+                ui.painter().text(
+                    bar.left_center() + egui::vec2(10.0, 0.0),
+                    egui::Align2::LEFT_CENTER,
+                    format!(
+                        "● BAĞLANDI  {}'den beri • {} • {}fps • {}ms",
+                        fmt_clock(since),
+                        self.state.resolution.lock().unwrap(),
+                        self.state.fps.load(Ordering::SeqCst),
+                        self.state.ping_ms.load(Ordering::SeqCst),
+                    ),
+                    egui::FontId::proportional(13.0),
+                    theme::success(),
+                );
                 self.preview_click(ctx, ui, area, fit);
             } else {
                 // Kare var ama doku hazır değil (çözümleme patladı) → bekleme.
@@ -444,23 +469,35 @@ impl DesktopGui {
         }
     }
 
-    /// Bekleme ekranı: ayna akmıyorsa ya da doku hazır değilse siyah yerine bilgi bas.
+    /// Bekleme ekranı: cihaz yoksa/GİTTİyse ya da doku hazır değilse bilgi bas.
     fn waiting_screen(&mut self, ui: &mut egui::Ui, area: egui::Rect) {
         let alive = self.state.preview_alive.load(Ordering::SeqCst);
         let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some();
-        let msg = if alive {
-            "kare bekleniyor…"
+        let went_away = self.state.peer_since.load(Ordering::SeqCst) > 0
+            && !self.state.peer_connected.load(Ordering::SeqCst);
+        let (title, title_color, msg) = if went_away {
+            (
+                "✖ BAĞLANTI GİTTİ",
+                theme::danger(),
+                "cihaz ayrıldı — yeniden bekleniyor…",
+            )
+        } else if alive {
+            ("⬢", theme::primary(), "kare bekleniyor…")
         } else if wayland {
-            "Wayland: önizleme spectacle/gnome-screenshot/grim'den birini kur"
+            (
+                "⬢",
+                theme::primary(),
+                "Wayland: önizleme spectacle/gnome-screenshot/grim'den birini kur",
+            )
         } else {
-            "önizleme yakalama yok (X11 gerekli)"
+            ("⬢", theme::primary(), "cihaz bekleniyor — telefondan bağlan")
         };
         ui.painter().text(
             area.center() + egui::vec2(0.0, -12.0),
             egui::Align2::CENTER_CENTER,
-            "⬢",
-            egui::FontId::proportional(44.0),
-            theme::primary(),
+            title,
+            egui::FontId::proportional(40.0),
+            title_color,
         );
         ui.painter().text(
             area.center() + egui::vec2(0.0, 26.0),
