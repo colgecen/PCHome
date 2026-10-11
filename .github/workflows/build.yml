@@ -58,16 +58,10 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-      - name: Accept SDK licenses
-        run: yes | sdkmanager --licenses || true
-      - name: Install Gradle
+        # Bkz. release.yml: setup-android@v3 çürük, hazır SDK kullanılıyor.
         run: |
-          wget -q https://services.gradle.org/distributions/gradle-8.2-bin.zip -O /tmp/gradle.zip
-          unzip -q /tmp/gradle.zip -d /opt
-          echo "/opt/gradle-8.2/bin" >> "$GITHUB_PATH"
-      - name: Regenerate Gradle wrapper
-        run: gradle wrapper --gradle-version 8.2
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
       - name: Grant execute permission
         run: chmod +x ./gradlew
       - name: Assemble debug APK

@@ -152,9 +152,18 @@ jobs:
           java-version: 17
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          api-level: 34
+        # android-actions/setup-android@v3 çürüdü: var olmayan "tools"
+        # paketini kurdurup sdkmanager'ı patlatıyor. ubuntu-runner'da SDK
+        # hazır kurulu geliyor; gereken platform doğrudan alınıyor.
+        run: |
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+
+      - name: Write release signal URL
+        # Dağıtılan APK kutudan çıkar çıkmaz canlı sunucuya bağlansın.
+        run: echo "signalUrl=wss://pchome.onrender.com/ws" > local.properties
+        working-directory: pchome-mobile
 
       - name: Build APK
         run: |
