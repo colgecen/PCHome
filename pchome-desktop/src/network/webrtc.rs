@@ -2,6 +2,7 @@ use anyhow::Result;
 use bytes::Bytes;
 use serde_json::{Value, json};
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant, SystemTime};
 use webrtc::api::APIBuilder;
 use webrtc::data_channel::data_channel_init::RTCDataChannelInit;
@@ -127,16 +128,30 @@ impl WebRtcEngine {
         }));
 
         let conn_open = connection.clone();
+        let state_open = state.clone();
         let (w, h) = (width, height);
         dc.on_open(Box::new(move || {
             let conn = conn_open.clone();
+            let st = state_open.clone();
             Box::pin(async move {
+                st.peer_connected.store(true, Ordering::SeqCst);
+                st.peer_since.store(now_epoch(), Ordering::SeqCst);
+                st.push_event("cihaz bağlandı (veri kanalı açık)".to_string());
                 conn.send_json(&json!({
                     "type": "display_info",
                     "width": w,
                     "height": h,
                 }))
                 .await;
+            })
+        }));
+
+        let state_close = state.clone();
+        dc.on_close(Box::new(move || {
+            let st = state_close.clone();
+            Box::pin(async move {
+                st.peer_connected.store(false, Ordering::SeqCst);
+                st.push_event("cihaz ayrıldı (veri kanalı kapandı)".to_string());
             })
         }));
 
@@ -195,6 +210,8 @@ impl WebRtcEngine {
                     if crate::identity::verify_password(&expected, candidate) {
                         authed = true;
                         fails = 0;
+                        self.state.peer_last_auth.store(now_epoch(), Ordering::SeqCst);
+                        self.state.peer_fails.store(0, Ordering::SeqCst);
                         let (pc_id, pc_name) = (
                             self.state.pc_id.lock().unwrap().clone(),
                             self.state.pc_name.lock().unwrap().clone(),
@@ -208,6 +225,7 @@ impl WebRtcEngine {
                         log::info!("mobil doğrulandı (pc_id={})", pc_id);
                     } else {
                         fails += 1;
+                        self.state.peer_fails.store(fails, Ordering::SeqCst);
                         if fails >= 5 {
                             lockout_until = Some(Instant::now() + Duration::from_secs(60));
                             self.state.push_event("5 yanlış şifre: 60 sn kilit".to_string());
@@ -326,4 +344,12 @@ impl WebRtcEngine {
         self.video_track.write_sample(&sample).await?;
         Ok(())
     }
+}
+
+/// Şu anki zaman (epoch saniye, GUI'deki bağlı-cihaz zamanları için).
+fn now_epoch() -> u32 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs() as u32)
+        .unwrap_or(0)
 }

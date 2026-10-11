@@ -33,6 +33,16 @@ pub struct AppState {
     pub resolution: Mutex<String>,
     /// Güncelleme durumu satırı ("güncel", "vX.Y.Z mevcut", ...).
     pub update_status: Mutex<String>,
+    /// Bağlı mobil cihaz var mı (DataChannel açıkken true).
+    pub peer_connected: AtomicBool,
+    /// Cihazın bağlandığı zaman (epoch sn, 0 = hiç).
+    pub peer_since: AtomicU32,
+    /// Son başarılı şifre doğrulama zamanı (epoch sn, 0 = hiç).
+    pub peer_last_auth: AtomicU32,
+    /// Art arda yanlış şifre sayısı (başarılı girişte sıfırlanır).
+    pub peer_fails: AtomicU32,
+    /// Canlı önizleme için son JPEG kare (ham bayt + genişlik + yükseklik).
+    pub preview_jpeg: Mutex<Option<(Vec<u8>, u32, u32)>>,
 }
 
 impl AppState {
