@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Generate a self-signed certificate for the PChome Signal server so it can
+# Generate a self-signed certificate for the PCHome Signal server so it can
 # terminate TLS (wss://) instead of plain ws://.
 #
-# Output: ./pchome-signal/certs/server.{crt,key}
+# Output: ./PCHome-signal/certs/server.{crt,key}
 set -euo pipefail
 
-OUT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../pchome-signal" && pwd)/certs"
+OUT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../PCHome-signal" && pwd)/certs"
 mkdir -p "$OUT_DIR"
 
 openssl req -x509 -newkey rsa:4096 -nodes \

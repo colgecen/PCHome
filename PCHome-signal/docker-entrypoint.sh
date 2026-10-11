@@ -12,8 +12,8 @@ if [ ! -f "${CERT_FILE}" ] || [ ! -f "${KEY_FILE}" ]; then
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
         -keyout "${KEY_FILE}" \
         -out "${CERT_FILE}" \
-        -subj "/CN=pchome-signal" \
-        -addext "subjectAltName=DNS:pchome-signal,IP:127.0.0.1"
+        -subj "/CN=PCHome-signal" \
+        -addext "subjectAltName=DNS:PCHome-signal,IP:127.0.0.1"
     echo "Self-signed certificate generated at ${CERT_FILE}"
 else
     echo "Using existing TLS certificate"

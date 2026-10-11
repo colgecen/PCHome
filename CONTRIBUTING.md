@@ -1,6 +1,6 @@
-# Contributing to PChome
+# Contributing to PCHome
 
-Thank you for your interest in contributing to PChome! This document provides guidelines and information for contributors.
+Thank you for your interest in contributing to PCHome! This document provides guidelines and information for contributors.
 
 ## Code of Conduct
 

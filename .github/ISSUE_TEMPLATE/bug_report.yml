@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a problem with PChome
+description: Report a problem with PCHome
 title: "[bug]: "
 labels: ["bug"]
 body:
@@ -9,9 +9,9 @@ body:
       label: Component
       description: Which part is affected?
       options:
-        - pchome-signal (signaling server)
-        - pchome-desktop (Linux daemon)
-        - pchome-mobile (Android app)
+        - PCHome-signal (signaling server)
+        - PCHome-desktop (Linux daemon)
+        - PCHome-mobile (Android app)
         - other / unknown
     validations:
       required: true

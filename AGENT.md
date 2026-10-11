@@ -1,4 +1,4 @@
-# PChome AI Agent Working Rules & Constraints
+# PCHome AI Agent Working Rules & Constraints
 
 ## General Guidelines
 
@@ -36,8 +36,8 @@ Always prefer the following native APIs over alternatives:
 
 ### Module Boundaries
 Code must remain within its designated module:
-- **Rust code** stays in `pchome-desktop/` (desktop daemon) or `pchome-signal/` (signaling relay)
-- **Java code** stays in `pchome-mobile/`
+- **Rust code** stays in `PCHome-desktop/` (desktop daemon) or `PCHome-signal/` (signaling relay)
+- **Java code** stays in `PCHome-mobile/`
 - Cross-module dependencies must be explicitly documented and minimal
 
 ## Security Requirements

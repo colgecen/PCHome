@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Launch the full PChome stack locally for development.
+# Launch the full PCHome stack locally for development.
 #
-#   1. PChome Signal server (Rust)
-#   2. PChome Desktop daemon (Rust)
+#   1. PCHome Signal server (Rust)
+#   2. PCHome Desktop daemon (Rust)
 #
-# The Android app (pchome-mobile) must be launched separately via Android
+# The Android app (PCHome-mobile) must be launched separately via Android
 # Studio or `./gradlew installDebug` against an emulator/device, then pair
 # with the PIN printed by the desktop daemon.
 set -euo pipefail
@@ -12,8 +12,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SIGNAL_ADDR="ws://127.0.0.1:8080/ws"
 
-echo "==> Starting PChome Signal server"
-( cd "$ROOT/pchome-signal" && cargo run -- ) &
+echo "==> Starting PCHome Signal server"
+( cd "$ROOT/PCHome-signal" && cargo run -- ) &
 SIGNAL_PID=$!
 
 cleanup() {
@@ -24,10 +24,10 @@ trap cleanup EXIT
 # Give the signal server a moment to bind.
 sleep 2
 
-echo "==> Starting PChome Desktop daemon"
+echo "==> Starting PCHome Desktop daemon"
 echo "    (uinput injection needs elevated privileges; rerun with"
 echo "     sudo if the mouse/keyboard stops working on the PC)"
-( cd "$ROOT/pchome-desktop" && cargo run -- ) &
+( cd "$ROOT/PCHome-desktop" && cargo run -- ) &
 DESKTOP_PID=$!
 
 echo "==> Signal: $SIGNAL_ADDR"

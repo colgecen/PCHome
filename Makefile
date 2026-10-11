@@ -1,7 +1,7 @@
 .PHONY: help run run-docker test test-desktop test-signal test-mobile build clean
 
 help:
-	@echo "PChome - Available commands:"
+	@echo "PCHome - Available commands:"
 	@echo "  make run           - Run signal server + desktop daemon"
 	@echo "  make run-docker    - Run signal server via Docker"
 	@echo "  make test          - Run all tests"
@@ -11,35 +11,35 @@ help:
 	@echo "  make clean         - Clean build artifacts"
 
 run: build
-	@echo "Starting PChome..."
+	@echo "Starting PCHome..."
 	@echo "Signal server: ws://localhost:8080/ws"
 	@echo "Desktop daemon: egui HUD (PIN + telemetry)"
 	@./scripts/run-local.sh
 
 run-docker:
 	@echo "Starting signal server via Docker..."
-	cd pchome-signal && docker compose up -d
+	cd PCHome-signal && docker compose up -d
 	@echo "Signal server: https://localhost:8443"
 
 test: test-desktop test-signal
 	@echo "All tests passed"
 
 test-desktop:
-	cd pchome-desktop && cargo test --all-targets --all-features
+	cd PCHome-desktop && cargo test --all-targets --all-features
 
 test-signal:
-	cd pchome-signal && cargo test
+	cd PCHome-signal && cargo test
 
 test-mobile:
-	cd pchome-mobile && ./gradlew test
+	cd PCHome-mobile && ./gradlew test
 
 build:
 	@echo "Building all modules..."
-	cd pchome-signal && cargo build --release
-	cd pchome-desktop && cargo build --release
-	cd pchome-mobile && ./gradlew assembleDebug
+	cd PCHome-signal && cargo build --release
+	cd PCHome-desktop && cargo build --release
+	cd PCHome-mobile && ./gradlew assembleDebug
 
 clean:
-	cd pchome-desktop && cargo clean
-	cd pchome-signal && cargo clean
-	cd pchome-mobile && ./gradlew clean
+	cd PCHome-desktop && cargo clean
+	cd PCHome-signal && cargo clean
+	cd PCHome-mobile && ./gradlew clean

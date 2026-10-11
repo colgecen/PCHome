@@ -22,7 +22,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build
-        working-directory: pchome-desktop
+        working-directory: PCHome-desktop
         run: cargo build --release
 
       - name: Stage payload
@@ -30,37 +30,37 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           mkdir -p staging/AppDir/usr/bin staging/usr/bin
-          install -m 755 pchome-desktop/target/release/pchome-desktop \
-            staging/AppDir/usr/bin/pchome-desktop
-          install -m 644 pchome-desktop/BUILD.md README.md staging/
+          install -m 755 PCHome-desktop/target/release/PCHome-desktop \
+            staging/AppDir/usr/bin/PCHome-desktop
+          install -m 644 PCHome-desktop/BUILD.md README.md staging/
 
           # .desktop entry + placeholder icon for the AppImage (base64 PNG,
           # no ImageMagick needed on the runner)
-          cat > staging/AppDir/pchome.desktop <<'EOF'
+          cat > staging/AppDir/PCHome.desktop <<'EOF'
           [Desktop Entry]
           Type=Application
-          Name=PChome
+          Name=PCHome
           Comment=Remote control your Linux PC from Android
-          Exec=pchome-desktop
-          Icon=pchome
+          Exec=PCHome-desktop
+          Icon=PCHome
           Categories=Network;RemoteAccess;
           EOF
           # appimagetool does not generate AppRun; ship our own launcher
           cat > staging/AppDir/AppRun <<'EOF'
           #!/bin/sh
           HERE="$(dirname "$(readlink -f "$0")")"
-          exec "$HERE/usr/bin/pchome-desktop" "$@"
+          exec "$HERE/usr/bin/PCHome-desktop" "$@"
           EOF
           chmod +x staging/AppDir/AppRun
-          install -m 644 assets/icon.png staging/AppDir/pchome.png
+          install -m 644 assets/icon.png staging/AppDir/PCHome.png
 
       - name: tar.gz
         env:
           VERSION: ${{ github.ref_name }}
         run: |
-          cp staging/AppDir/usr/bin/pchome-desktop staging/usr/bin/
-          tar -czf pchome-desktop-${VERSION}-x86_64.tar.gz -C staging \
-            usr/bin/pchome-desktop BUILD.md README.md
+          cp staging/AppDir/usr/bin/PCHome-desktop staging/usr/bin/
+          tar -czf PCHome-desktop-${VERSION}-x86_64.tar.gz -C staging \
+            usr/bin/PCHome-desktop BUILD.md README.md
 
       - name: AppImage
         env:
@@ -71,7 +71,7 @@ jobs:
           chmod +x appimagetool
           [ "$(head -c4 appimagetool)" = $'\x7fELF' ] || { echo "appimagetool download failed"; exit 1; }
           ARCH=x86_64 ./appimagetool --appimage-extract-and-run \
-            staging/AppDir "PChome-${VERSION}-x86_64.AppImage"
+            staging/AppDir "PCHome-${VERSION}-x86_64.AppImage"
 
       - name: RPM
         env:
@@ -79,37 +79,37 @@ jobs:
         run: |
           VER=${VERSION#v}
           mkdir -p ~/rpmbuild/{BUILD,RPMS,SPECS,SOURCES}
-          tar -czf ~/rpmbuild/SOURCES/pchome-desktop-${VER}.tar.gz \
-            -C staging usr/bin/pchome-desktop
-          cat > ~/rpmbuild/SPECS/pchome-desktop.spec <<EOF
-          Name:           pchome-desktop
+          tar -czf ~/rpmbuild/SOURCES/PCHome-desktop-${VER}.tar.gz \
+            -C staging usr/bin/PCHome-desktop
+          cat > ~/rpmbuild/SPECS/PCHome-desktop.spec <<EOF
+          Name:           PCHome-desktop
           Version:        ${VER}
           Release:        1%{?dist}
-          Summary:        PChome remote control desktop daemon
+          Summary:        PCHome remote control desktop daemon
           License:        MIT
-          Source0:        pchome-desktop-${VER}.tar.gz
+          Source0:        PCHome-desktop-${VER}.tar.gz
           Requires:       ffmpeg, pipewire
           %description
-          Screen capture and input daemon for the PChome remote control system.
+          Screen capture and input daemon for the PCHome remote control system.
           %prep
           %setup -c
           %install
           mkdir -p %{buildroot}%{_bindir}
-          install -m 755 usr/bin/pchome-desktop %{buildroot}%{_bindir}/pchome-desktop
+          install -m 755 usr/bin/PCHome-desktop %{buildroot}%{_bindir}/PCHome-desktop
           %files
-          %{_bindir}/pchome-desktop
+          %{_bindir}/PCHome-desktop
           EOF
-          rpmbuild -bb ~/rpmbuild/SPECS/pchome-desktop.spec
-          find ~/rpmbuild/RPMS -name '*.rpm' -exec mv {} pchome-desktop-${VER}-x86_64.rpm \;
+          rpmbuild -bb ~/rpmbuild/SPECS/PCHome-desktop.spec
+          find ~/rpmbuild/RPMS -name '*.rpm' -exec mv {} PCHome-desktop-${VER}-x86_64.rpm \;
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: desktop-packages
           path: |
-            pchome-desktop-*-x86_64.tar.gz
-            PChome-*-x86_64.AppImage
-            pchome-desktop-*.rpm
+            PCHome-desktop-*-x86_64.tar.gz
+            PCHome-*-x86_64.AppImage
+            PCHome-desktop-*.rpm
 
   build-signal:
     name: Signal server (tar.gz)
@@ -121,7 +121,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build
-        working-directory: pchome-signal
+        working-directory: PCHome-signal
         run: cargo build --release
 
       - name: Package
@@ -129,15 +129,15 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           mkdir -p staging
-          install -m 755 pchome-signal/target/release/pchome-signal staging/
-          install -m 644 pchome-signal/README.md staging/
-          tar -czf pchome-signal-${VERSION}-x86_64.tar.gz -C staging pchome-signal README.md
+          install -m 755 PCHome-signal/target/release/PCHome-signal staging/
+          install -m 644 PCHome-signal/README.md staging/
+          tar -czf PCHome-signal-${VERSION}-x86_64.tar.gz -C staging PCHome-signal README.md
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: signal-package
-          path: pchome-signal-*-x86_64.tar.gz
+          path: PCHome-signal-*-x86_64.tar.gz
 
   build-android:
     name: Android APK
@@ -169,7 +169,7 @@ jobs:
 
       - name: Build APK
         run: |
-          cd pchome-mobile
+          cd PCHome-mobile
           # gradle-wrapper.jar (8.2) is committed, no local gradle needed
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
@@ -178,14 +178,14 @@ jobs:
         env:
           VERSION: ${{ github.ref_name }}
         run: |
-          cd pchome-mobile/app/build/outputs/apk/debug
-          mv app-debug.apk pchome-mobile-${VERSION}.apk
+          cd PCHome-mobile/app/build/outputs/apk/debug
+          mv app-debug.apk PCHome-mobile-${VERSION}.apk
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: pchome-mobile/app/build/outputs/apk/debug/pchome-mobile-*.apk
+          path: PCHome-mobile/app/build/outputs/apk/debug/PCHome-mobile-*.apk
 
   create-release:
     name: Create GitHub Release
@@ -220,8 +220,8 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           APPIMAGE=$(ls dist/*.AppImage 2>/dev/null | head -n 1 | xargs -n1 basename 2>/dev/null || true)
-          TARBALL=$(ls dist/pchome-desktop-*.tar.gz 2>/dev/null | head -n 1 | xargs -n1 basename 2>/dev/null || true)
-          APK=$(ls dist/pchome-mobile-*.apk 2>/dev/null | head -n 1 | xargs -n1 basename 2>/dev/null || true)
+          TARBALL=$(ls dist/PCHome-desktop-*.tar.gz 2>/dev/null | head -n 1 | xargs -n1 basename 2>/dev/null || true)
+          APK=$(ls dist/PCHome-mobile-*.apk 2>/dev/null | head -n 1 | xargs -n1 basename 2>/dev/null || true)
           BASE="https://github.com/${{ github.repository }}/releases/download/${VERSION}"
           {
             echo "{"
@@ -237,6 +237,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: PChome ${{ github.ref_name }}
+          name: PCHome ${{ github.ref_name }}
           body_path: changelog.md
           files: dist/*

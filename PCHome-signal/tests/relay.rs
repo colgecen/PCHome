@@ -20,7 +20,7 @@ async fn open(
 #[tokio::test]
 async fn relay_between_peers() {
     let port = "18080";
-    let mut child = Command::new(env!("CARGO_BIN_EXE_pchome-signal"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_PCHome-signal"))
         .env("PORT", port)
         .env("RUST_LOG", "warn")
         .spawn()

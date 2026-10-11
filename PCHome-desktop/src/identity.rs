@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::os::unix::fs::PermissionsExt;
 
 /// Bu PC'nin kalıcı kimliği: ilk açılışta bir kez üretilir,
-/// `~/.config/pchome/identity.toml` dosyasında saklanır ve asla
+/// `~/.config/PCHome/identity.toml` dosyasında saklanır ve asla
 /// kendiliğinden değişmez. Telefon bu ID + sabit şifreyle bağlanır.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Identity {
@@ -137,12 +137,12 @@ fn identity_path() -> std::path::PathBuf {
         }
     }
     if let Ok(base) = std::env::var("XDG_CONFIG_HOME") {
-        return std::path::Path::new(&base).join("pchome").join("identity.toml");
+        return std::path::Path::new(&base).join("PCHome").join("identity.toml");
     }
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     std::path::Path::new(&home)
         .join(".config")
-        .join("pchome")
+        .join("PCHome")
         .join("identity.toml")
 }
 
@@ -155,7 +155,7 @@ mod tests {
     static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     fn temp_path(tag: &str) -> String {
-        format!("/tmp/pchome-identity-test-{}-{}.toml", tag, std::process::id())
+        format!("/tmp/PCHome-identity-test-{}-{}.toml", tag, std::process::id())
     }
 
     #[test]

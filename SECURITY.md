@@ -1,9 +1,9 @@
-# PChome Security Guidelines
+# PCHome Security Guidelines
 
 ## P2P Encryption
 
 ### WebRTC SRTP Encryption
-All data transmitted between PChome Desktop and PChome Mobile uses WebRTC DataChannels, which provide built-in SRTP (Secure Real-time Transport Protocol) encryption.
+All data transmitted between PCHome Desktop and PCHome Mobile uses WebRTC DataChannels, which provide built-in SRTP (Secure Real-time Transport Protocol) encryption.
 
 **Encryption Guarantees**:
 - AES-128 or AES-256 GCM encryption by default
@@ -28,36 +28,36 @@ The Rust Signal server operates as a relay only:
 
 #### udev Rule for /dev/uinput
 ```bash
-# Allow only pchome user to access uinput
-KERNEL=="uinput", GROUP="pchome", MODE="0660"
+# Allow only PCHome user to access uinput
+KERNEL=="uinput", GROUP="PCHome", MODE="0660"
 RUN+="/usr/bin/chmod 0660 /dev/%k"
-RUN+="/usr/bin/chown root:pchome /dev/%k"
+RUN+="/usr/bin/chown root:PCHome /dev/%k"
 ```
 
 #### Required Group
-- Create `pchome` group
-- Add authorized users to `pchome` group
+- Create `PCHome` group
+- Add authorized users to `PCHome` group
 - Ensure proper permissions on `/dev/uinput`
 
 #### Verification
 ```bash
 # Check uinput permissions
 ls -la /dev/uinput
-# Should show: crw-rw---- root pchome /dev/uinput
+# Should show: crw-rw---- root PCHome /dev/uinput
 
 # Verify user group membership
 groups <username>
-# Should include pchome
+# Should include PCHome
 ```
 
 #### Complete udev Rule File
-Create `/etc/udev/rules.d/99-pchome-uinput.rules`:
+Create `/etc/udev/rules.d/99-PCHome-uinput.rules`:
 ```udev
-# PChome uinput access control
-KERNEL=="uinput", GROUP="pchome", MODE="0660", TAG+="uaccess"
+# PCHome uinput access control
+KERNEL=="uinput", GROUP="PCHome", MODE="0660", TAG+="uaccess"
 
 # Optional: Restrict to specific device node
-SUBSYSTEM=="misc", KERNEL=="uinput", GROUP="pchome", MODE="0660"
+SUBSYSTEM=="misc", KERNEL=="uinput", GROUP="PCHome", MODE="0660"
 ```
 
 Apply rules:
@@ -93,7 +93,7 @@ match std::fs::metadata("/dev/uinput") {
 
 #### Input Injection Security
 - /dev/uinput events are injected at kernel level
-- Only authorized users (pchome group) can create uinput devices
+- Only authorized users (PCHome group) can create uinput devices
 - Events are scoped to the virtual input device only
 
 ### Threat Model
@@ -119,8 +119,8 @@ match std::fs::metadata("/dev/uinput") {
 
 #### Trust Boundaries
 1. **Signal Server Boundary**: Untrusted relay; only validates PIN mapping, never sees media
-2. **Desktop Trust Boundary**: Requires local group membership (`pchome`) for `/dev/uinput`
-3. **Mobile Trust Boundary**: AccessibilityService scoped to package `com.pchome.mobile`
+2. **Desktop Trust Boundary**: Requires local group membership (`PCHome`) for `/dev/uinput`
+3. **Mobile Trust Boundary**: AccessibilityService scoped to package `com.PCHome.mobile`
 4. **Network Boundary**: WebRTC is P2P; signal server cannot intercept media even with TLS
 
 #### Data Flow Security
@@ -140,7 +140,7 @@ Mobile (touch) ──AccessibilityService──▷ Gesture injection
 
 #### Required Configurations
 - [ ] WebSocket TLS certificates valid and auto-renewed
-- [ ] udev rules deployed on all Linux systems running PChome Desktop
+- [ ] udev rules deployed on all Linux systems running PCHome Desktop
 - [ ] PIN generation uses CSPRNG (ChaCha20 or similar)
 - [ ] 300s PIN TTL enforced server-side and client-side
 - [ ] /dev/uinput group permissions verified periodically
@@ -167,30 +167,30 @@ Mobile (touch) ──AccessibilityService──▷ Gesture injection
 ### Sandboxing and Capability Limits
 
 #### Process Sandboxing
-PChome Desktop daemon should run with minimal privileges:
+PCHome Desktop daemon should run with minimal privileges:
 
 ```bash
 # Create dedicated system user
-sudo useradd -r -s /usr/sbin/nologin pchome
+sudo useradd -r -s /usr/sbin/nologin PCHome
 
 # Run daemon as non-root
-sudo -u pchome pchome-desktop
+sudo -u PCHome PCHome-desktop
 
 # Optional: systemd service with sandboxing
 ```
 
 #### systemd Service with Hardening
-Create `/etc/systemd/system/pchome-desktop.service`:
+Create `/etc/systemd/system/PCHome-desktop.service`:
 ```ini
 [Unit]
-Description=PChome Desktop Daemon
+Description=PCHome Desktop Daemon
 After=network.target pipewire.service
 
 [Service]
 Type=simple
-User=pchome
-Group=pchome
-ExecStart=/usr/bin/pchome-desktop
+User=PCHome
+Group=PCHome
+ExecStart=/usr/bin/PCHome-desktop
 Restart=on-failure
 RestartSec=5
 
@@ -227,19 +227,19 @@ Required capabilities for `/dev/uinput` access:
 
 Grant capabilities without full root:
 ```bash
-sudo setcap cap_sys_admin,cap_net_admin,cap_net_bind_service+ep /usr/bin/pchome-desktop
+sudo setcap cap_sys_admin,cap_net_admin,cap_net_bind_service+ep /usr/bin/PCHome-desktop
 ```
 
 #### Runtime Verification
 ```bash
 # Check capabilities
-getcap /usr/bin/pchome-desktop
+getcap /usr/bin/PCHome-desktop
 
 # Verify no unnecessary privileges
-sudo pchome-desktop --check-permissions
+sudo PCHome-desktop --check-permissions
 
 # Audit open file descriptors
-ls -la /proc/$(pgrep pchome-desktop)/fd
+ls -la /proc/$(pgrep PCHome-desktop)/fd
 ```
 
 #### Additional Sandboxing Options

@@ -1,6 +1,6 @@
 use eframe::egui;
 
-/// PChome Neon-Mavi tasarım jetonları (TEK tasarım dili).
+/// PCHome Neon-Mavi tasarım jetonları (TEK tasarım dili).
 /// Mobil taraftaki `colors.xml` ile aynı hex değerleri kullanır; iki platform
 /// farklı teknoloji (egui / Material3) kullandığı için "tek kütüphane" kuralı
 /// platform başına geçerlidir: desktop'ta yalnız egui, mobilde yalnız Material3.

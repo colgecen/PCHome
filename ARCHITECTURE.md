@@ -1,10 +1,10 @@
-# PChome Architecture
+# PCHome Architecture
 
 ## System Overview
 
-PChome operates as a monorepo with three decoupled yet seamlessly integrated modules:
+PCHome operates as a monorepo with three decoupled yet seamlessly integrated modules:
 
-### 1. PChome Desktop (Linux Daemon + GUI)
+### 1. PCHome Desktop (Linux Daemon + GUI)
 
 **Language**: Rust  
 **Key Dependencies**: tokio, webrtc-rs, eframe/egui  
@@ -19,7 +19,7 @@ PChome operates as a monorepo with three decoupled yet seamlessly integrated mod
 3. Transmission via WebRTC video track
 4. Rendering in the Android app's SurfaceViewRenderer
 
-### 2. PChome Mobile (Android Native)
+### 2. PCHome Mobile (Android Native)
 
 **Language**: Java (Android SDK)  
 **Screen Capture**: MediaProjection + MediaCodec  
@@ -32,7 +32,7 @@ PChome operates as a monorepo with three decoupled yet seamlessly integrated mod
 3. WebRTC DataChannel transmission
 4. HUD rendering with touchpad/hotkeys overlay
 
-### 3. PChome Signal (P2P Handshake Server)
+### 3. PCHome Signal (P2P Handshake Server)
 
 **Language**: Rust (tokio + tokio-tungstenite)  
 **Framework**: WebSocket server  
@@ -51,7 +51,7 @@ PChome operates as a monorepo with three decoupled yet seamlessly integrated mod
 
 ```text
 +-----------------------+                    +-----------------------+
-|    PChome Desktop     |   WebRTC P2P Stream|    PChome Mobile      |
+|    PCHome Desktop     |   WebRTC P2P Stream|    PCHome Mobile      |
 |     (Linux Daemon)    |====================|     (Android App)     |
 |                       |  Media / DataChan  |                       |
 +-----------------------+                    +-----------------------+
@@ -60,17 +60,17 @@ PChome operates as a monorepo with three decoupled yet seamlessly integrated mod
             │ (PIN Auth & SDP/ICE Relay)                 │ (PIN Auth & SDP/ICE Relay)
             ▼                                            ▼
 +--------------------------------------------------------------------+
-|                       PChome Signal Server                         |
+|                       PCHome Signal Server                         |
 |               (Rust / Room Manager & WebSocket Relay)              |
 +--------------------------------------------------------------------+
 
 +-----------------------+                    +-----------------------+
-|    Linux Kernel       | ◀─── /dev/uinput   | PChome Desktop Daemon |
+|    Linux Kernel       | ◀─── /dev/uinput   | PCHome Desktop Daemon |
 | (Virtual Input Dev)   |   Input Injection  | (Coordinate Processing)|
 +-----------------------+                    +-----------------------+
 
 +-----------------------+                    +-----------------------+
-|   Android Kernel      | ◀── Accessibility  | PChome Mobile Service |
+|   Android Kernel      | ◀── Accessibility  | PCHome Mobile Service |
 |  (System Gestures)    |   Gesture Inject   | (Remote Coordinate)   |
 +-----------------------+                    +-----------------------+
 ```

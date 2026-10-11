@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build a PChome mobile release APK.
+# Build a PCHome mobile release APK.
 #
 # Usage:
 #   ./scripts/build-mobile.sh
@@ -9,14 +9,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT/pchome-mobile"
+cd "$ROOT/PCHome-mobile"
 
 chmod +x gradlew
 ./gradlew assembleRelease --no-daemon
 
 APK="app/build/outputs/apk/release/app-release.apk"
 if [ -f "$APK" ]; then
-    echo "==> Built: $ROOT/pchome-mobile/$APK"
+    echo "==> Built: $ROOT/PCHome-mobile/$APK"
 else
     echo "==> Release APK not found; build may have failed." >&2
     exit 1

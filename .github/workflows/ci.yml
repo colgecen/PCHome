@@ -17,7 +17,7 @@ jobs:
           components: rustfmt
       - name: Check formatting
         run: |
-          cd pchome-desktop
+          cd PCHome-desktop
           cargo fmt
 
   clippy-rust:
@@ -30,7 +30,7 @@ jobs:
           components: clippy
       - name: Run clippy
         run: |
-          cd pchome-desktop
+          cd PCHome-desktop
           cargo clippy --all-targets --all-features -- -D warnings
 
   test-rust:
@@ -41,7 +41,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Run tests
         run: |
-          cd pchome-desktop
+          cd PCHome-desktop
           cargo test --all-targets --all-features
 
   bench-rust:
@@ -52,7 +52,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Run benchmarks
         run: |
-          cd pchome-desktop
+          cd PCHome-desktop
           cargo bench --bench pin_bench
 
   lint-signal:
@@ -65,7 +65,7 @@ jobs:
           components: clippy
       - name: Run clippy
         run: |
-          cd pchome-signal
+          cd PCHome-signal
           cargo clippy --all-targets -- -D warnings
 
   test-signal:
@@ -76,7 +76,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Run tests
         run: |
-          cd pchome-signal
+          cd PCHome-signal
           cargo test --all-targets
 
   build-signal:
@@ -87,7 +87,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Build
         run: |
-          cd pchome-signal
+          cd PCHome-signal
           cargo build --release
 
   e2e-test:

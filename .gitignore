@@ -1,21 +1,25 @@
 # Binaries / build output
 dist/
-pchome-desktop/target/
-pchome-signal/bin/
-pchome-signal/pchome-signal
+staging/
+*.AppImage
+*.tar.gz
+appimagetool
+PCHome-desktop/target/
+PCHome-signal/bin/
+PCHome-signal/PCHome-signal
 *.exe
 
 # Android
-pchome-mobile/.gradle/
-pchome-mobile/app/build/
-pchome-mobile/local.properties
+PCHome-mobile/.gradle/
+PCHome-mobile/app/build/
+PCHome-mobile/local.properties
 *.apk
 *.aar
 captures/
 .externalNativeBuild/
 
 # Go
-pchome-signal/vendor/
+PCHome-signal/vendor/
 
 # Rust
 **/*.rs.bk

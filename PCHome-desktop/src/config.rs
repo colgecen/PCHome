@@ -2,11 +2,11 @@ use anyhow::Result;
 use serde::Deserialize;
 use std::net::SocketAddr;
 
-/// Runtime configuration for the PChome desktop daemon. Loaded from environment
+/// Runtime configuration for the PCHome desktop daemon. Loaded from environment
 /// variables (with `PCHOME_` prefix) and falling back to sane defaults.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
-    /// WebSocket URL of the PChome Signal server.
+    /// WebSocket URL of the PCHome Signal server.
     pub signal_url: String,
     /// Local capture width in pixels.
     pub capture_width: u32,
@@ -38,7 +38,7 @@ impl Config {
     /// ignored; missing ones fall back to `Default`. Before reading the
     /// environment, a local `.env` file in the current directory (if any) is
     /// applied so each user can keep a personal signal URL out of the repo.
-    /// A user settings file under the XDG config dir (`~/.config/pchome/config.toml`)
+    /// A user settings file under the XDG config dir (`~/.config/PCHome/config.toml`)
     /// is merged first, so a URL chosen in the GUI persists across launches.
     pub fn from_env() -> Result<Self> {
         load_dotenv(".env");
@@ -95,13 +95,13 @@ struct ConfigToml {
     signal_url: Option<String>,
 }
 
-/// `~/.config/pchome` directory, honoring XDG_CONFIG_HOME when set.
+/// `~/.config/PCHome` directory, honoring XDG_CONFIG_HOME when set.
 fn user_config_dir() -> std::path::PathBuf {
     if let Ok(base) = std::env::var("XDG_CONFIG_HOME") {
-        return std::path::Path::new(&base).join("pchome");
+        return std::path::Path::new(&base).join("PCHome");
     }
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    std::path::Path::new(&home).join(".config").join("pchome")
+    std::path::Path::new(&home).join(".config").join("PCHome")
 }
 
 fn user_config_path() -> Option<std::path::PathBuf> {

@@ -29,7 +29,15 @@ pub fn detect_capture_input() -> Result<CaptureInput> {
         }
     }
     if std::env::var_os("DISPLAY").is_some_and(|d| !d.is_empty()) {
-        log::info!("ffmpeg lacks pipewire demuxer; falling back to x11grab");
+        if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+            log::warn!(
+                "Wayland session detected but ffmpeg has no pipewire demuxer; \
+                 x11grab will only capture XWayland windows (may appear black). \
+                 Switch to X11 session (Plasma X11) or install ffmpeg with pipewire support for full capture"
+            );
+        } else {
+            log::info!("ffmpeg lacks pipewire demuxer; falling back to x11grab");
+        }
         return Ok(CaptureInput::X11Grab);
     }
     anyhow::bail!(

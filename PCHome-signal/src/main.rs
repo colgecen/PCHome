@@ -1,4 +1,4 @@
-//! PChome sinyal sunucusu (protokol v2): kalıcı PC kimlikli WebSocket relay.
+//! PCHome sinyal sunucusu (protokol v2): kalıcı PC kimlikli WebSocket relay.
 //!
 //! İki istemci `?pc_id=<6 hane>&role=desktop|mobile` ile bağlanır. Sunucu
 //! ikisini aynı odada eşleştirir ve her JSON mesajını (join / auth_ok /
@@ -181,7 +181,7 @@ async fn main() -> Result<()> {
         .unwrap_or(20);
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    log::info!("PChome sinyal sunucusu dinliyor: ws://{}/ws (protokol v2)", addr);
+    log::info!("PCHome sinyal sunucusu dinliyor: ws://{}/ws (protokol v2)", addr);
 
     let registry = Arc::new(Mutex::new(Registry::default()));
     let rate_limiter = Arc::new(Mutex::new(RateLimiter::default()));

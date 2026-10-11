@@ -3,6 +3,6 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: 'pchome-signal'
+  - job_name: 'PCHome-signal'
     static_configs:
       - targets: ['pchome-signal:8081']

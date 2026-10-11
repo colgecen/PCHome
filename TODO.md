@@ -1,4 +1,4 @@
-# PChome - To Do List & Expanded Phase Plan
+# PCHome - To Do List & Expanded Phase Plan
 > Her görev bitince conventional commits formatında İngilizce commit at ve kutucuğu işaretle
 
 NOT: Bu dosya `PCHome-prompt.txt` içeriğine göre genişletildi — proje detayları, CI, test, güvenlik ve release adımları eklendi.
@@ -12,7 +12,7 @@ NOT: Bu dosya `PCHome-prompt.txt` içeriğine göre genişletildi — proje deta
 
 ### Essential Setup (High priority)
 - [x] Create root-level docs ([README.md](README.md), [ARCHITECTURE.md](ARCHITECTURE.md), [DECISIONS.md](DECISIONS.md), [TODO.md](TODO.md), [AGENT.md](AGENT.md), [SECURITY.md](SECURITY.md))
-- [x] Create module-specific docs (pchome-desktop/BUILD.md, pchome-mobile/PERMISSIONS.md, pchome-signal/README.md)
+- [x] Create module-specific docs (PCHome-desktop/BUILD.md, PCHome-mobile/PERMISSIONS.md, PCHome-signal/README.md)
 - [x] Initialize `git` repository (conventional commits, branch protection, PR templates)
 - [x] Add `.gitignore`, `.editorconfig`, basic `CODEOWNERS`
 
@@ -21,7 +21,7 @@ NOT: Bu dosya `PCHome-prompt.txt` içeriğine göre genişletildi — proje deta
 - [x] Configure `pre-commit` hooks: `rustfmt`, `clippy`, `ktlint`/Android lint, `gofmt`/`go vet`
 - [x] Dependency security scanning (Dependabot / Snyk) and secret scanning
 
-## Phase 2: PChome Desktop (Rust - Linux)
+## Phase 2: PCHome Desktop (Rust - Linux)
 
 ### Core Daemon & Low-level
 - [x] `uinput.rs`: implement safe wrapper for `/dev/uinput` (feature gated, unit tests)
@@ -46,7 +46,7 @@ NOT: Bu dosya `PCHome-prompt.txt` içeriğine göre genişletildi — proje deta
 - [x] Rust unit tests for core modules (`pin`, `encoder` mocks, `uinput` abstractions)
 - [x] Integration tests: simulate WebRTC SDP exchange with local signal server
 
-## Phase 3: PChome Mobile (Android)
+## Phase 3: PCHome Mobile (Android)
 
 ### Permissions & Services
 - [x] `AndroidManifest.xml`: request `AccessibilityService`, `INTERNET`, `FOREGROUND_SERVICE`, `MediaProjection`
@@ -68,7 +68,7 @@ NOT: Bu dosya `PCHome-prompt.txt` içeriğine göre genişletildi — proje deta
 - [x] Instrumented UI tests for `PinActivity` and `TouchpadActivity` (Espresso/UiAutomator)
 - [x] Emulated performance tests for MediaCodec pipeline
 
-## Phase 4: PChome Signal (Rust)
+## Phase 4: PCHome Signal (Rust)
 
 ### Core Server
 - [x] `main.rs`: WebSocket handshake route (`/ws?pin=…&role=…`), `/health`, and Prometheus-style `/metrics` endpoints
@@ -119,22 +119,22 @@ Each checked box corresponds to a created file included in the combined commit b
 - [x] `.editorconfig`
 - [x] `CODEOWNERS`
 - [x] `.github/workflows/ci.yml`
-- [x] `pchome-desktop/Cargo.toml`
-- [x] `pchome-desktop/src/main.rs`
-- [x] `pchome-desktop/src/pin.rs`
-- [x] `pchome-desktop/src/uinput.rs`
-- [x] `pchome-desktop/src/pipewire.rs`
-- [x] `pchome-desktop/src/encoder.rs`
-- [x] `pchome-desktop/src/network/mod.rs`
-- [x] `pchome-desktop/src/network/socket.rs`
-- [x] `pchome-desktop/src/network/webrtc.rs`
-- [x] `pchome-desktop/src-ui/index.html`
-- [x] `pchome-desktop/src-ui/styles/hud.css`
-- [x] `pchome-desktop/src-ui/js/app.js`
+- [x] `PCHome-desktop/Cargo.toml`
+- [x] `PCHome-desktop/src/main.rs`
+- [x] `PCHome-desktop/src/pin.rs`
+- [x] `PCHome-desktop/src/uinput.rs`
+- [x] `PCHome-desktop/src/pipewire.rs`
+- [x] `PCHome-desktop/src/encoder.rs`
+- [x] `PCHome-desktop/src/network/mod.rs`
+- [x] `PCHome-desktop/src/network/socket.rs`
+- [x] `PCHome-desktop/src/network/webrtc.rs`
+- [x] `PCHome-desktop/src-ui/index.html`
+- [x] `PCHome-desktop/src-ui/styles/hud.css`
+- [x] `PCHome-desktop/src-ui/js/app.js`
 - [x] `.github/PULL_REQUEST_TEMPLATE.md`
 - [x] `.github/dependabot.yml`
 - [x] `.pre-commit-config.yaml`
-- [x] `pchome-signal/.golangci.yml`
+- [x] `PCHome-signal/.golangci.yml`
 - [x] `CONTRIBUTING.md`
 
 ---
@@ -144,7 +144,7 @@ Each checked box corresponds to a created file included in the combined commit b
 > These are non-trivial tasks derived from actual build/compile/test failures and
 > engineering recommendations for the three modules.
 
-### pchome-signal (Go)
+### PCHome-signal (Go)
 
 1. **fix(signal): add missing `context` import in main.go** — `context.WithTimeout` was used without importing `context`; the server failed to build.
 2. **fix(signal): remove unused `fmt` import in main.go** — leftover import caused `go build` to fail.
@@ -164,7 +164,7 @@ Each checked box corresponds to a created file included in the combined commit b
 16. **fix(signal): `TTL` eviction should refresh `LastSeen` on activity** — idle-but-active rooms were evicted prematurely.
 17. **perf(signal): replace per-message `[]byte` alloc with a sync.Pool buffer** — high relay throughput caused GC pressure.
 
-### pchome-desktop (Rust)
+### PCHome-desktop (Rust)
 
 18. **fix(desktop): remove duplicate `Frame` enum in `pipewire.rs`** — the enum was defined twice (once unconditionally, once under `cfg(unix)`), causing a duplicate-definition compile error on Linux.
 19. **fix(desktop): remove duplicate global logger init in `main.rs`** — `env_logger::init()` and `tracing_subscriber::fmt().init()` both register a global logger and panic at startup.
@@ -188,7 +188,7 @@ Each checked box corresponds to a created file included in the combined commit b
 37. **fix(desktop): `pipewire` capture is a stub** — integrate `pipewire-rs`/`pw` bindings for real DMA-BUF zero-copy capture.
 38. **build(desktop): add `cargo auditable` / SBOM metadata** — required for the release pipeline.
 
-### pchome-mobile (Android / Java)
+### PCHome-mobile (Android / Java)
 
 39. **fix(mobile): add missing `import android.util.Log` in `SignalClient.java`** — `Log.*` was used without the import; the module failed to compile.
 40. **fix(mobile): add missing `import android.content.Intent` in `PinActivity.java`** — `Intent` was used without the import.

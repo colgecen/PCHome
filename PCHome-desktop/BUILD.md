@@ -1,4 +1,4 @@
-# PChome Desktop Build Guide
+# PCHome Desktop Build Guide
 
 ## Prerequisites
 
@@ -35,13 +35,13 @@ cd pchome
 
 ### 2. Build Signal Server
 ```bash
-cd pchome-signal
+cd PCHome-signal
 cargo build --release
 ```
 
 ### 3. Build Desktop Daemon
 ```bash
-cd pchome-desktop
+cd PCHome-desktop
 cargo build --release
 ```
 
@@ -54,7 +54,7 @@ The desktop HUD is a native egui window compiled into the daemon
 ### udev Rules
 Install udev rules for /dev/uinput access:
 ```bash
-sudo cp etc/udev/rules.d/99-pchome-uinput.rules /etc/udev/rules.d/
+sudo cp etc/udev/rules.d/99-PCHome-uinput.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```
@@ -79,15 +79,15 @@ ffmpeg -hide_banner -formats 2>/dev/null | grep -i pipewire
 
 ### Start Signal Server (separate terminal)
 ```bash
-cd pchome-signal
-./target/release/pchome-signal
+cd PCHome-signal
+./target/release/PCHome-signal
 # Health: http://localhost:8081/health  Metrics: /metrics
 ```
 
 ### Start Desktop Daemon
 ```bash
 sudo env PCHOME_SIGNAL_URL=ws://127.0.0.1:8080/ws \
-    ./target/release/pchome-desktop
+    ./target/release/PCHome-desktop
 ```
 The egui HUD window shows the PIN, connection status, and live telemetry.
 
@@ -100,7 +100,7 @@ Run the desktop daemon — the HUD is the native egui window it opens.
 
 1. **uinput permission denied**
    - Run the daemon with sudo, or verify udev rules loaded: `ls -la /dev/uinput`
-   - Add user to pchome group: `usermod -aG pchome $USER`
+   - Add user to pchome group: `usermod -aG PCHome $USER`
 
 2. **Capture failure / no frames**
    - Check ffmpeg is installed and supports `-f pipewire`: `ffmpeg -formats | grep pipewire`
@@ -114,7 +114,7 @@ Run the desktop daemon — the HUD is the native egui window it opens.
 ### Performance Verification
 ```bash
 # Measure latency
-pchome-desktop --measure-latency
+PCHome-desktop --measure-latency
 
 # Expected: <40ms from capture to display
 ```

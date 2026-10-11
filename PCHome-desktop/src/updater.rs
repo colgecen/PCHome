@@ -80,7 +80,7 @@ fn latest_api_url() -> String {
 
 fn curl_get(url: &str) -> Result<String> {
     let out = std::process::Command::new("curl")
-        .args(["-fsSL", "-m", "30", "-A", "pchome-desktop-updater", url])
+        .args(["-fsSL", "-m", "30", "-A", "PCHome-desktop-updater", url])
         .output()
         .context("curl çalıştırılamadı (curl kurulu mu?)")?;
     if !out.status.success() {
@@ -189,7 +189,7 @@ pub fn relaunch(new_exe: &std::path::Path) -> ! {
 /// Arayüz "şu kadar indirme" bilgisini buradan gösterir.
 pub fn asset_size(url: &str) -> Option<u64> {
     let out = std::process::Command::new("curl")
-        .args(["-fsSIL", "-m", "20", "-A", "pchome-desktop-updater", url])
+        .args(["-fsSIL", "-m", "20", "-A", "PCHome-desktop-updater", url])
         .output()
         .ok()?;
     if !out.status.success() {
@@ -246,7 +246,7 @@ fn install_appimage_next_to_current(state: &SharedState, info: &UpdateInfo) -> R
         .parent()
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| std::path::PathBuf::from("."));
-    let dest = dir.join(format!("PChome-{}-x86_64.AppImage", info.version));
+    let dest = dir.join(format!("PCHome-{}-x86_64.AppImage", info.version));
     set_status(state, "yeni AppImage indiriliyor…".to_string());
     download_to(&info.appimage_url, &dest)?;
     #[cfg(target_family = "unix")]
@@ -272,7 +272,9 @@ fn install_tarball_over_current(state: &SharedState, info: &UpdateInfo) -> Resul
     if !status.success() {
         anyhow::bail!("paket açılamadı");
     }
-    let new_bin = find_file(&tmp, "pchome-desktop").context("pakette ikili dosya yok")?;
+    let new_bin = find_file(&tmp, "PCHome-desktop")
+        .or_else(|| find_file(&tmp, "pchome-desktop"))
+        .context("pakette ikili dosya yok")?;
     let current = std::env::current_exe().context("çalışan dosya yolu bilinmiyor")?;
     let backup = current.with_extension("bak");
     let _ = std::fs::remove_file(&backup);
@@ -290,7 +292,11 @@ fn find_file(dir: &std::path::Path, name: &str) -> Option<std::path::PathBuf> {
                 let p = e.path();
                 if p.is_dir() {
                     stack.push(p);
-                } else if p.file_name().map(|n| n == name).unwrap_or(false) {
+                } else if p
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_lowercase() == name.to_lowercase())
+                    .unwrap_or(false)
+                {
                     return Some(p);
                 }
             }
@@ -340,8 +346,8 @@ mod tests {
             "tag_name": "v0.2.0",
             "body": "yenilikler",
             "assets": [
-                {"name": "PChome-v0.2.0-x86_64.AppImage", "browser_download_url": "https://x/app.AppImage"},
-                {"name": "pchome-desktop-v0.2.0-x86_64.tar.gz", "browser_download_url": "https://x/d.tar.gz"},
+                {"name": "PCHome-v0.2.0-x86_64.AppImage", "browser_download_url": "https://x/app.AppImage"},
+                {"name": "PCHome-desktop-v0.2.0-x86_64.tar.gz", "browser_download_url": "https://x/d.tar.gz"},
                 {"name": "p chome-mobile-v0.2.0.apk", "browser_download_url": "https://x/m.apk"}
             ]
         }"#;

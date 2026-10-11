@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== PChome Developer Setup ==="
+echo "=== PCHome Developer Setup ==="
 
 if ! command -v rustc &> /dev/null; then
     echo "Installing Rust..."
@@ -23,7 +23,7 @@ else
 fi
 
 echo "Building all modules..."
-cd pchome-signal && cargo build && cd ..
-cd pchome-desktop && cargo build && cd ..
+cd PCHome-signal && cargo build && cd ..
+cd PCHome-desktop && cargo build && cd ..
 
 echo "Setup complete. Run ./scripts/run-local.sh to start development environment."

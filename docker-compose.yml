@@ -3,7 +3,7 @@ version: "3.8"
 services:
   signal:
     build:
-      context: ./pchome-signal
+      context: ./PCHome-signal
       dockerfile: Dockerfile
     ports:
       - "8080:8080"

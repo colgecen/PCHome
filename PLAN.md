@@ -1,4 +1,4 @@
-# PChome Improvement Plan (v0.0.2)
+# PCHome Improvement Plan (v0.0.2)
 
 > Her görev bitince conventional commit + kutucuk `[x]` işaretlenecek.
 
@@ -10,11 +10,11 @@
 
 ## A1 — Bağlantı kök düzeltmesi
 - [x] **Kök neden: Java-WebSocket 1.5.4 + Cloudflare TLS uyumsuzluğu** (mobilde bağlantı kuruluyor ama hemen kapanıyor)
-- [x] `pchome-mobile/.../SignalClient.java`: OkHttp WebSocket'e taşı (pingInterval=20s Cloudflare idle timeout'u önler)
-- [x] `pchome-mobile/app/build.gradle`: `org.java_websocket:Java-WebSocket` bağımlılığını kaldır, `com.squareup.okhttp3:okhttp:4.12.0` eklendi
+- [x] `PCHome-mobile/.../SignalClient.java`: OkHttp WebSocket'e taşı (pingInterval=20s Cloudflare idle timeout'u önler)
+- [x] `PCHome-mobile/app/build.gradle`: `org.java_websocket:Java-WebSocket` bağımlılığını kaldır, `com.squareup.okhttp3:okhttp:4.12.0` eklendi
 
 ## A2 — Desktop PIN rotasyonu (olay bazlı)
-- [x] `pchome-desktop/src/main.rs`: bağlantı koptuğunda yeni PIN üret + HUD'a yansıt (background watcher)
+- [x] `PCHome-desktop/src/main.rs`: bağlantı koptuğunda yeni PIN üret + HUD'a yansıt (background watcher)
 - [x] `cargo check --features gui` temiz
 
 ## A3 — Telefon UI Material 3
@@ -29,7 +29,7 @@
 
 ## A4 — scripts/build-mobile.sh
 - [x] Tek satır: local.properties'ten URL oku → gradle assembleRelease
-- [x] Çıktı: `pchome-mobile/app/build/outputs/apk/release/app-release.apk`
+- [x] Çıktı: `PCHome-mobile/app/build/outputs/apk/release/app-release.apk`
 
 ## A5 — Release
 - [ ] `v0.0.2` tag → release workflow otomatik paketlesin (AppImage + APK + RPM + tar.gz)

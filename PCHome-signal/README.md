@@ -1,6 +1,6 @@
-# PChome Signal Server (Rust)
+# PCHome Signal Server (Rust)
 
-Lightweight WebSocket signaling relay for PChome P2P WebRTC handshake and 6-digit PIN authentication.
+Lightweight WebSocket signaling relay for PCHome P2P WebRTC handshake and 6-digit PIN authentication.
 
 ## Features
 
@@ -13,15 +13,15 @@ Lightweight WebSocket signaling relay for PChome P2P WebRTC handshake and 6-digi
 ## Getting Started
 
 ```bash
-cd pchome-signal
+cd PCHome-signal
 cargo build --release
-./target/release/pchome-signal
+./target/release/PCHome-signal
 # WS: ws://0.0.0.0:8080/ws   Health: http://0.0.0.0:8081/health
 ```
 
 ## Docker Deployment
 
 ```bash
-docker build -t pchome-signal .
-docker run -d -p 8080:8080 -p 8081:8081 pchome-signal
+docker build -t PCHome-signal .
+docker run -d -p 8080:8080 -p 8081:8081 PCHome-signal
 ```

@@ -1,4 +1,4 @@
-# PChome V2 Planı — Kalıcı ID + Son Girilenler + Neon Arayüz + OTA (v0.3.0)
+# PCHome V2 Planı — Kalıcı ID + Son Girilenler + Neon Arayüz + OTA (v0.3.0)
 
 > Durum: TÜM FAZLAR TAMAMLANDI (her faz Türkçe conventional commit + build/test ile kapatıldı).
 
@@ -6,10 +6,10 @@
 
 | Ne | Adres |
 |---|---|
-| Sinyal (WebSocket) | `wss://pchome.onrender.com/ws` |
-| Sağlık | `https://pchome.onrender.com/health` |
-| Ölçümler | `https://pchome.onrender.com/metrics` |
-| Sürüm (v2 sunucuda) | `https://pchome.onrender.com/version` |
+| Sinyal (WebSocket) | `wss://PCHome.onrender.com/ws` |
+| Sağlık | `https://PCHome.onrender.com/health` |
+| Ölçümler | `https://PCHome.onrender.com/metrics` |
+| Sürüm (v2 sunucuda) | `https://PCHome.onrender.com/version` |
 
 ## Fazlar ve kabul kriterleri
 
@@ -19,7 +19,7 @@
 - `GET /version` + kalıcı oda metriği. 6 birim + 1 relay testi YEŞİL.
 
 ### Faz 2 — Desktop kimlik ✅
-- `identity.rs`: ilk açılışta 6 haneli ID + şifre üretir, `~/.config/pchome/identity.toml` (0600).
+- `identity.rs`: ilk açılışta 6 haneli ID + şifre üretir, `~/.config/PCHome/identity.toml` (0600).
 - PIN rotasyonu KALDIRILDI; kopunca AYNI ID ile dönülür.
 - `join` → sabit-süreli şifre karşılaştırma → `auth_ok` (+cihaz kartı) / `auth_rejected`; 5 yanlışta 60 sn kilit.
 - `device.rs`: isim/IP/MAC/çözünürlük kartı. 10 test YEŞİL.

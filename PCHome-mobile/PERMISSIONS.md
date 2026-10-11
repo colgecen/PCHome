@@ -1,4 +1,4 @@
-# PChome Android Permissions Guide
+# PCHome Android Permissions Guide
 
 > **Note (current revision):** Phone-screen mirroring and AccessibilityService
 > gesture injection (`ScreenCaptureService` / `AndroidControlService`) were
@@ -72,8 +72,8 @@ Create `res/xml/accessibility_config.xml`:
     android:accessibilityEventTypes="all"
     android:canRetrieveWindowContent="true"
     android:notificationTimeout="100"
-    android:packageNames="com.pchome.mobile"
-    android:settingsActivity="com.pchome.mobile.ui.PinActivity" />
+    android:packageNames="com.PCHome.mobile"
+    android:settingsActivity="com.PCHome.mobile.ui.PinActivity" />
 ```
 
 ### foreground_service_config.xml
@@ -112,7 +112,7 @@ protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 
 ### Requesting Accessibility Permission
 ```java
-// Open Android System Accessibility Settings for user to enable PChome AccessibilityService
+// Open Android System Accessibility Settings for user to enable PCHome AccessibilityService
 Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 startActivity(intent);
@@ -129,10 +129,10 @@ startActivity(intent);
 ### Verify Permissions Are Granted
 ```bash
 # Check installed permissions
-adb shell pm list permissions -d -f com.pchome.mobile
+adb shell pm list permissions -d -f com.PCHome.mobile
 
 # Verify Accessibility is enabled
-adb shell settings put secure enabled_accessibility_services com.pchome.mobile/.service.AndroidControlService
+adb shell settings put secure enabled_accessibility_services com.PCHome.mobile/.service.AndroidControlService
 
 # Test screen capture
 adb shell screenrecord /sdcard/test.mp4 --time-limit 5

@@ -1,4 +1,4 @@
-# PChome Architectural Decisions (ADR)
+# PCHome Architectural Decisions (ADR)
 
 ## ADR-001: Language Selection per Module
 

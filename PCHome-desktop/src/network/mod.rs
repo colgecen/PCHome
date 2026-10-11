@@ -19,7 +19,7 @@ pub enum ConnectionState {
     Failed,
 }
 
-/// WebSocket client to the PChome Signal server (role=desktop). Relays SDP and
+/// WebSocket client to the PCHome Signal server (role=desktop). Relays SDP and
 /// ICE JSON messages and exposes the bidirectional channel used by the WebRTC
 /// engine for signaling. Oda anahtarı kalıcı PC kimliğidir (`pc_id`).
 pub struct ConnectionManager {

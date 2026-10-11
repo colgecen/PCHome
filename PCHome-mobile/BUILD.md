@@ -1,4 +1,4 @@
-# PChome Mobile Build Guide
+# PCHome Mobile Build Guide
 
 ## Prerequisites
 
@@ -20,7 +20,7 @@
 
 ```bash
 git clone https://github.com/yourorg/pchome.git
-cd pchome/pchome-mobile
+cd PCHome/PCHome-mobile
 ```
 
 ### 2. Generate Gradle Wrapper (if missing)
@@ -63,7 +63,7 @@ See `PERMISSIONS.md` for runtime permission flows.
 Ensure `org.webrtc:google-webrtc` version matches your target SDK.
 
 ### Accessibility Service Not Working
-Enable in Settings > Accessibility > PChome Accessibility Service.
+Enable in Settings > Accessibility > PCHome Accessibility Service.
 
 ### MediaProjection Denied
 Re-request projection permission from the app.

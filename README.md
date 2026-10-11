@@ -1,8 +1,8 @@
-# PChome
+# PCHome
 
 > Turn your Linux PC into a remote-controlled machine — stream the screen to your Android phone over a direct WebRTC connection and control mouse & keyboard from your pocket.
 
-PChome is a self-hosted remote control system consisting of three components: a Linux desktop daemon with a permanent PC ID and fixed password, an Android app that connects with ID + password and keeps a "Recent" grid with thumbnails, and a tiny WebSocket signaling server that pairs the two. Media never touches the server — it flows peer-to-peer. Both apps update themselves from GitHub Releases.
+PCHome is a self-hosted remote control system consisting of three components: a Linux desktop daemon with a permanent PC ID and fixed password, an Android app that connects with ID + password and keeps a "Recent" grid with thumbnails, and a tiny WebSocket signaling server that pairs the two. Media never touches the server — it flows peer-to-peer. Both apps update themselves from GitHub Releases.
 
 | | |
 |---|---|
@@ -26,7 +26,7 @@ PChome is a self-hosted remote control system consisting of three components: a 
 
 - **Low-latency P2P streaming** — screen video travels over a direct WebRTC peer connection; the relay only handles handshake.
 - **Hardware-accelerated encoding** — VA-API or NVENC H.264 on the desktop, MediaCodec on Android, automatic software fallback.
-- **Permanent PC ID + fixed password** — the desktop creates a 6-digit ID and 6-digit password once (`~/.config/pchome/identity.toml`); the phone connects with ID + password, no rotating PINs.
+- **Permanent PC ID + fixed password** — the desktop creates a 6-digit ID and 6-digit password once (`~/.config/PCHome/identity.toml`); the phone connects with ID + password, no rotating PINs.
 - **Recent grid** — the phone keeps the last PCs with a thumbnail square plus ID/IP/MAC underneath; tap to reconnect, long-press to delete.
 - **Remote input** — tap, swipe and hotkeys from the phone, injected via `/dev/uinput`.
 - **Zero-config cloud deploy** — ship the signal server anywhere with the included Dockerfile; `/health` and `/metrics` are served on the same port for platforms that expose only one.
@@ -37,7 +37,7 @@ PChome is a self-hosted remote control system consisting of three components: a 
 
 ```
 +------------------+   WebSocket    +----------------+   WebSocket    +----------------+
-| pchome-desktop   |<-------------->|  pchome-signal |<-------------->| pchome-mobile  |
+| PCHome-desktop   |<-------------->|  PCHome-signal |<-------------->| PCHome-mobile  |
 | capture + encode |  PIN register  | PIN room match |  join w/ PIN   | render + input |
 +------------------+                +----------------+                +----------------+
          \                                                                                /
@@ -70,9 +70,9 @@ cd PCHome
 ### Build the signal server
 
 ```bash
-cd pchome-signal
+cd PCHome-signal
 cargo build --release
-# binary: target/release/pchome-signal
+# binary: target/release/PCHome-signal
 ```
 
 Or with Docker:
@@ -84,21 +84,21 @@ docker compose up -d
 ### Build the desktop daemon
 
 ```bash
-cd pchome-desktop
+cd PCHome-desktop
 cargo build --release
 ```
 
-See [pchome-desktop/BUILD.md](pchome-desktop/BUILD.md) for system dependencies and udev rules.
+See [PCHome-desktop/BUILD.md](PCHome-desktop/BUILD.md) for system dependencies and udev rules.
 
 ### Build the Android app
 
 ```bash
-cd pchome-mobile
+cd PCHome-mobile
 ./gradlew assembleDebug
 # APK: app/build/outputs/apk/debug/app-debug.apk
 ```
 
-See [pchome-mobile/BUILD.md](pchome-mobile/BUILD.md) for details.
+See [PCHome-mobile/BUILD.md](PCHome-mobile/BUILD.md) for details.
 
 ## Usage
 
@@ -107,8 +107,8 @@ See [pchome-mobile/BUILD.md](pchome-mobile/BUILD.md) for details.
 Local development:
 
 ```bash
-cd pchome-signal
-./target/release/pchome-signal
+cd PCHome-signal
+./target/release/PCHome-signal
 # relay:  ws://0.0.0.0:8080/ws
 # health: http://0.0.0.0:8081/health
 ```
@@ -122,11 +122,11 @@ curl https://your-signal-host.example.com/health   # should print: OK
 ### 2. Start the desktop daemon
 
 ```bash
-cd pchome-desktop
-sudo ./target/release/pchome-desktop
+cd PCHome-desktop
+sudo ./target/release/PCHome-desktop
 ```
 
-An egui window opens showing the permanent PC ID and password. (`sudo` is needed for `/dev/uinput`; see [pchome-desktop/etc/udev/rules.d](pchome-desktop/etc/udev/rules.d) for passwordless setups.)
+An egui window opens showing the permanent PC ID and password. (`sudo` is needed for `/dev/uinput`; see [PCHome-desktop/etc/udev/rules.d](PCHome-desktop/etc/udev/rules.d) for passwordless setups.)
 
 ### 3. Connect the phone
 
@@ -140,7 +140,7 @@ Both apps check GitHub Releases automatically (desktop: 20 s after start, then e
 - **Mobile** — an update card appears on the connect screen; "Güncelle" downloads the APK and opens the system installer.
 - Every release also ships a `latest.json` with direct asset URLs, and the signal server reports its version at `GET /version`.
 
-Live signal server: `wss://pchome.onrender.com/ws` (health: `https://pchome.onrender.com/health`).
+Live signal server: `wss://PCHome.onrender.com/ws` (health: `https://PCHome.onrender.com/health`).
 
 ### One-liner for local development
 
@@ -176,16 +176,16 @@ Example:
 ```bash
 sudo env PCHOME_SIGNAL_URL=wss://your-signal-host.example.com/ws \
          PCHOME_BITRATE=8000000 \
-    ./target/release/pchome-desktop
+    ./target/release/PCHome-desktop
 ```
 
 ## Project Structure
 
 ```
 PCHome/
-├── pchome-desktop/   # Linux daemon: capture, encode, uinput input, egui HUD
-├── pchome-mobile/    # Android app: WebRTC rendering + touchpad overlay
-├── pchome-signal/    # WebSocket signaling relay with PIN rooms
+├── PCHome-desktop/   # Linux daemon: capture, encode, uinput input, egui HUD
+├── PCHome-mobile/    # Android app: WebRTC rendering + touchpad overlay
+├── PCHome-signal/    # WebSocket signaling relay with PIN rooms
 ├── scripts/          # Helper scripts (local run, e2e smoke test, TLS certs)
 ├── docker-compose.yml
 └── Makefile          # make run / build / test / clean
@@ -198,10 +198,10 @@ Module-specific documentation lives next to the code: [`ARCHITECTURE.md`](ARCHIT
 ```bash
 make test                      # desktop + signal
 
-cd pchome-signal && cargo test --release     # includes a live relay roundtrip test
-cd pchome-desktop && cargo test --all-targets --all-features
+cd PCHome-signal && cargo test --release     # includes a live relay roundtrip test
+cd PCHome-desktop && cargo test --all-targets --all-features
 
-cd pchome-mobile && ./gradlew test           # Android unit tests
+cd PCHome-mobile && ./gradlew test           # Android unit tests
 ./scripts/e2e-test.sh                        # full-stack smoke test
 ```
 
