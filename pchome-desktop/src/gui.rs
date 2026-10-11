@@ -1,8 +1,11 @@
 use crate::local_input::LocalClicker;
 use crate::state::SharedState;
 use crate::theme;
+use crate::updater::UpdateInfo;
 use eframe::egui;
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::{Duration, Instant};
 
 /// Masaüstü GUI giriş noktası (ana iş parçacığında winit döngüsünü bloklar).
@@ -32,6 +35,7 @@ pub fn run(state: SharedState) {
                 format!("v{} — güncellemeler denetleniyor…", crate::updater::current_version());
             let updater_state = state.clone();
             crate::updater::spawn_background_checker(updater_state);
+            let (update_tx, update_rx) = channel();
             Ok(Box::new(DesktopGui {
                 state,
                 signal_url,
@@ -48,6 +52,9 @@ pub fn run(state: SharedState) {
                 clicker: None,
                 press_start: None,
                 press_fired: false,
+                update_modal: UpdateModalState::Closed,
+                update_tx,
+                update_rx,
             }))
         }),
     );
@@ -82,6 +89,32 @@ struct DesktopGui {
     clicker: Option<LocalClicker>,
     press_start: Option<(Instant, egui::Pos2)>,
     press_fired: bool,
+    update_modal: UpdateModalState,
+    update_tx: Sender<UpdateEvent>,
+    update_rx: Receiver<UpdateEvent>,
+}
+
+/// Güncelleme modalının durum makinesi. Kurulum bitmeden modal
+/// kapatılamaz ve uygulama sonlandırılamaz (kilit aşağıda uygulanır).
+enum UpdateModalState {
+    Closed,
+    Idle,
+    Checking,
+    Available { info: UpdateInfo, size: String },
+    UpToDate,
+    Busy { phase: String },
+    Failed { msg: String },
+}
+
+impl UpdateModalState {
+    fn busy(&self) -> bool {
+        matches!(self, UpdateModalState::Checking | UpdateModalState::Busy { .. })
+    }
+}
+
+enum UpdateEvent {
+    Checked(Result<(Option<UpdateInfo>, String), String>),
+    Installed(Result<PathBuf, String>),
 }
 
 /// Epoch saniyeyi "14:32" biçimine çevirir (0 = hiç).
@@ -147,7 +180,13 @@ impl DesktopGui {
                         });
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if theme::danger_button_auto(ui, "⏻ Kapat").clicked() {
-                            self.state.terminate.store(true, Ordering::SeqCst);
+                            if self.update_modal.busy() {
+                                self.state.push_event(
+                                    "kurulum bitmeden kapatılamaz — bekle".to_string(),
+                                );
+                            } else {
+                                self.state.terminate.store(true, Ordering::SeqCst);
+                            }
                         }
                         if theme::ghost_button_auto(ui, "⚙ Ayarlar").clicked() {
                             self.new_pc_name = self.state.pc_name.lock().unwrap().clone();
@@ -285,22 +324,165 @@ impl DesktopGui {
                     .color(if has_update { theme::success() } else { theme::muted() }),
             );
             ui.add_space(6.0);
-            if theme::ghost_button(ui, "🔍 Güncellemeyi denetle").clicked() {
-                let st = self.state.clone();
-                std::thread::spawn(move || crate::updater::check_once(&st));
+            if theme::ghost_button(ui, "🔍 Güncellemeleri kontrol et").clicked() {
+                self.update_modal = UpdateModalState::Idle;
             }
-            if has_update {
-                ui.add_space(4.0);
-                if theme::neon_button(ui, "⬆ Şimdi güncelle").clicked() {
-                    let st = self.state.clone();
-                    std::thread::spawn(move || {
-                        if let Err(e) = crate::updater::install_update(&st) {
-                            *st.update_status.lock().unwrap() =
-                                format!("güncelleme kurulamadı: {}", e);
+        });
+    }
+
+    /// Güncelleme modalı: denetle → sonuç → kur (kilitli) → otomatik yeniden başlat.
+    fn update_modal_window(&mut self, ctx: &egui::Context) {
+        if matches!(self.update_modal, UpdateModalState::Closed) {
+            return;
+        }
+        // Olay pompası: arka plan iş parçacıklarından gelen sonuçlar.
+        while let Ok(ev) = self.update_rx.try_recv() {
+            match ev {
+                UpdateEvent::Checked(Ok((info, size))) => {
+                    match info {
+                        Some(info) => {
+                            self.state.push_event(format!("güncelleme bulundu: {}", info.version));
+                            self.update_modal = UpdateModalState::Available { info, size };
                         }
-                    });
+                        None => self.update_modal = UpdateModalState::UpToDate,
+                    }
+                }
+                UpdateEvent::Checked(Err(msg)) => {
+                    self.update_modal = UpdateModalState::Failed { msg };
+                }
+                UpdateEvent::Installed(Ok(path)) => {
+                    self.state.push_event("güncelleme kuruldu, yeniden başlatılıyor".to_string());
+                    crate::updater::relaunch(&path);
+                }
+                UpdateEvent::Installed(Err(msg)) => {
+                    self.update_modal = UpdateModalState::Failed { msg };
                 }
             }
+        }
+
+        let locked = self.update_modal.busy();
+        egui::Window::new("⬆ Güncelleme")
+            .resizable(false)
+            .collapsible(false)
+            .min_width(430.0)
+            .show(ctx, |ui| {
+                match &self.update_modal {
+                    UpdateModalState::Closed => {}
+                    UpdateModalState::Idle => {
+                        ui.label("GitHub üzerindeki en son sürüm denetlenecek.");
+                        ui.add_space(8.0);
+                        if theme::neon_button(ui, "🔍 Kontrol et").clicked() {
+                            self.start_check();
+                        }
+                    }
+                    UpdateModalState::Checking => {
+                        ui.horizontal(|ui| {
+                            ui.add(egui::Spinner::new());
+                            ui.label("denetleniyor…");
+                        });
+                    }
+                    UpdateModalState::Available { info, size } => {
+                        ui.label(
+                            egui::RichText::new(format!("⬆ Yeni sürüm VAR: {}", info.version))
+                                .strong()
+                                .size(17.0)
+                                .color(theme::success()),
+                        );
+                        ui.label(
+                            egui::RichText::new(format!("indirme boyutu: {}", size))
+                                .small()
+                                .color(theme::muted()),
+                        );
+                        if !info.notes.trim().is_empty() {
+                            ui.add_space(4.0);
+                            let notes: String = info.notes.chars().take(800).collect();
+                            egui::ScrollArea::vertical().max_height(140.0).show(ui, |ui| {
+                                ui.label(egui::RichText::new(notes).small());
+                            });
+                        }
+                        ui.add_space(8.0);
+                        if theme::neon_button(ui, &format!("⬆ Şimdi güncelle ({})", info.version)).clicked() {
+                            self.start_install();
+                        }
+                    }
+                    UpdateModalState::UpToDate => {
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "✓ Zaten güncel (v{})",
+                                crate::updater::current_version()
+                            ))
+                            .strong()
+                            .color(theme::success()),
+                        );
+                    }
+                    UpdateModalState::Busy { phase } => {
+                        ui.horizontal(|ui| {
+                            ui.add(egui::Spinner::new());
+                            ui.label(egui::RichText::new(phase).strong());
+                        });
+                        ui.add_space(4.0);
+                        ui.label(
+                            egui::RichText::new("⛔ Kurulum bitmeden bu ekrandan çıkma!")
+                                .color(theme::danger())
+                                .strong(),
+                        );
+                    }
+                    UpdateModalState::Failed { msg } => {
+                        ui.label(
+                            egui::RichText::new(format!("❌ {}", msg))
+                                .color(theme::danger())
+                                .strong(),
+                        );
+                        ui.add_space(8.0);
+                        if theme::ghost_button(ui, "↻ Tekrar dene").clicked() {
+                            self.update_modal = UpdateModalState::Idle;
+                        }
+                    }
+                }
+                // Meşgulken kapatma düğmesi YOK (kilit).
+                if !locked {
+                    ui.add_space(8.0);
+                    if theme::ghost_button(ui, "Kapat").clicked() {
+                        self.update_modal = UpdateModalState::Closed;
+                    }
+                }
+            });
+    }
+
+    fn start_check(&mut self) {
+        self.update_modal = UpdateModalState::Checking;
+        let tx = self.update_tx.clone();
+        std::thread::spawn(move || {
+            let out: Result<(Option<UpdateInfo>, String), String> = (|| {
+                let info = crate::updater::check_for_update().map_err(|e| e.to_string())?;
+                let size = info
+                    .as_ref()
+                    .and_then(|i| {
+                        let url = if std::env::var_os("APPIMAGE").is_some() {
+                            &i.appimage_url
+                        } else {
+                            &i.tarball_url
+                        };
+                        crate::updater::asset_size(url)
+                    })
+                    .map(crate::updater::human_size)
+                    .unwrap_or_else(|| "bilinmiyor".to_string());
+                Ok((info, size))
+            })();
+            let _ = tx.send(UpdateEvent::Checked(out));
+        });
+    }
+
+    fn start_install(&mut self) {
+        self.update_modal = UpdateModalState::Busy {
+            phase: "indiriliyor…".to_string(),
+        };
+        let tx = self.update_tx.clone();
+        let st = self.state.clone();
+        std::thread::spawn(move || {
+            // Kurulum tek çağrıda iner + kurulur; bitince Done → relaunch.
+            let out = crate::updater::install_update(&st).map_err(|e| e.to_string());
+            let _ = tx.send(UpdateEvent::Installed(out));
         });
     }
 
@@ -706,6 +888,7 @@ impl eframe::App for DesktopGui {
         self.events_bottom(ctx);
         self.central(ctx);
         self.settings_window(ctx);
+        self.update_modal_window(ctx);
         ctx.request_repaint_after(Duration::from_millis(200));
     }
 }
