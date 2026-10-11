@@ -9,7 +9,9 @@ use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
 mod config;
+mod device;
 mod encoder;
+mod identity;
 mod metrics;
 mod network;
 mod pin;
@@ -67,54 +69,64 @@ fn main() -> Result<()> {
 async fn daemon(state: SharedState) {
     let config = config::Config::from_env().unwrap_or_default();
     *state.resolution.lock().unwrap() = format!("{}x{}", config.capture_width, config.capture_height);
-    *state.local_ip.lock().unwrap() = first_non_loopback_ip();
+    *state.local_ip.lock().unwrap() = device::local_ip();
 
     crate::metrics::serve(config.metrics_addr);
 
-    let pin_manager = pin::PinManager::new();
-    pin_manager.start().await.ok();
-    let pin = match pin_manager.generate_and_register().await {
-        Ok(p) => p,
+    // Kalıcı kimlik: ilk açılışta üretilir, dosyada saklanır, asla dönmez.
+    let id = match identity::Identity::load_or_create() {
+        Ok(id) => id,
         Err(e) => {
-            log::error!("PIN generation failed: {}", e);
+            log::error!("kalıcı kimlik açılamadı: {}", e);
             return;
         }
     };
-    state.pin.store(pin, Ordering::SeqCst);
-    log::info!("Registered PIN: {:06}", pin);
+    *state.pc_id.lock().unwrap() = id.pc_id.clone();
+    *state.password.lock().unwrap() = id.password.clone();
+    *state.pc_name.lock().unwrap() = id.pc_name.clone();
+    state.pin.store(
+        id.pc_id.parse().unwrap_or(0),
+        Ordering::SeqCst,
+    );
+    log::info!("PC kimliği: {} ({}), sinyal: {}", id.pc_id, id.pc_name, config.signal_url);
 
     let connection = Arc::new(ConnectionManager::new(config.signal_url.clone()));
-    if let Err(e) = connection.connect(pin).await {
-        log::warn!("Signal connect failed: {}", e);
-        *state.status.lock().unwrap() = "SIGNAL: FAIL".to_string();
+    if let Err(e) = connection.connect(&id.pc_id).await {
+        log::warn!("sinyal bağlantısı kurulamadı: {}", e);
+        *state.status.lock().unwrap() = "SİNYAL: BAŞARISIZ".to_string();
     } else {
-        *state.status.lock().unwrap() = "SIGNAL: OK".to_string();
+        *state.status.lock().unwrap() = "SİNYAL: BAĞLI".to_string();
     }
 
-    // Event-driven PIN rotation: when the signal connection drops we generate
-    // a fresh PIN so a stale number never lingers in the HUD after a peer
-    // disconnects. The signal server already TTL-evicts empty rooms, but
-    // without a new PIN the desktop would keep advertising the old one.
+    // Yeniden bağlanma gözcüsü: bağlantı koparsa AYNI kalıcı ID ile dönülür.
+    // (Eski PIN rotasyonu kaldırıldı: ID/şifre sabittir, telefonda kayıtlı
+    // "Son Girilenler" kartı geçersiz kalmaz.)
     {
-        let pin_manager = Arc::new(pin_manager);
         let connection = Arc::clone(&connection);
         let state = Arc::clone(&state);
         tokio::spawn(async move {
-            let mut was_connected = true;
             loop {
-                tokio::time::sleep(Duration::from_secs(2)).await;
+                tokio::time::sleep(Duration::from_secs(3)).await;
+                if state.terminate.load(Ordering::SeqCst) {
+                    break;
+                }
                 let current = connection.state().await;
-                if was_connected && current != network::ConnectionState::Connected {
-                    if let Ok(new_pin) = pin_manager.generate_and_register().await {
-                        state.pin.store(new_pin, Ordering::SeqCst);
-                        state.push_event(format!("PIN rotated: {:06}", new_pin));
-                        log::info!("PIN rotated on disconnect: {:06}", new_pin);
+                if current != network::ConnectionState::Connected {
+                    let pc_id = state.pc_id.lock().unwrap().clone();
+                    if pc_id.is_empty() {
+                        continue;
                     }
-                    if let Err(e) = connection.connect(state.pin.load(Ordering::SeqCst)).await {
-                        log::warn!("reconnect after PIN rotation failed: {}", e);
+                    match connection.connect(&pc_id).await {
+                        Ok(()) => {
+                            *state.status.lock().unwrap() = "SİNYAL: BAĞLI".to_string();
+                            state.push_event("sinyale yeniden bağlanıldı".to_string());
+                        }
+                        Err(e) => {
+                            *state.status.lock().unwrap() = "SİNYAL: YENİDEN DENENİYOR".to_string();
+                            log::debug!("yeniden bağlanma denemesi başarısız: {}", e);
+                        }
                     }
                 }
-                was_connected = current == network::ConnectionState::Connected;
             }
         });
     }
@@ -217,17 +229,4 @@ async fn daemon(state: SharedState) {
 #[cfg(not(feature = "webrtc"))]
 async fn daemon(_state: SharedState) {
     log::warn!("WebRTC feature disabled; nothing to do");
-}
-
-/// Best-effort local LAN address: opens a UDP socket towards a public IP
-/// (no packets are sent) and reads the bound local address.
-fn first_non_loopback_ip() -> String {
-    if let Ok(s) = std::net::UdpSocket::bind("0.0.0.0:0") {
-        if s.connect("8.8.8.8:80").is_ok() {
-            if let Ok(addr) = s.local_addr() {
-                return addr.ip().to_string();
-            }
-        }
-    }
-    "127.0.0.1".to_string()
 }

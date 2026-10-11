@@ -20,7 +20,7 @@ pub enum ConnectionState {
 
 /// WebSocket client to the PChome Signal server (role=desktop). Relays SDP and
 /// ICE JSON messages and exposes the bidirectional channel used by the WebRTC
-/// engine for signaling.
+/// engine for signaling. Oda anahtarı kalıcı PC kimliğidir (`pc_id`).
 pub struct ConnectionManager {
     state: RwLock<ConnectionState>,
     signal_url: String,
@@ -41,7 +41,9 @@ impl ConnectionManager {
         }
     }
 
-    pub async fn connect(&self, pin: u32) -> Result<()> {
+    /// Sinyal sunucusuna kalıcı PC kimliğiyle bağlanır. Bağlantı kopsa bile
+    /// aynı ID ile dönülür; ID asla döndürülmez (PIN rotasyonu kaldırıldı).
+    pub async fn connect(&self, pc_id: &str) -> Result<()> {
         {
             let mut state = self.state.write().await;
             if *state == ConnectionState::Connected {
@@ -50,14 +52,17 @@ impl ConnectionManager {
             *state = ConnectionState::Connecting;
         }
 
-        let pin_str = format!("{:06}", pin);
+        let clean: String = pc_id.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
+        if clean.is_empty() {
+            anyhow::bail!("geçersiz PC kimliği");
+        }
         // Accept both ws://host[:port] and ws://host[:port]/ws spellings
         // without ever producing a doubled /ws/ws path.
         let base = self.signal_url.trim_end_matches('/');
         let url = if base.ends_with("/ws") {
-            format!("{}?pin={}&role=desktop", base, pin_str)
+            format!("{}?pc_id={}&role=desktop", base, clean)
         } else {
-            format!("{}/ws?pin={}&role=desktop", base, pin_str)
+            format!("{}/ws?pc_id={}&role=desktop", base, clean)
         };
         log::info!("Connecting to signal server at {}", url);
 

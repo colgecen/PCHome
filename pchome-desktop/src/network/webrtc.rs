@@ -2,7 +2,7 @@ use anyhow::Result;
 use bytes::Bytes;
 use serde_json::{Value, json};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 use webrtc::api::APIBuilder;
 use webrtc::data_channel::data_channel_init::RTCDataChannelInit;
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
@@ -164,17 +164,78 @@ impl WebRtcEngine {
         }))
     }
 
-    /// Drives the signaling exchange: waits for the mobile `hello`, then offers,
-    /// and applies the returned `answer` + `ice-candidate`s. Also emits a
-    /// periodic ping over the control DataChannel so the GUI can display RTT.
+    /// Sinyal akışını sürer: mobil önce `join` (ID + şifre) gönderir, şifre
+    /// doğrulanınca `auth_ok` dönülür; ardından mobilin `hello` mesajı üzerine
+    /// offer üretilir, `answer` + `ice-candidate` uygulanır. 5 yanlış şifrede
+    /// 60 sn kilit devreye girer. Ayrıca periyodik ping ile RTT ölçülür.
     pub async fn run(self: Arc<Self>) -> Result<()> {
         self.spawn_ping_loop();
         let incoming = self.connection.incoming();
         let mut rx = incoming.lock().await;
+        let mut authed = false;
+        let mut fails = 0u32;
+        let mut lockout_until: Option<Instant> = None;
         while let Some(msg) = rx.recv().await {
             let typ = msg.get("type").and_then(|v| v.as_str()).unwrap_or("");
             match typ {
+                "join" => {
+                    if let Some(until) = lockout_until {
+                        if Instant::now() < until {
+                            self.connection
+                                .send_json(&json!({ "type": "auth_rejected", "reason": "kilitli, 60 sn bekleyin" }))
+                                .await;
+                            continue;
+                        } else {
+                            lockout_until = None;
+                            fails = 0;
+                        }
+                    }
+                    let candidate = msg.get("password").and_then(|v| v.as_str()).unwrap_or("");
+                    let expected = self.state.password.lock().unwrap().clone();
+                    if crate::identity::verify_password(&expected, candidate) {
+                        authed = true;
+                        fails = 0;
+                        let (pc_id, pc_name) = (
+                            self.state.pc_id.lock().unwrap().clone(),
+                            self.state.pc_name.lock().unwrap().clone(),
+                        );
+                        self.connection
+                            .send_json(&crate::device::auth_ok_json(
+                                &pc_id, &pc_name, self.width, self.height,
+                            ))
+                            .await;
+                        self.state.push_event("telefon doğrulandı, offer bekleniyor".to_string());
+                        log::info!("mobil doğrulandı (pc_id={})", pc_id);
+                    } else {
+                        fails += 1;
+                        if fails >= 5 {
+                            lockout_until = Some(Instant::now() + Duration::from_secs(60));
+                            self.state.push_event("5 yanlış şifre: 60 sn kilit".to_string());
+                            log::warn!("art arda 5 yanlış şifre, 60 sn kilit");
+                        }
+                        self.connection
+                            .send_json(&json!({ "type": "auth_rejected", "reason": "şifre hatalı" }))
+                            .await;
+                    }
+                }
+                "get_device_info" => {
+                    if authed {
+                        let (pc_id, pc_name) = (
+                            self.state.pc_id.lock().unwrap().clone(),
+                            self.state.pc_name.lock().unwrap().clone(),
+                        );
+                        self.connection
+                            .send_json(&crate::device::device_info_json(
+                                &pc_id, &pc_name, self.width, self.height,
+                            ))
+                            .await;
+                    }
+                }
                 "hello" => {
+                    if !authed {
+                        log::warn!("yetkisiz hello yoksayıldı (önce join gerekli)");
+                        continue;
+                    }
                     if let Err(e) = self.create_offer().await {
                         log::warn!("create_offer failed: {}", e);
                     }

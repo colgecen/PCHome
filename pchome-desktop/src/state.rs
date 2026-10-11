@@ -5,7 +5,13 @@ use std::sync::{Arc, Mutex};
 /// Shared, cross-thread state between the daemon tasks and the egui GUI.
 #[derive(Default)]
 pub struct AppState {
-    /// 6-digit PIN shown to the user.
+    /// Kalıcı 6 haneli PC kimliği (telefonda ID alanına yazılır).
+    pub pc_id: Mutex<String>,
+    /// Sabit 6 haneli bağlantı şifresi.
+    pub password: Mutex<String>,
+    /// Dostça PC adı.
+    pub pc_name: Mutex<String>,
+    /// Eski geçici PIN alanı (geriye uyumluluk için tutulur, kullanılmaz).
     pub pin: AtomicU32,
     /// Connection status string, e.g. "SIGNAL: OK".
     pub status: Mutex<String>,
@@ -25,6 +31,8 @@ pub struct AppState {
     pub terminate: AtomicBool,
     /// Latest captured resolution string for the preview panel.
     pub resolution: Mutex<String>,
+    /// Güncelleme durumu satırı ("güncel", "vX.Y.Z mevcut", ...).
+    pub update_status: Mutex<String>,
 }
 
 impl AppState {
