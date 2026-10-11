@@ -58,3 +58,44 @@ async fn relay_between_peers() {
     let _ = child.kill();
     let _ = child.wait();
 }
+
+/// Kalp atışı: TICK_SECS=1 ile çalışan sunucu, odadaki iki uca da
+/// düzenli `tick` yollar (istemciler sessizliği ölü soket sayar).
+#[tokio::test]
+async fn tick_reaches_both_peers() {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_PCHome-signal"))
+        .env("PORT", "18081")
+        .env("HEALTH_PORT", "18082")
+        .env("TICK_SECS", "1")
+        .env("RUST_LOG", "warn")
+        .spawn()
+        .expect("failed to spawn signal server");
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    async fn open81(
+        role: &str,
+    ) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<TcpStream>> {
+        let url = format!("ws://127.0.0.1:18081/ws?pin=654321&role={}", role);
+        let (ws, _) = tokio_tungstenite::connect_async(url).await.unwrap();
+        ws
+    }
+
+    let mut desktop = open81("desktop").await;
+    let mut mobile = open81("mobile").await;
+
+    for (name, ws) in [("desktop", &mut desktop), ("mobile", &mut mobile)] {
+        let got = tokio::time::timeout(Duration::from_secs(5), ws.next())
+            .await
+            .unwrap_or_else(|_| panic!("{} uca tick gelmedi", name))
+            .unwrap()
+            .unwrap();
+        assert!(
+            got.to_text().unwrap().contains("\"tick\""),
+            "{} tick almalıydı",
+            name
+        );
+    }
+
+    let _ = child.kill();
+    let _ = child.wait();
+}

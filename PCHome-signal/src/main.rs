@@ -42,6 +42,17 @@ const PERSISTENT_MAX_AGE_SECS: u64 = 24 * 3600;
 /// Dakika başına IP başına yeni bağlantı kayan penceresi.
 const RATE_WINDOW_SECS: u64 = 60;
 
+/// Kalp atışı aralığı (sn). Sunucu bağlı her uca düzenli `tick` yollar;
+/// istemciler uzun sessizliği ölü soket sayıp yeniden bağlanır.
+/// Ayrıca Render gibi platformların boş-soket zaman aşımını sıfırlar.
+/// Testler `TICK_SECS` ortam değişkeniyle kısaltabilir.
+fn tick_secs() -> u64 {
+    std::env::var("TICK_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(25)
+}
+
 #[derive(Default)]
 struct RateLimiter {
     /// ip -> kabul edilen son bağlantıların zaman damgaları.
@@ -200,6 +211,33 @@ async fn main() -> Result<()> {
                 reg.rooms.retain(|_, room| !room.is_expired());
                 if before != reg.rooms.len() {
                     log::info!("oda süpürücü: {} bayat oda atıldı", before - reg.rooms.len());
+                }
+            }
+        });
+    }
+
+    // Kalp atışı: bağlı her uca düzenli tick (istemciler sessizliği
+    // ölü soket sayar; iki taraf da bilinmeyen türü yoksayar).
+    {
+        let registry = Arc::clone(&registry);
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(tick_secs()));
+            loop {
+                interval.tick().await;
+                let peers: Vec<Tx> = {
+                    let reg = registry.lock().await;
+                    reg.rooms
+                        .values()
+                        .flat_map(|r| [r.desktop.clone(), r.mobile.clone()])
+                        .flatten()
+                        .collect()
+                };
+                if peers.is_empty() {
+                    continue;
+                }
+                let tick = Message::Text(r#"{"type":"tick"}"#.to_string());
+                for tx in peers {
+                    let _ = tx.send(tick.clone());
                 }
             }
         });
