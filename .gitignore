@@ -1,4 +1,5 @@
 # Binaries / build output
+dist/
 pchome-desktop/target/
 pchome-signal/bin/
 pchome-signal/pchome-signal

@@ -1,0 +1,475 @@
+#!/usr/bin/env bash
+#
+# pchome — PChome interaktif derleme aracı
+#
+# Kullanim:
+#   ./pchome                      -> interaktif menü (bilesen sec -> format sec -> derle)
+#   ./pchome --list               -> tüm derleme seceneklerini listele
+#   ./pchome all                  -> ücünü de derle (desktop AppImage + signal tar.gz + mobile APK)
+#   ./pchome desktop appimage     -> direkt derle (argümanli, menüsüz)
+#   ./pchome desktop targz
+#   ./pchome signal targz
+#   ./pchome mobile apk
+#   ./pchome --install            -> ~/.local/bin'e sembolik bag kur,
+#                                    sonra her klasörden `pchome` yazman yeterli
+#   ./pchome --doctor             -> derleme ortamini denetle (rust, jdk17, sdk...)
+#   ./pchome --help               -> yardim
+#
+# Ciktilar hep tek klasöre: ./dist/
+#   dist/PChome-<sürüm>-x86_64.AppImage
+#   dist/pchome-desktop-<sürüm>-x86_64.tar.gz
+#   dist/pchome-signal-<sürüm>-x86_64.tar.gz
+#   dist/pchome-mobile-<sürüm>.apk
+#   dist/latest.json
+#
+# Gecerli hedefler:
+#   desktop : appimage | targz | rpm | binary
+#   signal  : targz | binary
+#   mobile  : apk
+#   all     : (appimage + targz + apk)
+#
+set -euo pipefail
+
+# Sürüm: öntanimli masaüstü Cargo.toml'dan okunur, VERSION= ile ezilebilir.
+default_version() {
+  grep -m1 '^version' "$ROOT/pchome-desktop/Cargo.toml" 2>/dev/null | cut -d'"' -f2
+}
+# ROOT = bu scriptin bulundugu repo kökü. $0 symlink (örn. ~/.local/bin)
+# uzerinden cagrilabilir, o yüzden tüm symlink'ler cözülür.
+resolve_root() {
+  local src="${BASH_SOURCE[0]}"
+  while [ -L "$src" ]; do
+    local dir
+    dir="$(cd -P "$(dirname "$src")" && pwd)"
+    src="$(readlink "$src")"
+    [[ "$src" != /* ]] && src="$dir/$src"
+  done
+  cd -P "$(dirname "$src")" && pwd
+}
+ROOT="$(resolve_root)"
+VERSION="${VERSION:-$(default_version)}"
+VERSION="${VERSION:-0.3.0}"
+DIST="$ROOT/dist"
+
+banner() {
+  echo "=============================================="
+  echo "  PChome — derleme araci  v$VERSION"
+  echo "=============================================="
+}
+
+usage() {
+  banner
+  echo
+  echo "Kullanim:"
+  echo "  ./pchome                       Interaktif menü"
+  echo "  ./pchome <bilesen> <format>    Direkt derle"
+  echo "  ./pchome all                   Ücünü de derle (cikti: ./dist/)"
+  echo "  ./pchome --list                Secenekleri listele"
+  echo "  ./pchome --doctor              Ortami denetle"
+  echo "  ./pchome --install             Komutu sisteme kur (her yerden 'pchome')"
+  echo "  ./pchome --help                Bu yardim"
+  echo
+  echo "Hedefler:"
+  echo "  desktop : appimage | targz | rpm | binary"
+  echo "  signal  : targz | binary"
+  echo "  mobile  : apk"
+  echo
+  echo "Ornekler:"
+  echo "  ./pchome desktop appimage"
+  echo "  ./pchome signal targz"
+  echo "  ./pchome mobile apk"
+  echo "  VERSION=0.3.0 ./pchome all"
+}
+
+list_targets() {
+  echo "desktop : appimage (.AppImage) | targz (.tar.gz) | rpm (.rpm) | binary (ikili dosya)"
+  echo "signal  : targz (.tar.gz) | binary (ikili dosya)"
+  echo "mobile  : apk (.apk, debug)"
+  echo "all     : desktop appimage + signal targz + mobile apk  ->  ./dist/"
+}
+
+do_install() {
+  local bindir="$HOME/.local/bin"
+  mkdir -p "$bindir"
+  ln -sf "$ROOT/pchome" "$bindir/pchome"
+  echo "Kuruldu: $bindir/pchome -> $ROOT/pchome"
+  case ":$PATH:" in
+    *":$bindir:"*) echo "PATH zaten '$bindir' iceriyor. Artik her klasorden 'pchome' yazabilirsin." ;;
+    *)
+      echo "NOT: '$bindir' PATH'te yok. Su satiri ~/.bashrc'ye ekle:"
+      echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+      echo "Sonra yeni terminal ac ya da: source ~/.bashrc"
+      ;;
+  esac
+}
+
+need_cmd() {
+  if ! command -v "$1" &>/dev/null; then
+    echo "EKSIK: $1 ($2)"
+    return 1
+  fi
+  echo "OK: $1"
+  return 0
+}
+
+do_doctor() {
+  banner
+  echo
+  echo "--- Derleme ortami ---"
+  local ok=0
+  need_cmd cargo "kur: rustup (https://rustup.rs)" || ok=1
+  need_cmd curl "kur: sudo dnf install curl" || ok=1
+  echo
+  echo "--- Android (yalniz mobile apk icin) ---"
+  if ensure_java17 >/dev/null 2>&1; then
+    echo "OK: JDK 17 ($(java17_bin))"
+  else
+    echo "EKSIK: JDK 17 (mobile derlenemez; ilk mobile derlemesinde otomatik indirilir)"
+  fi
+  if [ -n "${ANDROID_HOME:-}${ANDROID_SDK_ROOT:-}" ] || [ -d "$HOME/android-sdk" ] || [ -d "$HOME/Android/Sdk" ]; then
+    echo "OK: Android SDK"
+  else
+    echo "EKSIK: Android SDK (local.properties'te sdk.dir olmali)"
+    ok=1
+  fi
+  echo
+  echo "--- Istege bagli ---"
+  command -v rpmbuild &>/dev/null && echo "OK: rpmbuild" || echo "yok: rpmbuild (yalniz 'desktop rpm' icin gerekli)"
+  command -v upx &>/dev/null && echo "OK: upx" || echo "yok: upx (sart degil, varsa ikili kücültülür)"
+  [ -x "$ROOT/appimagetool" ] && echo "OK: appimagetool (repo kökünde)" || echo "yok: appimagetool (ilk AppImage derlemesinde indirilir)"
+  echo
+  if [ "$ok" -eq 0 ]; then
+    echo "Ortam hazir."
+  else
+    echo "Eksikler var, yukaridaki NOT'lari uygula."
+  fi
+  return "$ok"
+}
+
+# --- JDK 17 (Gradle 8.2 + AGP 8.2 sarti) ---
+JAVA17_HOME=""
+java17_bin() { echo "$JAVA17_HOME/bin/java"; }
+
+ensure_java17() {
+  if [ -n "$JAVA17_HOME" ] && [ -x "$JAVA17_HOME/bin/java" ]; then
+    return 0
+  fi
+  # 1) Sistemde zaten JDK 17 var mi?
+  for c in java "$HOME/.local/bin/java"; do
+    if command -v "$c" &>/dev/null; then
+      local major
+      major="$("$c" -version 2>&1 | head -n1 | grep -oE '"[0-9]+' | tr -d '"' || true)"
+      if [ "$major" = "17" ]; then
+        JAVA17_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v "$c")")")")"
+        return 0
+      fi
+    fi
+  done
+  # 2) Önceki indirme önbellegi
+  if [ -x "$HOME/.cache/pchome/jdk17/bin/java" ]; then
+    JAVA17_HOME="$HOME/.cache/pchome/jdk17"
+    return 0
+  fi
+  # 3) Temurin 17 indir (~190MB, bir kez)
+  echo "==> JDK 17 indiriliyor (bir kez, ~/.cache/pchome/)..."
+  mkdir -p "$HOME/.cache/pchome"
+  local tgz="$HOME/.cache/pchome/jdk17.tar.gz"
+  curl -sSL -m 900 -o "$tgz" \
+    "https://api.adoptium.net/v3/binary/latest/17/ga/linux/x64/jdk/hotspot/normal/eclipse" || {
+    echo "HATA: JDK 17 indirilemedi. Elle kurup JAVA_HOME'u isaret et."
+    return 1
+  }
+  rm -rf "$HOME/.cache/pchome/jdk17-tmp"
+  mkdir -p "$HOME/.cache/pchome/jdk17-tmp"
+  tar -xzf "$tgz" -C "$HOME/.cache/pchome/jdk17-tmp"
+  rm -rf "$HOME/.cache/pchome/jdk17"
+  mv "$HOME/.cache/pchome/jdk17-tmp"/*/ "$HOME/.cache/pchome/jdk17"/ 2>/dev/null || \
+    mv "$HOME/.cache/pchome/jdk17-tmp/$(ls "$HOME/.cache/pchome/jdk17-tmp")" "$HOME/.cache/pchome/jdk17"
+  rm -rf "$HOME/.cache/pchome/jdk17-tmp" "$tgz"
+  JAVA17_HOME="$HOME/.cache/pchome/jdk17"
+  echo "==> JDK 17 hazir: $JAVA17_HOME"
+}
+
+build_desktop_bin() {
+  echo "==> Masaüstü derleniyor (release)..."
+  (cd "$ROOT/pchome-desktop" && cargo build --release)
+  echo "==> pchome-desktop/target/release/pchome-desktop"
+}
+
+build_signal_bin() {
+  echo "==> Sinyal sunucusu derleniyor (release)..."
+  (cd "$ROOT/pchome-signal" && cargo build --release)
+  echo "==> pchome-signal/target/release/pchome-signal"
+}
+
+build_mobile_apk() {
+  echo "==> Android APK derleniyor (debug)..."
+  ensure_java17
+  (cd "$ROOT/pchome-mobile" && JAVA_HOME="$JAVA17_HOME" ./gradlew :app:assembleDebug --no-daemon -q)
+  local apk="$ROOT/pchome-mobile/app/build/outputs/apk/debug/app-debug.apk"
+  [ -f "$apk" ] || { echo "HATA: APK bulunamadi: $apk"; exit 1; }
+  mkdir -p "$DIST"
+  cp -f "$apk" "$DIST/pchome-mobile-${VERSION}.apk"
+  echo "==> dist/pchome-mobile-${VERSION}.apk"
+}
+
+pkg_desktop_targz() {
+  build_desktop_bin
+  mkdir -p "$DIST/stage/usr/bin"
+  install -m 755 "$ROOT/pchome-desktop/target/release/pchome-desktop" "$DIST/stage/usr/bin/"
+  install -m 644 "$ROOT/pchome-desktop/BUILD.md" "$DIST/stage/" 2>/dev/null || true
+  install -m 644 "$ROOT/README.md" "$DIST/stage/" 2>/dev/null || true
+  tar -czf "$DIST/pchome-desktop-${VERSION}-x86_64.tar.gz" -C "$DIST/stage" usr/bin/pchome-desktop BUILD.md README.md
+  echo "==> dist/pchome-desktop-${VERSION}-x86_64.tar.gz"
+}
+
+pkg_desktop_rpm() {
+  command -v rpmbuild &>/dev/null || { echo "HATA: rpmbuild yok (kur: sudo dnf install rpm-build)"; exit 1; }
+  build_desktop_bin
+  local ver="${VERSION#v}"
+  mkdir -p ~/rpmbuild/{BUILD,RPMS,SPECS,SOURCES}
+  mkdir -p "$DIST/stage-rpm/usr/bin"
+  install -m 755 "$ROOT/pchome-desktop/target/release/pchome-desktop" "$DIST/stage-rpm/usr/bin/"
+  tar -czf ~/rpmbuild/SOURCES/pchome-desktop-"$ver".tar.gz -C "$DIST/stage-rpm" usr/bin/pchome-desktop
+  cat > ~/rpmbuild/SPECS/pchome-desktop.spec << SPEC
+Name:           pchome-desktop
+Version:        $ver
+Release:        1%{?dist}
+Summary:        PChome remote control desktop daemon
+License:        MIT
+Source0:        pchome-desktop-$ver.tar.gz
+Requires:       ffmpeg, pipewire
+%description
+Screen capture and input daemon for the PChome remote control system.
+%prep
+%setup -c
+%install
+mkdir -p %{buildroot}%{_bindir}
+install -m 755 usr/bin/pchome-desktop %{buildroot}%{_bindir}/pchome-desktop
+%files
+%{_bindir}/pchome-desktop
+SPEC
+  rpmbuild -bb ~/rpmbuild/SPECS/pchome-desktop.spec
+  find ~/rpmbuild/RPMS -name '*.rpm' -exec cp -f {} "$DIST/" \;
+  echo "==> dist/*.rpm"
+}
+
+pkg_desktop_appimage() {
+  build_desktop_bin
+  echo "==> AppImage paketleniyor..."
+  local appdir="$DIST/AppDir"
+  rm -rf "$appdir"
+  mkdir -p "$appdir/usr/bin"
+  install -m 755 "$ROOT/pchome-desktop/target/release/pchome-desktop" "$appdir/usr/bin/pchome-desktop"
+
+  cat > "$appdir/pchome.desktop" << 'EOF'
+[Desktop Entry]
+Type=Application
+Name=PChome
+Comment=Remote control your Linux PC from Android
+Exec=pchome-desktop
+Icon=pchome
+Categories=Network;RemoteAccess;
+EOF
+  cat > "$appdir/AppRun" << 'EOF'
+#!/bin/sh
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/bin/pchome-desktop" "$@"
+EOF
+  chmod +x "$appdir/AppRun"
+  install -m 644 "$ROOT/assets/icon.png" "$appdir/pchome.png"
+
+  local tool="$ROOT/appimagetool"
+  if [ ! -x "$tool" ]; then
+    echo "==> appimagetool indiriliyor (bir kez)..."
+    curl -fSL --retry 3 -o "$tool" \
+      https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+    chmod +x "$tool"
+  fi
+  ARCH=x86_64 "$tool" --appimage-extract-and-run \
+    "$appdir" "$DIST/PChome-${VERSION}-x86_64.AppImage"
+  rm -rf "$appdir"
+  echo "==> dist/PChome-${VERSION}-x86_64.AppImage"
+}
+
+pkg_signal_targz() {
+  build_signal_bin
+  mkdir -p "$DIST/stage-signal"
+  install -m 755 "$ROOT/pchome-signal/target/release/pchome-signal" "$DIST/stage-signal/"
+  install -m 644 "$ROOT/pchome-signal/README.md" "$DIST/stage-signal/" 2>/dev/null || true
+  tar -czf "$DIST/pchome-signal-${VERSION}-x86_64.tar.gz" -C "$DIST/stage-signal" pchome-signal README.md
+  echo "==> dist/pchome-signal-${VERSION}-x86_64.tar.gz"
+}
+
+write_latest_json() {
+  local base="https://github.com/colgecen/PCHome/releases/download/${VERSION}"
+  {
+    echo "{"
+    echo "  \"version\": \"${VERSION}\","
+    echo "  \"desktop_appimage\": \"${base}/PChome-${VERSION}-x86_64.AppImage\","
+    echo "  \"desktop_tarball\": \"${base}/pchome-desktop-${VERSION}-x86_64.tar.gz\","
+    echo "  \"mobile_apk\": \"${base}/pchome-mobile-${VERSION}.apk\""
+    echo "}"
+  } > "$DIST/latest.json"
+  echo "==> dist/latest.json"
+}
+
+build_target() {
+  local comp="$1" fmt="$2"
+  banner
+  echo "Hedef: bilesen=$comp  format=$fmt  sürüm=$VERSION"
+  echo
+  mkdir -p "$DIST"
+  case "$comp" in
+    desktop)
+      case "$fmt" in
+        appimage) pkg_desktop_appimage ;;
+        targz|tar.gz) pkg_desktop_targz ;;
+        rpm) pkg_desktop_rpm ;;
+        binary) build_desktop_bin ;;
+        *) echo "Bilinmeyen desktop formati: $fmt (gecerli: appimage | targz | rpm | binary)"; exit 1 ;;
+      esac
+      ;;
+    signal)
+      case "$fmt" in
+        targz|tar.gz) pkg_signal_targz ;;
+        binary) build_signal_bin ;;
+        *) echo "Bilinmeyen signal formati: $fmt (gecerli: targz | binary)"; exit 1 ;;
+      esac
+      ;;
+    mobile)
+      case "$fmt" in
+        apk) build_mobile_apk ;;
+        *) echo "Bilinmeyen mobile formati: $fmt (gecerli: apk)"; exit 1 ;;
+      esac
+      ;;
+    all)
+      pkg_desktop_appimage
+      pkg_signal_targz
+      build_mobile_apk
+      write_latest_json
+      ;;
+    *)
+      echo "Bilinmeyen bilesen: $comp (gecerli: desktop | signal | mobile | all)"
+      exit 1
+      ;;
+  esac
+  echo
+  echo "Bitti. Ciktilar: $DIST/"
+  ls -la "$DIST/" | grep -v '^total' | grep -v 'stage' || true
+}
+
+interactive() {
+  banner
+  echo
+  echo "Tek klasöre toplu derleme: ./dist/"
+  echo "  - Desktop  : PChome-<sürüm>-x86_64.AppImage"
+  echo "  - Sinyal   : pchome-signal-<sürüm>-x86_64.tar.gz"
+  echo "  - Mobil    : pchome-mobile-<sürüm>.apk"
+  echo "  - Bildirim : latest.json"
+  echo
+  echo "Ne yapayim?"
+  select comp_choice in "Hepsini derle (signal + apk + appimage)" "Parca sec (desktop/signal/mobile)" "Vazgec"; do
+    case "$REPLY" in
+      1) build_target all all; return ;;
+      2) break ;;
+      3|"") echo "Vazgecildi."; exit 0 ;;
+      *) echo "Gecersiz secim, tekrar dene." ;;
+    esac
+  done
+
+  echo
+  echo "Hangi bilesen derlensin?"
+  select comp_choice2 in "Desktop" "Sinyal sunucusu" "Mobil (APK)" "Vazgec"; do
+    case "$REPLY" in
+      1) COMP="desktop"; break ;;
+      2) COMP="signal"; break ;;
+      3) COMP="mobile"; break ;;
+      4|"") echo "Vazgecildi."; exit 0 ;;
+      *) echo "Gecersiz secim, tekrar dene." ;;
+    esac
+  done
+
+  echo
+  case "$COMP" in
+    desktop)
+      echo "Paket formati sec:"
+      select f in "AppImage (.AppImage)" "tar.gz (.tar.gz)" "RPM (.rpm)" "Binary only" "Vazgec"; do
+        case "$REPLY" in
+          1) FMT="appimage"; break ;;
+          2) FMT="targz"; break ;;
+          3) FMT="rpm"; break ;;
+          4) FMT="binary"; break ;;
+          5|"") echo "Vazgecildi."; exit 0 ;;
+          *) echo "Gecersiz secim, tekrar dene." ;;
+        esac
+      done
+      ;;
+    signal)
+      echo "Paket formati sec:"
+      select f in "tar.gz (.tar.gz)" "Binary only" "Vazgec"; do
+        case "$REPLY" in
+          1) FMT="targz"; break ;;
+          2) FMT="binary"; break ;;
+          3|"") echo "Vazgecildi."; exit 0 ;;
+          *) echo "Gecersiz secim, tekrar dene." ;;
+        esac
+      done
+      ;;
+    mobile)
+      FMT="apk"
+      ;;
+  esac
+
+  build_target "$COMP" "$FMT"
+}
+
+# ---- argüman yönlendirme ----
+if [ $# -eq 0 ]; then
+  interactive
+  exit 0
+fi
+
+case "${1:-}" in
+  -h|--help|help)
+    usage
+    ;;
+  -l|--list|list)
+    list_targets
+    ;;
+  --install|install)
+    do_install
+    ;;
+  --doctor|doctor)
+    do_doctor
+    ;;
+  --version|-v)
+    echo "pchome $VERSION"
+    ;;
+  all)
+    # 2. argüman sürüm olabilir: ./pchome all 0.3.0
+    if [ $# -ge 2 ]; then
+      VERSION="$2"
+    fi
+    build_target all all
+    ;;
+  desktop|signal|mobile)
+    if [ $# -lt 2 ]; then
+      echo "Format eksik. Ornek: ./pchome $1 <format>"
+      list_targets
+      exit 1
+    fi
+    COMP="$1"; FMT="$2"
+    # 3. argüman sürüm olabilir: ./pchome desktop appimage 0.3.0
+    if [ $# -ge 3 ]; then
+      VERSION="$3"
+    fi
+    build_target "$COMP" "$FMT"
+    ;;
+  *)
+    echo "Bilinmeyen komut: $1"
+    echo
+    usage
+    exit 1
+    ;;
+esac
