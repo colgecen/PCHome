@@ -144,31 +144,77 @@ pub fn check_once(state: &SharedState) {
 }
 
 /// Yeni sürümü indirip kurar. AppImage ise dosyanın yanına, normal ikili
-/// ise üzerine yazar. Başarıda yeniden başlatma gerekir.
-pub fn install_update(state: &SharedState) -> Result<()> {
+/// ise üzerine yazar. Başarıda YENİ çalıştırılabilir dosyanın yolunu döndürür
+/// (arayüz buradan yeniden başlatır).
+pub fn install_update(state: &SharedState) -> Result<std::path::PathBuf> {
     let body = curl_get(&latest_api_url())?;
     let info = parse_release(&body)?;
     if !is_newer(&info.version, &current_version()) {
         set_status(state, format!("zaten güncel (v{})", current_version()));
-        return Ok(());
+        return Ok(std::env::current_exe().unwrap_or_default());
     }
-    if std::env::var_os("APPIMAGE").is_some() {
+    let new_path = if std::env::var_os("APPIMAGE").is_some() {
         if info.appimage_url.is_empty() {
             anyhow::bail!("sürümde AppImage dosyası yok");
         }
-        install_appimage_next_to_current(state, &info)?;
+        install_appimage_next_to_current(state, &info)?
     } else {
         if info.tarball_url.is_empty() {
             anyhow::bail!("sürümde masaüstü paketi (tar.gz) yok");
         }
-        install_tarball_over_current(state, &info)?;
-    }
+        install_tarball_over_current(state, &info)?
+    };
     set_status(
         state,
-        format!("{} kuruldu — yeniden başlatın", info.version),
+        format!("{} kuruldu — yeniden başlatılıyor", info.version),
     );
     state.push_event(format!("güncelleme kuruldu: {}", info.version));
-    Ok(())
+    Ok(new_path)
+}
+
+/// Yeni çalıştırılabilir dosyayı ayrı süreçte başlatıp bu süreci kapatır.
+/// Kurulum sonrası arayüz "yeni haliyle yeniden başlar".
+pub fn relaunch(new_exe: &std::path::Path) -> ! {
+    log::info!("yeniden başlatılıyor: {}", new_exe.display());
+    let _ = std::process::Command::new(new_exe)
+        .args(std::env::args_os().skip(1))
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+    std::process::exit(0);
+}
+
+/// Uzak dosyanın bayt boyutu (HEAD isteği; olmazsa None).
+/// Arayüz "şu kadar indirme" bilgisini buradan gösterir.
+pub fn asset_size(url: &str) -> Option<u64> {
+    let out = std::process::Command::new("curl")
+        .args(["-fsSIL", "-m", "20", "-A", "pchome-desktop-updater", url])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let head = String::from_utf8_lossy(&out.stdout);
+    head.lines().rev().find_map(|l| {
+        let low = l.to_ascii_lowercase();
+        low.strip_prefix("content-length:")
+            .and_then(|v| v.trim().parse::<u64>().ok())
+    })
+}
+
+/// İnsan dostu boyut ("11,5 MB").
+pub fn human_size(bytes: u64) -> String {
+    const KB: f64 = 1024.0;
+    const MB: f64 = 1024.0 * 1024.0;
+    let b = bytes as f64;
+    if b >= MB {
+        format!("{:.1} MB", b / MB).replace('.', ",")
+    } else if b >= KB {
+        format!("{:.0} KB", b / KB)
+    } else {
+        format!("{} B", bytes)
+    }
 }
 
 fn download_to(url: &str, dest: &std::path::Path) -> Result<()> {
@@ -194,7 +240,7 @@ fn download_to(url: &str, dest: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
-fn install_appimage_next_to_current(state: &SharedState, info: &UpdateInfo) -> Result<()> {
+fn install_appimage_next_to_current(state: &SharedState, info: &UpdateInfo) -> Result<std::path::PathBuf> {
     let current = std::env::var("APPIMAGE").context("APPIMAGE yolu yok")?;
     let dir = std::path::Path::new(&current)
         .parent()
@@ -210,10 +256,10 @@ fn install_appimage_next_to_current(state: &SharedState, info: &UpdateInfo) -> R
         perms.set_mode(0o755);
         std::fs::set_permissions(&dest, perms)?;
     }
-    Ok(())
+    Ok(dest)
 }
 
-fn install_tarball_over_current(state: &SharedState, info: &UpdateInfo) -> Result<()> {
+fn install_tarball_over_current(state: &SharedState, info: &UpdateInfo) -> Result<std::path::PathBuf> {
     let tmp = std::env::temp_dir().join(format!("pchome-update-{}", std::process::id()));
     std::fs::create_dir_all(&tmp)?;
     let tgz = tmp.join("pkg.tar.gz");
@@ -233,7 +279,7 @@ fn install_tarball_over_current(state: &SharedState, info: &UpdateInfo) -> Resul
     std::fs::copy(&current, &backup).ok();
     std::fs::copy(&new_bin, &current).context("ikili dosya yazılamadı (yetki?)")?;
     let _ = std::fs::remove_dir_all(&tmp);
-    Ok(())
+    Ok(current)
 }
 
 fn find_file(dir: &std::path::Path, name: &str) -> Option<std::path::PathBuf> {
@@ -279,6 +325,13 @@ mod tests {
         assert!(!is_newer("v0.1.0", "0.1.0"));
         assert!(!is_newer("v0.0.9", "0.1.0"));
         assert!(is_newer("v0.10.0", "v0.9.9"));
+    }
+
+    #[test]
+    fn insan_dostu_boyut() {
+        assert_eq!(human_size(512), "512 B");
+        assert_eq!(human_size(2048), "2 KB");
+        assert_eq!(human_size(12_058_624), "11,5 MB");
     }
 
     #[test]
