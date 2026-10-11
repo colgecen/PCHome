@@ -82,6 +82,10 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:hint="@string/signal_server_hint"
+                    app:boxStrokeColor="@color/pchome_cyan"
+                    app:boxStrokeWidth="1dp"
+                    app:boxStrokeWidthFocused="2dp"
+                    app:hintTextColor="@color/pchome_muted"
                     style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
                     <AutoCompleteTextView
@@ -89,7 +93,9 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:inputType="textUri"
+                        android:imeOptions="actionNext"
                         android:textSize="14sp"
+                        android:textColor="@color/pchome_text"
                         android:fontFamily="monospace" />
                 </com.google.android.material.textfield.TextInputLayout>
 
@@ -105,6 +111,10 @@
                         android:layout_weight="1"
                         android:layout_marginEnd="5dp"
                         android:hint="@string/pc_id_hint"
+                        app:boxStrokeColor="@color/pchome_cyan"
+                        app:boxStrokeWidth="1dp"
+                        app:boxStrokeWidthFocused="2dp"
+                        app:hintTextColor="@color/pchome_muted"
                         style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
                         <com.google.android.material.textfield.TextInputEditText
@@ -112,9 +122,11 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="number"
+                            android:imeOptions="actionNext"
                             android:maxLength="6"
                             android:gravity="center"
                             android:textSize="26sp"
+                            android:textColor="@color/pchome_text"
                             android:fontFamily="monospace"
                             android:letterSpacing="0.12" />
                     </com.google.android.material.textfield.TextInputLayout>
@@ -126,6 +138,10 @@
                         android:layout_marginStart="5dp"
                         android:hint="@string/password_hint"
                         app:endIconMode="password_toggle"
+                        app:boxStrokeColor="@color/pchome_cyan"
+                        app:boxStrokeWidth="1dp"
+                        app:boxStrokeWidthFocused="2dp"
+                        app:hintTextColor="@color/pchome_muted"
                         style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
                         <com.google.android.material.textfield.TextInputEditText
@@ -133,9 +149,11 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="numberPassword"
+                            android:imeOptions="actionDone"
                             android:maxLength="6"
                             android:gravity="center"
                             android:textSize="26sp"
+                            android:textColor="@color/pchome_text"
                             android:fontFamily="monospace"
                             android:letterSpacing="0.12" />
                     </com.google.android.material.textfield.TextInputLayout>

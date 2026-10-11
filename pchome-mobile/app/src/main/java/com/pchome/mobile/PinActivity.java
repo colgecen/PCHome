@@ -81,6 +81,29 @@ public class PinActivity extends AppCompatActivity {
         pcIdEdit.addTextChangedListener(clearStatus);
         passwordEdit.addTextChangedListener(clearStatus);
 
+        // Klavye akışı: sunucu → enter → ID → enter → şifre → enter → bağlan.
+        serverEdit.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_NEXT) {
+                pcIdEdit.requestFocus();
+                return true;
+            }
+            return false;
+        });
+        pcIdEdit.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_NEXT) {
+                passwordEdit.requestFocus();
+                return true;
+            }
+            return false;
+        });
+        passwordEdit.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
+                attemptConnect();
+                return true;
+            }
+            return false;
+        });
+
         // Son Girilenler ızgarası (2 sütun kare kart).
         recentGrid.setLayoutManager(new GridLayoutManager(this, 2));
         recentAdapter = new RecentAdapter(new RecentAdapter.Listener() {
@@ -99,24 +122,30 @@ public class PinActivity extends AppCompatActivity {
         recentGrid.setAdapter(recentAdapter);
 
         MaterialButton connectButton = findViewById(R.id.connect_button);
-        connectButton.setOnClickListener(v -> {
-            String server = serverEdit.getText().toString().trim();
-            String pcId = pcIdEdit.getText().toString().replaceAll("[^0-9]", "");
-            String password = passwordEdit.getText().toString().replaceAll("[^0-9]", "");
-            if (server.isEmpty()) {
-                statusText.setText(getString(R.string.error) + ": sunucu adresi gir");
-                return;
-            }
-            if (pcId.length() != 6) {
-                statusText.setText(getString(R.string.error) + ": PC ID 6 hane olmalı");
-                return;
-            }
-            if (password.length() != 6) {
-                statusText.setText(getString(R.string.error) + ": şifre 6 hane olmalı");
-                return;
-            }
-            openConnection(server, pcId, password, rememberCheck.isChecked());
-        });
+        connectButton.setOnClickListener(v -> attemptConnect());
+    }
+
+    /** Alanları doğrula ve bağlan (düğme + klavye-enter ortak yolu). */
+    private void attemptConnect() {
+        String server = serverEdit.getText().toString().trim();
+        String pcId = pcIdEdit.getText().toString().replaceAll("[^0-9]", "");
+        String password = passwordEdit.getText().toString().replaceAll("[^0-9]", "");
+        if (server.isEmpty()) {
+            statusText.setText(getString(R.string.error) + ": sunucu adresi gir");
+            serverEdit.requestFocus();
+            return;
+        }
+        if (pcId.length() != 6) {
+            statusText.setText(getString(R.string.error) + ": PC ID 6 hane olmalı");
+            pcIdEdit.requestFocus();
+            return;
+        }
+        if (password.length() != 6) {
+            statusText.setText(getString(R.string.error) + ": şifre 6 hane olmalı");
+            passwordEdit.requestFocus();
+            return;
+        }
+        openConnection(server, pcId, password, rememberCheck.isChecked());
     }
 
     @Override

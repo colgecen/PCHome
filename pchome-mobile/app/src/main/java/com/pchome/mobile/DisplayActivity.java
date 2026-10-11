@@ -510,24 +510,25 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         try {
             int w = surfaceView.getWidth();
             int h = surfaceView.getHeight();
-            if (w <= 0 || h <= 0 || surfaceView.getHolder().getSurface() == null
+            if (surfaceView.getHolder() == null
+                    || w <= 0 || h <= 0 || surfaceView.getHolder().getSurface() == null
                     || !surfaceView.getHolder().getSurface().isValid()) {
                 return;
             }
-            Bitmap full = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-            PixelCopy.request(surfaceView.getHolder().getSurface(), full,
+            // Bellek dostu: PixelCopy doğrudan karta sığan boyuta ölçekler
+            // (4K tam boy bitmap OOM patlatıyordu).
+            int bw = Math.min(w, 480);
+            int bh = Math.max(1, (int) ((long) h * bw / Math.max(1, w)));
+            Bitmap thumb = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888);
+            PixelCopy.request(surfaceView.getHolder().getSurface(), thumb,
                     copyResult -> {
-                        if (copyResult == PixelCopy.SUCCESS) {
-                            try {
-                                int tw = 320;
-                                int th = Math.max(1, (int) ((long) h * tw / Math.max(1, w)));
-                                Bitmap small = Bitmap.createScaledBitmap(full, tw, th, true);
+                        try {
+                            if (copyResult == PixelCopy.SUCCESS) {
                                 java.io.File dest = recentStore.thumbnailFile(pcId);
                                 java.io.FileOutputStream out =
                                         new java.io.FileOutputStream(dest);
-                                small.compress(Bitmap.CompressFormat.JPEG, 80, out);
+                                thumb.compress(Bitmap.CompressFormat.JPEG, 80, out);
                                 out.close();
-                                small.recycle();
                                 RecentPc entry = recentStore.find(pcId);
                                 if (entry == null) {
                                     entry = new RecentPc(pcId, deviceName);
@@ -535,14 +536,21 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                                 entry.thumbnail = dest.getAbsolutePath();
                                 entry.lastSeen = System.currentTimeMillis();
                                 recentStore.upsert(entry);
+                            }
+                        } catch (Exception e) {
+                            // Görüntü kaydedilemezse kart bilgisiz kalır.
+                        } finally {
+                            try {
+                                thumb.recycle();
                             } catch (Exception e) {
-                                // Görüntü kaydedilemezse kart bilgisiz kalır.
+                                // Yoksay.
                             }
                         }
-                        full.recycle();
                     }, uiHandler);
         } catch (Exception e) {
             // PixelCopy yoksa sessiz geç (kart yine de durur).
+        } catch (OutOfMemoryError e) {
+            // Düşük bellekte küçük resimden vazgeç, bağlantı etkilenmez.
         }
     }
 
