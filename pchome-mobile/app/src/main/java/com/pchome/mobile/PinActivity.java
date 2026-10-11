@@ -2,19 +2,20 @@ package com.pchome.mobile;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
+import android.widget.ProgressBar;
+import android.widget.ScrollView;
+import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.checkbox.MaterialCheckBox;
-import com.google.android.material.chip.Chip;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
 
@@ -31,7 +32,7 @@ public class PinActivity extends AppCompatActivity {
     private TextInputEditText pcIdEdit;
     private TextInputEditText passwordEdit;
     private MaterialCheckBox rememberCheck;
-    private Chip statusText;
+    private MaterialTextView updateStateText;
     private RecyclerView recentGrid;
     private MaterialTextView recentEmpty;
     private Prefs prefs;
@@ -47,9 +48,10 @@ public class PinActivity extends AppCompatActivity {
         pcIdEdit = findViewById(R.id.pc_id_input);
         passwordEdit = findViewById(R.id.password_input);
         rememberCheck = findViewById(R.id.remember_check);
-        statusText = findViewById(R.id.status);
         recentGrid = findViewById(R.id.recent_grid);
         recentEmpty = findViewById(R.id.recent_empty);
+        updateStateText = findViewById(R.id.update_state_text);
+        updateStateText.setText(getString(R.string.update_idle));
         MaterialTextView versionFooter = findViewById(R.id.version_footer);
         versionFooter.setText("PChome v" + BuildConfig.VERSION_NAME);
         prefs = new Prefs(this);
@@ -72,14 +74,8 @@ public class PinActivity extends AppCompatActivity {
         int lastIdx = Math.min(prefs.getLastServerIndex(), servers.size() - 1);
         serverEdit.setText(servers.get(Math.max(0, lastIdx)), false);
 
-        TextWatcher clearStatus = new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
-            @Override public void onTextChanged(CharSequence s, int a, int b, int c) {}
-            @Override public void afterTextChanged(Editable s) { statusText.setText(R.string.idle); }
-        };
-        serverEdit.addTextChangedListener(clearStatus);
-        pcIdEdit.addTextChangedListener(clearStatus);
-        passwordEdit.addTextChangedListener(clearStatus);
+        // En alt güncelleme bölümü: modalı açar (masaüstüyle aynı mantık).
+        findViewById(R.id.update_open_button).setOnClickListener(v -> openUpdateDialog());
 
         // Klavye akışı: sunucu → enter → ID → enter → şifre → enter → bağlan.
         serverEdit.setOnEditorActionListener((v, actionId, event) -> {
@@ -125,23 +121,28 @@ public class PinActivity extends AppCompatActivity {
         connectButton.setOnClickListener(v -> attemptConnect());
     }
 
+    /** Kısa hata balonu (eski durum çipinin yerini tutar). */
+    private void toast(String msg) {
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+    }
+
     /** Alanları doğrula ve bağlan (düğme + klavye-enter ortak yolu). */
     private void attemptConnect() {
         String server = serverEdit.getText().toString().trim();
         String pcId = pcIdEdit.getText().toString().replaceAll("[^0-9]", "");
         String password = passwordEdit.getText().toString().replaceAll("[^0-9]", "");
         if (server.isEmpty()) {
-            statusText.setText(getString(R.string.error) + ": sunucu adresi gir");
+            toast(getString(R.string.error) + ": sunucu adresi gir");
             serverEdit.requestFocus();
             return;
         }
         if (pcId.length() != 6) {
-            statusText.setText(getString(R.string.error) + ": PC ID 6 hane olmalı");
+            toast(getString(R.string.error) + ": PC ID 6 hane olmalı");
             pcIdEdit.requestFocus();
             return;
         }
         if (password.length() != 6) {
-            statusText.setText(getString(R.string.error) + ": şifre 6 hane olmalı");
+            toast(getString(R.string.error) + ": şifre 6 hane olmalı");
             passwordEdit.requestFocus();
             return;
         }
@@ -195,7 +196,7 @@ public class PinActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
-    /** Güncelleme denetimi: günde en fazla 1 kez, kart hazırsa gösterilir. */
+    /** Arka plan denetimi: günde en fazla 1 kez, sonucu alt karta yazar. */
     private void checkForUpdate() {
         long now = System.currentTimeMillis();
         if (now - prefs.getLastUpdateCheck() < 24L * 3600 * 1000) {
@@ -206,20 +207,128 @@ public class PinActivity extends AppCompatActivity {
         UpdateChecker.check(BuildConfig.VERSION_NAME, new UpdateChecker.Callback() {
             @Override
             public void onResult(UpdateChecker.UpdateInfo info) {
-                if (info.available && !isFinishing()) {
-                    View card = findViewById(R.id.update_card);
-                    MaterialTextView banner = findViewById(R.id.update_banner);
-                    banner.setText(getString(R.string.update_available, info.version));
-                    card.setVisibility(View.VISIBLE);
-                    findViewById(R.id.update_button).setOnClickListener(v ->
-                            UpdateChecker.downloadAndInstall(PinActivity.this, info));
+                if (isFinishing()) {
+                    return;
+                }
+                if (info.available) {
+                    updateStateText.setText(getString(R.string.update_available,
+                            info.version, UpdateChecker.humanSize(info.sizeBytes)));
+                    updateStateText.setTextColor(getColor(R.color.pchome_success));
+                } else {
+                    updateStateText.setText(getString(R.string.update_uptodate,
+                            BuildConfig.VERSION_NAME));
                 }
             }
 
             @Override
             public void onFailure(String error) {
-                // Sessiz geç: bağlantı ekranı etkilenmez.
+                if (!isFinishing()) {
+                    updateStateText.setText(getString(R.string.update_failed, error));
+                }
             }
         }, main);
+    }
+
+    /**
+     * Güncelleme modalı (masaüstüyle aynı mantık): Kontrol Et → sonuç →
+     * güncelle. Kurulum bitmeden modal kapanmaz; bitince sistem kurulum
+     * ekranı açılır (Android uygulamayı kendi yeniden başlatır).
+     */
+    private void openUpdateDialog() {
+        View body = getLayoutInflater().inflate(R.layout.dialog_update, null);
+        MaterialTextView title = body.findViewById(R.id.update_dialog_title);
+        MaterialTextView text = body.findViewById(R.id.update_dialog_text);
+        MaterialTextView notes = body.findViewById(R.id.update_dialog_notes);
+        ScrollView notesScroll = body.findViewById(R.id.update_dialog_notes_scroll);
+        ProgressBar progress = body.findViewById(R.id.update_dialog_progress);
+        MaterialButton action = body.findViewById(R.id.update_dialog_action);
+        MaterialButton close = body.findViewById(R.id.update_dialog_close);
+
+        title.setText(R.string.update_open);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(body)
+                .setCancelable(true)
+                .create();
+
+        Runnable showIdle = () -> {
+            text.setText(R.string.update_idle);
+            notesScroll.setVisibility(View.GONE);
+            progress.setVisibility(View.GONE);
+            action.setVisibility(View.VISIBLE);
+            action.setText(R.string.update_check_now);
+            dialog.setCancelable(true);
+            dialog.setCanceledOnTouchOutside(true);
+        };
+        showIdle.run();
+
+        action.setOnClickListener(v -> {
+            CharSequence label = action.getText();
+            if (getString(R.string.update_retry).contentEquals(label)) {
+                showIdle.run();
+                return;
+            }
+            if (getString(R.string.update_check_now).contentEquals(label)) {
+                progress.setVisibility(View.VISIBLE);
+                text.setText(R.string.update_checking);
+                action.setVisibility(View.GONE);
+                android.os.Handler main = new android.os.Handler(getMainLooper());
+                UpdateChecker.check(BuildConfig.VERSION_NAME, new UpdateChecker.Callback() {
+                    @Override
+                    public void onResult(UpdateChecker.UpdateInfo info) {
+                        if (isFinishing()) {
+                            return;
+                        }
+                        progress.setVisibility(View.GONE);
+                        if (info.available) {
+                            text.setText(getString(R.string.update_available,
+                                    info.version, UpdateChecker.humanSize(info.sizeBytes)));
+                            if (!info.notes.trim().isEmpty()) {
+                                String cut = info.notes.length() > 800
+                                        ? info.notes.substring(0, 800) + "…" : info.notes;
+                                notes.setText(cut);
+                                notesScroll.setVisibility(View.VISIBLE);
+                            }
+                            action.setVisibility(View.VISIBLE);
+                            action.setText(R.string.update_now);
+                            action.setOnClickListener(v2 -> {
+                                // Kilit: bitmeden ekrandan çıkılamaz.
+                                progress.setVisibility(View.VISIBLE);
+                                text.setText(R.string.update_busy);
+                                notesScroll.setVisibility(View.GONE);
+                                action.setVisibility(View.GONE);
+                                close.setVisibility(View.GONE);
+                                dialog.setCancelable(false);
+                                dialog.setCanceledOnTouchOutside(false);
+                                updateStateText.setText(getString(R.string.update_busy));
+                                UpdateChecker.downloadAndInstall(PinActivity.this, info);
+                                toast("Kurulum ekranı açılacak — bekle");
+                            });
+                            updateStateText.setText(getString(R.string.update_available,
+                                    info.version, UpdateChecker.humanSize(info.sizeBytes)));
+                            updateStateText.setTextColor(getColor(R.color.pchome_success));
+                        } else {
+                            text.setText(getString(R.string.update_uptodate,
+                                    BuildConfig.VERSION_NAME));
+                            action.setVisibility(View.GONE);
+                            updateStateText.setText(getString(R.string.update_uptodate,
+                                    BuildConfig.VERSION_NAME));
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(String error) {
+                        if (isFinishing()) {
+                            return;
+                        }
+                        progress.setVisibility(View.GONE);
+                        text.setText(getString(R.string.update_failed, error));
+                        action.setVisibility(View.VISIBLE);
+                        action.setText(R.string.update_retry);
+                    }
+                }, main);
+            }
+        });
+        close.setOnClickListener(v -> dialog.dismiss());
+        dialog.show();
     }
 }

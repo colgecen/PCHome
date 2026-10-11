@@ -47,4 +47,21 @@ public class UpdateCheckerTest {
         UpdateChecker.UpdateInfo info = UpdateChecker.parse(fixture, "0.3.0");
         Assert.assertFalse(info.available);
     }
+
+    @Test
+    public void testBoyutCozulur() throws Exception {
+        String fixture = "{"
+                + "\"tag_name\":\"v0.4.0\","
+                + "\"body\":\"\","
+                + "\"assets\":["
+                + "{\"name\":\"pchome-mobile-v0.4.0.apk\","
+                + " \"browser_download_url\":\"https://x/m.apk\","
+                + " \"size\":56789012}"
+                + "]}";
+        UpdateChecker.UpdateInfo info = UpdateChecker.parse(fixture, "0.3.0");
+        Assert.assertEquals(56789012L, info.sizeBytes);
+        Assert.assertEquals("54,2 MB", UpdateChecker.humanSize(info.sizeBytes));
+        Assert.assertEquals("2 KB", UpdateChecker.humanSize(2048));
+        Assert.assertEquals("512 B", UpdateChecker.humanSize(512));
+    }
 }

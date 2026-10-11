@@ -16,9 +16,6 @@ import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
-import static org.hamcrest.Matchers.not;
-
-import static org.hamcrest.Matchers.allOf;
 
 @RunWith(AndroidJUnit4.class)
 @LargeTest
@@ -29,11 +26,11 @@ public class PinActivityTest {
             new ActivityScenarioRule<>(PinActivity.class);
 
     @Test
-    public void activityLaunches_displaysIdAndStatus() {
+    public void activityLaunches_displaysIdAndUpdate() {
         onView(withId(R.id.pc_id_input)).check(matches(isDisplayed()));
         onView(withId(R.id.password_input)).check(matches(isDisplayed()));
-        onView(withId(R.id.status)).check(matches(isDisplayed()));
-        onView(withId(R.id.status)).check(matches(withText(R.string.idle)));
+        onView(withId(R.id.update_section)).check(matches(isDisplayed()));
+        onView(withId(R.id.update_open_button)).check(matches(isDisplayed()));
     }
 
     @Test
@@ -54,9 +51,15 @@ public class PinActivityTest {
     }
 
     @Test
-    public void connectWithShortId_showsError() {
+    public void updateDialog_opensFromSection() {
+        onView(withId(R.id.update_open_button)).perform(click());
+        onView(withText(R.string.update_check_now)).check(matches(isDisplayed()));
+    }
+
+    @Test
+    public void connectWithShortId_doesNotCrash() {
         onView(withId(R.id.pc_id_input)).perform(typeText("12"), closeSoftKeyboard());
         onView(withId(R.id.connect_button)).perform(click());
-        onView(withId(R.id.status)).check(matches(not(withText(R.string.idle))));
+        onView(withId(R.id.connect_button)).check(matches(isDisplayed()));
     }
 }

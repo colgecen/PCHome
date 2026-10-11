@@ -36,6 +36,7 @@ public class UpdateChecker {
         public String version = "";
         public String notes = "";
         public String apkUrl = "";
+        public long sizeBytes = 0;
         public boolean available = false;
     }
 
@@ -96,6 +97,7 @@ public class UpdateChecker {
                 String name = a.optString("name", "").toLowerCase();
                 if (info.apkUrl.isEmpty() && name.endsWith(".apk")) {
                     info.apkUrl = a.optString("browser_download_url", "");
+                    info.sizeBytes = a.optLong("size", 0);
                 }
             }
         }
@@ -103,6 +105,18 @@ public class UpdateChecker {
                 && !info.apkUrl.isEmpty()
                 && isNewer(info.version, currentVersion);
         return info;
+    }
+
+    /** İnsan dostu boyut ("54,1 MB"). */
+    public static String humanSize(long bytes) {
+        double b = bytes;
+        double mb = 1024.0 * 1024.0;
+        if (b >= mb) {
+            return String.format(java.util.Locale.US, "%.1f MB", b / mb).replace('.', ',');
+        } else if (b >= 1024.0) {
+            return String.format(java.util.Locale.US, "%.0f KB", b / 1024.0);
+        }
+        return bytes + " B";
     }
 
     /** Arka plan iş parçacığında denetler, sonucu ana iş parçacığında verir. */
