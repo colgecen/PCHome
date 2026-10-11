@@ -82,6 +82,9 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.Holder> {
             if (listener != null) listener.onDelete(pc);
             return true;
         });
+        h.delete.setOnClickListener(v -> {
+            if (listener != null) listener.onDelete(pc);
+        });
     }
 
     @Override
@@ -95,6 +98,7 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.Holder> {
         final MaterialTextView title;
         final MaterialTextView subtitle;
         final MaterialTextView lastSeen;
+        final View delete;
 
         Holder(@NonNull View itemView) {
             super(itemView);
@@ -103,6 +107,7 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.Holder> {
             title = itemView.findViewById(R.id.recent_title);
             subtitle = itemView.findViewById(R.id.recent_subtitle);
             lastSeen = itemView.findViewById(R.id.recent_last_seen);
+            delete = itemView.findViewById(R.id.recent_delete);
         }
     }
 }

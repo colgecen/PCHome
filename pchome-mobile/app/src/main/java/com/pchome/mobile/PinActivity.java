@@ -14,6 +14,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.checkbox.MaterialCheckBox;
+import com.google.android.material.chip.Chip;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
 
@@ -30,7 +31,7 @@ public class PinActivity extends AppCompatActivity {
     private TextInputEditText pcIdEdit;
     private TextInputEditText passwordEdit;
     private MaterialCheckBox rememberCheck;
-    private MaterialTextView statusText;
+    private Chip statusText;
     private RecyclerView recentGrid;
     private MaterialTextView recentEmpty;
     private Prefs prefs;

@@ -7,9 +7,12 @@
     <string name="password_hint">Şifre (6 hane)</string>
     <string name="remember_password">Şifreyi hatırla</string>
     <string name="connect_subtitle">ID + şifreyle PC\'ne bağlan</string>
+    <string name="connect_card_title">🔌 Yeni Bağlantı</string>
+    <string name="recent_hint">aç: dokun • sil: çöp kutusu</string>
     <string name="recent_title">Son Girilenler</string>
     <string name="recent_empty">Henüz bağlantı yok — yukarıdan ilk bağlantını kur.</string>
     <string name="recent_thumb_desc">PC son görüntüsü</string>
+    <string name="recent_delete_desc">Kaydı sil</string>
     <string name="update_now">Güncelle</string>
     <string name="update_available">Yeni sürüm mevcut: %1$s</string>
     <string name="signal_server_hint">Signal server (wss://host/ws)</string>

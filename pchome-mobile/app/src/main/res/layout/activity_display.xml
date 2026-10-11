@@ -23,8 +23,11 @@
         android:layout_gravity="top|start"
         android:text="@string/waiting_for_stream"
         android:checkable="false"
-        app:chipBackgroundColor="@color/black"
-        android:textColor="?attr/colorOnSurface" />
+        android:textSize="12sp"
+        app:chipBackgroundColor="@color/pchome_panel"
+        app:chipStrokeWidth="1dp"
+        app:chipStrokeColor="@color/pchome_cyan"
+        android:textColor="@color/pchome_text" />
 
     <!-- Cyber keyboard overlay (hidden until toggled) -->
     <LinearLayout
@@ -54,7 +57,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_mode"
-                style="?attr/materialButtonOutlinedStyle"
+                style="@style/Widget.PChome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="DIRECT"
@@ -62,7 +65,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_left"
-                style="?attr/materialButtonOutlinedStyle"
+                style="@style/Widget.PChome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="L"
@@ -70,7 +73,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_right"
-                style="?attr/materialButtonOutlinedStyle"
+                style="@style/Widget.PChome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="R"
@@ -78,7 +81,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_esc"
-                style="?attr/materialButtonOutlinedStyle"
+                style="@style/Widget.PChome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="ESC"
@@ -86,7 +89,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_ctrl"
-                style="?attr/materialButtonOutlinedStyle"
+                style="@style/Widget.PChome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="CTRL"
@@ -94,7 +97,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_keyboard"
-                style="?attr/materialButtonOutlinedStyle"
+                style="@style/Widget.PChome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="ABC"
@@ -102,7 +105,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_rotate"
-                style="?attr/materialButtonOutlinedStyle"
+                style="@style/Widget.PChome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="ROT"
@@ -117,6 +120,8 @@
         android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
         android:src="@android:drawable/ic_menu_close_clear_cancel"
-        android:contentDescription="@string/disconnect" />
+        android:contentDescription="@string/disconnect"
+        app:backgroundTint="@color/pchome_danger"
+        app:tint="@color/white" />
 
 </FrameLayout>

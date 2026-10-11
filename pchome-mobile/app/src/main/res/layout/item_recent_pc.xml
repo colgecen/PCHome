@@ -14,14 +14,36 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- Kare kutucuk: PC'nin son görüntüsü -->
-        <ImageView
-            android:id="@+id/recent_thumb"
+        <!-- Kare kutucuk: PC'nin son görüntüsü + sil düğmesi -->
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="140dp"
-            android:scaleType="centerCrop"
-            android:contentDescription="@string/recent_thumb_desc"
-            android:background="@color/pchome_background" />
+            android:layout_height="150dp"
+            android:background="@color/pchome_background">
+
+            <ImageView
+                android:id="@+id/recent_thumb"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:contentDescription="@string/recent_thumb_desc" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/recent_delete"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_gravity="top|end"
+                android:layout_margin="6dp"
+                android:insetLeft="0dp"
+                android:insetRight="0dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:contentDescription="@string/recent_delete_desc"
+                app:icon="@android:drawable/ic_menu_delete"
+                app:iconSize="18dp"
+                app:iconTint="@color/pchome_danger"
+                app:backgroundTint="@color/black" />
+        </FrameLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -34,7 +56,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textAppearance="?attr/textAppearanceTitleSmall"
-                android:textColor="@color/pchome_text"
+                android:textColor="@color/pchome_cyan"
                 android:singleLine="true"
                 android:ellipsize="end" />
 
@@ -43,7 +65,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="@color/pchome_muted"
+                android:textColor="@color/pchome_text"
                 android:fontFamily="monospace"
                 android:textSize="11sp"
                 android:layout_marginTop="2dp" />
@@ -53,7 +75,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:textColor="@color/pchome_cyan"
+                android:textColor="@color/pchome_muted"
                 android:layout_marginTop="4dp" />
         </LinearLayout>
     </LinearLayout>

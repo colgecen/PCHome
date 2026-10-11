@@ -43,6 +43,10 @@ impl AppState {
             events.pop_front();
         }
     }
+
+    pub fn clear_events(&self) {
+        self.events.lock().unwrap().clear();
+    }
 }
 
 pub type SharedState = Arc<AppState>;
