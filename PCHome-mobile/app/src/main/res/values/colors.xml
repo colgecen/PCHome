@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- PChome Neon-Mavi tasarım jetonları (TEK tasarım dili).
+<!-- PCHome Neon-Mavi tasarım jetonları (TEK tasarım dili).
      Masaüstü tarafındaki theme.rs ile aynı hex değerleri kullanılır:
      mobilde yalnız Material3, masaüstünde yalnız egui. -->
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="pchome_background">#FF050B14</color>
-    <color name="pchome_panel">#FF0A1626</color>
-    <color name="pchome_cyan">#FF00E5FF</color>
-    <color name="pchome_blue">#FF0A84FF</color>
-    <color name="pchome_pink">#FFFF2A55</color>
-    <color name="pchome_danger">#FFFF2A55</color>
-    <color name="pchome_success">#FF00FFA3</color>
-    <color name="pchome_border">#FF1B2F4A</color>
-    <color name="pchome_surface">#FF0D1B2E</color>
-    <color name="pchome_text">#FFE6F4FF</color>
-    <color name="pchome_text_primary">#FF8B949E</color>
-    <color name="pchome_muted">#FF7A8CA3</color>
+    <color name="PCHome_background">#FF050B14</color>
+    <color name="PCHome_panel">#FF0A1626</color>
+    <color name="PCHome_cyan">#FF00E5FF</color>
+    <color name="PCHome_blue">#FF0A84FF</color>
+    <color name="PCHome_pink">#FFFF2A55</color>
+    <color name="PCHome_danger">#FFFF2A55</color>
+    <color name="PCHome_success">#FF00FFA3</color>
+    <color name="PCHome_border">#FF1B2F4A</color>
+    <color name="PCHome_surface">#FF0D1B2E</color>
+    <color name="PCHome_text">#FFE6F4FF</color>
+    <color name="PCHome_text_primary">#FF8B949E</color>
+    <color name="PCHome_muted">#FF7A8CA3</color>
 </resources>

@@ -1,4 +1,4 @@
-package com.pchome.mobile;
+package com.PCHome.mobile;
 
 import org.junit.Test;
 import org.junit.Assert;

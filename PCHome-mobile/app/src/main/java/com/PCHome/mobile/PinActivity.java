@@ -1,4 +1,4 @@
-package com.pchome.mobile;
+package com.PCHome.mobile;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -208,7 +208,7 @@ public class PinActivity extends AppCompatActivity {
                 if (info.available) {
                     updateStateText.setText(getString(R.string.update_available,
                             info.version, UpdateChecker.humanSize(info.sizeBytes)));
-                    updateStateText.setTextColor(getColor(R.color.pchome_success));
+                    updateStateText.setTextColor(getColor(R.color.PCHome_success));
                 } else {
                     updateStateText.setText(getString(R.string.update_uptodate,
                             BuildConfig.VERSION_NAME));
@@ -300,7 +300,7 @@ public class PinActivity extends AppCompatActivity {
                             });
                             updateStateText.setText(getString(R.string.update_available,
                                     info.version, UpdateChecker.humanSize(info.sizeBytes)));
-                            updateStateText.setTextColor(getColor(R.color.pchome_success));
+                            updateStateText.setTextColor(getColor(R.color.PCHome_success));
                         } else {
                             text.setText(getString(R.string.update_uptodate,
                                     BuildConfig.VERSION_NAME));

@@ -1,4 +1,4 @@
-package com.pchome.mobile;
+package com.PCHome.mobile;
 
 import org.json.JSONObject;
 import org.junit.Test;

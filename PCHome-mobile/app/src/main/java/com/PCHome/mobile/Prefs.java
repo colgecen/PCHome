@@ -1,4 +1,4 @@
-package com.pchome.mobile;
+package com.PCHome.mobile;
 
 import android.content.Context;
 import android.content.SharedPreferences;

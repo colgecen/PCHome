@@ -1,4 +1,4 @@
-package com.pchome.mobile.ui;
+package com.PCHome.mobile.ui;
 
 import android.content.Context;
 import android.graphics.Canvas;

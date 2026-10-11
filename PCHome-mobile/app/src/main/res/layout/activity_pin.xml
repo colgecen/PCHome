@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true"
-    android:background="@color/pchome_background">
+    android:background="@color/PCHome_background">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -19,7 +19,7 @@
             android:layout_height="wrap_content"
             android:text="@string/app_name"
             android:textAppearance="?attr/textAppearanceHeadlineLarge"
-            android:textColor="@color/pchome_cyan"
+            android:textColor="@color/PCHome_cyan"
             android:letterSpacing="0.08"
             android:layout_marginTop="8dp"
             android:layout_marginBottom="4dp" />
@@ -29,7 +29,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            style="@style/Widget.PChome.ConnectCard">
+            style="@style/Widget.PCHome.ConnectCard">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -42,7 +42,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/connect_card_title"
                     android:textAppearance="?attr/textAppearanceTitleSmall"
-                    android:textColor="@color/pchome_cyan"
+                    android:textColor="@color/PCHome_cyan"
                     android:layout_marginBottom="10dp" />
 
                 <com.google.android.material.textfield.TextInputLayout
@@ -50,17 +50,17 @@
                     android:layout_height="wrap_content"
                     android:hint="@string/signal_server_hint"
                     app:helperText="@string/signal_server_help"
-                    app:helperTextTextColor="@color/pchome_muted"
+                    app:helperTextTextColor="@color/PCHome_muted"
                     app:startIconDrawable="@drawable/ic_server"
-                    app:startIconTint="@color/pchome_cyan"
+                    app:startIconTint="@color/PCHome_cyan"
                     
                     
                     
                     
-                    app:boxStrokeColor="@color/pchome_cyan"
+                    app:boxStrokeColor="@color/PCHome_cyan"
                     app:boxStrokeWidth="1dp"
                     app:boxStrokeWidthFocused="2dp"
-                    app:hintTextColor="@color/pchome_muted"
+                    app:hintTextColor="@color/PCHome_muted"
                     style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
                     <AutoCompleteTextView
@@ -70,7 +70,7 @@
                         android:inputType="textUri"
                         android:imeOptions="actionNext"
                         android:textSize="14sp"
-                        android:textColor="@color/pchome_text"
+                        android:textColor="@color/PCHome_text"
                         android:fontFamily="monospace" />
                 </com.google.android.material.textfield.TextInputLayout>
 
@@ -87,11 +87,11 @@
                         android:layout_marginEnd="5dp"
                         android:hint="@string/pc_id_hint"
                         app:startIconDrawable="@drawable/ic_id"
-                        app:startIconTint="@color/pchome_cyan"
-                        app:boxStrokeColor="@color/pchome_cyan"
+                        app:startIconTint="@color/PCHome_cyan"
+                        app:boxStrokeColor="@color/PCHome_cyan"
                         app:boxStrokeWidth="1dp"
                         app:boxStrokeWidthFocused="2dp"
-                        app:hintTextColor="@color/pchome_muted"
+                        app:hintTextColor="@color/PCHome_muted"
                         style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
                         <com.google.android.material.textfield.TextInputEditText
@@ -103,7 +103,7 @@
                             android:maxLength="6"
                             android:gravity="center"
                             android:textSize="26sp"
-                            android:textColor="@color/pchome_text"
+                            android:textColor="@color/PCHome_text"
                             android:fontFamily="monospace"
                             android:letterSpacing="0.12" />
                     </com.google.android.material.textfield.TextInputLayout>
@@ -116,11 +116,11 @@
                         android:hint="@string/password_hint"
                         app:endIconMode="password_toggle"
                         app:startIconDrawable="@drawable/ic_key"
-                        app:startIconTint="@color/pchome_cyan"
-                        app:boxStrokeColor="@color/pchome_cyan"
+                        app:startIconTint="@color/PCHome_cyan"
+                        app:boxStrokeColor="@color/PCHome_cyan"
                         app:boxStrokeWidth="1dp"
                         app:boxStrokeWidthFocused="2dp"
-                        app:hintTextColor="@color/pchome_muted"
+                        app:hintTextColor="@color/PCHome_muted"
                         style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
                         <com.google.android.material.textfield.TextInputEditText
@@ -132,7 +132,7 @@
                             android:maxLength="6"
                             android:gravity="center"
                             android:textSize="26sp"
-                            android:textColor="@color/pchome_text"
+                            android:textColor="@color/PCHome_text"
                             android:fontFamily="monospace"
                             android:letterSpacing="0.12" />
                     </com.google.android.material.textfield.TextInputLayout>
@@ -153,7 +153,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/connect"
                     android:layout_marginTop="8dp"
-                    style="@style/Widget.PChome.Button" />
+                    style="@style/Widget.PCHome.Button" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -172,14 +172,14 @@
                 android:layout_weight="1"
                 android:text="@string/recent_title"
                 android:textAppearance="?attr/textAppearanceTitleMedium"
-                android:textColor="@color/pchome_cyan" />
+                android:textColor="@color/PCHome_cyan" />
 
             <com.google.android.material.textview.MaterialTextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/recent_hint"
                 android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:textColor="@color/pchome_muted" />
+                android:textColor="@color/PCHome_muted" />
         </LinearLayout>
 
         <com.google.android.material.textview.MaterialTextView
@@ -188,7 +188,7 @@
             android:layout_height="wrap_content"
             android:text="@string/recent_empty"
             android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="@color/pchome_muted"
+            android:textColor="@color/PCHome_muted"
             android:gravity="center"
             android:padding="16dp"
             android:background="@drawable/bg_neon_header" />
@@ -206,7 +206,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            style="@style/Widget.PChome.ConnectCard">
+            style="@style/Widget.PCHome.ConnectCard">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -219,7 +219,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/update_section_title"
                     android:textAppearance="?attr/textAppearanceTitleSmall"
-                    android:textColor="@color/pchome_cyan"
+                    android:textColor="@color/PCHome_cyan"
                     android:layout_marginBottom="6dp" />
 
                 <com.google.android.material.textview.MaterialTextView
@@ -227,7 +227,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="@color/pchome_muted" />
+                    android:textColor="@color/PCHome_muted" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/update_open_button"
@@ -235,7 +235,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/update_open"
                     android:layout_marginTop="8dp"
-                    style="@style/Widget.PChome.Button" />
+                    style="@style/Widget.PCHome.Button" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -244,7 +244,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textAppearance="?attr/textAppearanceLabelSmall"
-            android:textColor="@color/pchome_muted"
+            android:textColor="@color/PCHome_muted"
             android:layout_marginTop="14dp"
             android:layout_marginBottom="8dp" />
 

@@ -1,4 +1,4 @@
-package com.pchome.mobile.control;
+package com.PCHome.mobile.control;
 
 import android.view.KeyEvent;
 

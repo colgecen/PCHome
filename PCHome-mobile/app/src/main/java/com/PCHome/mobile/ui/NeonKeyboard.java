@@ -1,4 +1,4 @@
-package com.pchome.mobile.ui;
+package com.PCHome.mobile.ui;
 
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -6,7 +6,7 @@ import android.view.Gravity;
 import android.widget.Button;
 import android.widget.LinearLayout;
 
-import com.pchome.mobile.control.KeyCodeMap;
+import com.PCHome.mobile.control.KeyCodeMap;
 
 /// Builds a compact cyber-themed QWERTY soft keyboard on top of a vertical
 /// container. Each key press forwards a Linux keycode (down on press, up on

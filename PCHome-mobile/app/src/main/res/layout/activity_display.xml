@@ -10,7 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <com.pchome.mobile.ui.ReticleView
+    <com.PCHome.mobile.ui.ReticleView
         android:id="@+id/reticle"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
@@ -24,10 +24,10 @@
         android:text="@string/waiting_for_stream"
         android:checkable="false"
         android:textSize="12sp"
-        app:chipBackgroundColor="@color/pchome_panel"
+        app:chipBackgroundColor="@color/PCHome_panel"
         app:chipStrokeWidth="1dp"
-        app:chipStrokeColor="@color/pchome_cyan"
-        android:textColor="@color/pchome_text" />
+        app:chipStrokeColor="@color/PCHome_cyan"
+        android:textColor="@color/PCHome_text" />
 
     <com.google.android.material.chip.Chip
         android:id="@+id/info_chip"
@@ -37,10 +37,10 @@
         android:layout_gravity="top|end"
         android:checkable="false"
         android:textSize="12sp"
-        app:chipBackgroundColor="@color/pchome_panel"
+        app:chipBackgroundColor="@color/PCHome_panel"
         app:chipStrokeWidth="1dp"
-        app:chipStrokeColor="@color/pchome_border"
-        android:textColor="@color/pchome_muted" />
+        app:chipStrokeColor="@color/PCHome_border"
+        android:textColor="@color/PCHome_muted" />
 
     <!-- Cyber keyboard overlay (hidden until toggled) -->
     <LinearLayout
@@ -70,7 +70,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_mode"
-                style="@style/Widget.PChome.ControlButton"
+                style="@style/Widget.PCHome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="DOĞRUDAN"
@@ -78,7 +78,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_left"
-                style="@style/Widget.PChome.ControlButton"
+                style="@style/Widget.PCHome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="SOL"
@@ -86,7 +86,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_right"
-                style="@style/Widget.PChome.ControlButton"
+                style="@style/Widget.PCHome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="SAĞ"
@@ -94,7 +94,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_esc"
-                style="@style/Widget.PChome.ControlButton"
+                style="@style/Widget.PCHome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="ESC"
@@ -102,7 +102,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_ctrl"
-                style="@style/Widget.PChome.ControlButton"
+                style="@style/Widget.PCHome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="CTRL"
@@ -110,7 +110,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_keyboard"
-                style="@style/Widget.PChome.ControlButton"
+                style="@style/Widget.PCHome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="ABC"
@@ -118,7 +118,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_rotate"
-                style="@style/Widget.PChome.ControlButton"
+                style="@style/Widget.PCHome.ControlButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="ROT"
@@ -134,7 +134,7 @@
         android:layout_margin="16dp"
         android:src="@android:drawable/ic_menu_close_clear_cancel"
         android:contentDescription="@string/disconnect"
-        app:backgroundTint="@color/pchome_danger"
+        app:backgroundTint="@color/PCHome_danger"
         app:tint="@color/white" />
 
 </FrameLayout>

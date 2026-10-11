@@ -10,7 +10,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textAppearance="?attr/textAppearanceTitleMedium"
-        android:textColor="@color/pchome_cyan"
+        android:textColor="@color/PCHome_cyan"
         android:layout_marginBottom="8dp" />
 
     <ProgressBar
@@ -27,7 +27,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textAppearance="?attr/textAppearanceBodyMedium"
-        android:textColor="@color/pchome_text"
+        android:textColor="@color/PCHome_text"
         android:lineSpacingExtra="3dp" />
 
     <ScrollView
@@ -43,7 +43,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="@color/pchome_muted" />
+            android:textColor="@color/PCHome_muted" />
     </ScrollView>
 
     <com.google.android.material.button.MaterialButton
@@ -51,7 +51,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="14dp"
-        style="@style/Widget.PChome.Button" />
+        style="@style/Widget.PCHome.Button" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/update_dialog_close"
@@ -59,5 +59,5 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
         android:text="@string/update_close"
-        style="@style/Widget.PChome.ControlButton" />
+        style="@style/Widget.PCHome.ControlButton" />
 </LinearLayout>

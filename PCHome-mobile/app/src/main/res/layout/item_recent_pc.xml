@@ -7,7 +7,7 @@
     app:cardCornerRadius="14dp"
     app:cardElevation="4dp"
     app:strokeWidth="1dp"
-    app:strokeColor="@color/pchome_border">
+    app:strokeColor="@color/PCHome_border">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -18,7 +18,7 @@
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="150dp"
-            android:background="@color/pchome_background">
+            android:background="@color/PCHome_background">
 
             <ImageView
                 android:id="@+id/recent_thumb"
@@ -41,7 +41,7 @@
                 android:contentDescription="@string/recent_delete_desc"
                 app:icon="@android:drawable/ic_menu_delete"
                 app:iconSize="18dp"
-                app:iconTint="@color/pchome_danger"
+                app:iconTint="@color/PCHome_danger"
                 app:backgroundTint="@color/black" />
         </FrameLayout>
 
@@ -56,7 +56,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textAppearance="?attr/textAppearanceTitleSmall"
-                android:textColor="@color/pchome_cyan"
+                android:textColor="@color/PCHome_cyan"
                 android:singleLine="true"
                 android:ellipsize="end" />
 
@@ -65,7 +65,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="@color/pchome_text"
+                android:textColor="@color/PCHome_text"
                 android:fontFamily="monospace"
                 android:textSize="11sp"
                 android:layout_marginTop="2dp" />
@@ -75,7 +75,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:textColor="@color/pchome_muted"
+                android:textColor="@color/PCHome_muted"
                 android:layout_marginTop="4dp" />
         </LinearLayout>
     </LinearLayout>

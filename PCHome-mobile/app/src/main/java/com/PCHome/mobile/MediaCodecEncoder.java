@@ -1,4 +1,4 @@
-package com.pchome.mobile;
+package com.PCHome.mobile;
 
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.pchome.mobile">
+    package="com.PCHome.mobile">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -18,12 +18,12 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:networkSecurityConfig="@xml/network_security_config"
-        android:theme="@style/Theme.PChome">
+        android:theme="@style/Theme.PCHome">
 
         <activity
             android:name=".PinActivity"
             android:exported="true"
-            android:theme="@style/Theme.PChome">
+            android:theme="@style/Theme.PCHome">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -33,7 +33,7 @@
         <activity
             android:name=".DisplayActivity"
             android:exported="false"
-            android:theme="@style/Theme.PChome.Fullscreen" />
+            android:theme="@style/Theme.PCHome.Fullscreen" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -1,4 +1,4 @@
-package com.pchome.mobile;
+package com.PCHome.mobile;
 
 import android.graphics.Bitmap;
 import android.os.Build;
@@ -18,8 +18,8 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.pchome.mobile.control.KeyCodeMap;
-import com.pchome.mobile.ui.ReticleView;
+import com.PCHome.mobile.control.KeyCodeMap;
+import com.PCHome.mobile.ui.ReticleView;
 
 import org.json.JSONException;
 import org.json.JSONObject;

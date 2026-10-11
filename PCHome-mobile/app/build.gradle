@@ -7,11 +7,11 @@ plugins {
 // local.properties yalnız Android SDK yolunu (sdk.dir) içerir.
 
 android {
-    namespace 'com.pchome.mobile'
+    namespace 'com.PCHome.mobile'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.pchome.mobile"
+        applicationId "com.PCHome.mobile"
         minSdk 26
         targetSdk 34
         versionCode 3
