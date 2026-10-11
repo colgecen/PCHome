@@ -1,13 +1,21 @@
-//! Minimal PIN-routed WebSocket signaling relay for PChome.
+//! PChome sinyal sunucusu (protokol v2): kalıcı PC kimlikli WebSocket relay.
 //!
-//! Two peers connect with `?pin=<6 digits>&role=desktop|mobile`. The server
-//! pairs them into a room and relays every JSON message (offer / answer /
-//! ice-candidate / hello) to the *other* peer only. It never inspects the
-//! payload. The server itself needs no public IP for the media path: both
-//! peers dial *out* to this relay, and WebRTC media flows P2P via STUN.
+//! İki istemci `?pc_id=<6 hane>&role=desktop|mobile` ile bağlanır. Sunucu
+//! ikisini aynı odada eşleştirir ve her JSON mesajını (join / auth_ok /
+//! auth_rejected / offer / answer / ice-candidate / hello / device_info)
+//! SADECE diğer uca iletir, gönderene asla yankı yapmaz.
 //!
-//! Deploy behind any TLS-terminating proxy (Railway, Render, Fly, ...); the
-//! container only serves plain `ws://0.0.0.0:${PORT}`.
+//! Şifre doğrulaması BİLEREK sunucuda yapılmaz: mobil `join` mesajıyla şifre
+//! adayını gönderir, desktop kendi `identity.toml` dosyasındaki sabit şifreyle
+//! karşılaştırıp `auth_ok` / `auth_rejected` döner. Sunucu yeniden başlasa
+//! bile sır kaybolmaz, medya yolu hep P2P kalır.
+//!
+//! Geriye uyumluluk: eski `?pin=<6 hane>` istemcileri hâlâ kabul edilir
+//! (300 sn TTL'li geçici oda). Yeni istemciler `pc_id` kullanmalıdır.
+//!
+//! Tek port üzerinden TLS-sonlandırıcı arkasında çalışır (Render/Railway/Fly);
+//! konteyner yalnız düz `ws://0.0.0.0:${PORT}` sunar. Aynı port düz HTTP
+//! yoklamaları da yanıtlar: `GET /health`, `GET /metrics`, `GET /version`.
 
 #![allow(clippy::all)]
 
@@ -23,21 +31,25 @@ use tokio_tungstenite::tungstenite::http::Response as HttpResponse;
 
 type Tx = tokio::sync::mpsc::UnboundedSender<Message>;
 
-/// Rooms older than this are swept even if a peer is still connected,
-/// matching the desktop PIN lifetime.
+/// Eski `pin` odalarının ömrü (sn). Desktop bağlı olsa bile süpürülür.
 const ROOM_TTL_SECS: u64 = 300;
+/// `pc_id` odası boşken (iki uç da ayrıldıysa) ne kadar tutulacağı (sn).
+const PERSISTENT_EMPTY_TTL_SECS: u64 = 60;
+/// `pc_id` odasının güvenlik supabı: desktop bağlı olsa bile en fazla bu kadar
+/// yaşar, sonra süpürülür ve desktop yeniden `register` olur (sn).
+const PERSISTENT_MAX_AGE_SECS: u64 = 24 * 3600;
 
-/// Sliding-window length and default cap for new connections per client IP.
+/// Dakika başına IP başına yeni bağlantı kayan penceresi.
 const RATE_WINDOW_SECS: u64 = 60;
 
 #[derive(Default)]
 struct RateLimiter {
-    /// ip -> timestamps of recent accepted connections.
+    /// ip -> kabul edilen son bağlantıların zaman damgaları.
     hits: HashMap<std::net::IpAddr, Vec<std::time::Instant>>,
 }
 
 impl RateLimiter {
-    /// Returns false when the IP exceeded `limit` connections inside the window.
+    /// Pencere içindeki limit aşıldıysa false döner.
     fn allow(&mut self, ip: std::net::IpAddr, limit: u32) -> bool {
         let now = std::time::Instant::now();
         let cutoff = std::time::Duration::from_secs(RATE_WINDOW_SECS);
@@ -55,21 +67,43 @@ impl RateLimiter {
 struct Room {
     desktop: Option<Tx>,
     mobile: Option<Tx>,
-    /// Set when the first peer joins; refreshed on every join.
+    /// İlk katılımda kurulur; her katılımda tazelenir.
     created_at: Option<std::time::Instant>,
+    /// Son katılım/aktivite zamanı (boş oda süpürme için).
+    last_activity: Option<std::time::Instant>,
+    /// true: kalıcı `pc_id` odası (süpürmeye dayanıklı). false: eski `pin` odası.
+    persistent: bool,
 }
 
 impl Room {
-    fn touch(&mut self) {
+    fn touch(&mut self, persistent: bool) {
+        let now = std::time::Instant::now();
         if self.created_at.is_none() {
-            self.created_at = Some(std::time::Instant::now());
+            self.created_at = Some(now);
         }
+        self.last_activity = Some(now);
+        self.persistent |= persistent;
     }
 
     fn is_expired(&self) -> bool {
-        match self.created_at {
-            Some(t) => t.elapsed() >= std::time::Duration::from_secs(ROOM_TTL_SECS),
-            None => false,
+        let now = std::time::Instant::now();
+        match (self.created_at, self.last_activity) {
+            (Some(created), _) if self.persistent => {
+                // Güvenlik supabı: 24 saatten yaşlı oda her hâlde gider.
+                if now.duration_since(created) >= std::time::Duration::from_secs(PERSISTENT_MAX_AGE_SECS) {
+                    return true;
+                }
+                // Desktop bağlıyken oda yaşar; iki uç da yoksa 60 sn sonra gider.
+                if self.desktop.is_some() || self.mobile.is_some() {
+                    return false;
+                }
+                match self.last_activity {
+                    Some(last) => now.duration_since(last) >= std::time::Duration::from_secs(PERSISTENT_EMPTY_TTL_SECS),
+                    None => false,
+                }
+            }
+            (Some(created), _) => now.duration_since(created) >= std::time::Duration::from_secs(ROOM_TTL_SECS),
+            _ => false,
         }
     }
 }
@@ -89,6 +123,47 @@ fn parse_query(query: &str) -> HashMap<String, String> {
     out
 }
 
+/// Oda anahtarını çıkarır: önce `pc_id`, yoksa eski `pin`.
+/// Boşluklar atılır; rakam dışı karakterler temizlenir.
+/// Geçerli anahtar + kalıcılık bayrağı döner.
+fn room_key(params: &HashMap<String, String>) -> Option<(String, bool)> {
+    if let Some(raw) = params.get("pc_id") {
+        let digits: String = raw.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
+        if !digits.is_empty() && digits.len() <= 32 {
+            return Some((digits, true));
+        }
+        return None;
+    }
+    if let Some(raw) = params.get("pin") {
+        let digits: String = raw.chars().filter(|c| c.is_ascii_digit()).collect();
+        if !digits.is_empty() && digits.len() <= 32 {
+            return Some((digits, false));
+        }
+    }
+    None
+}
+
+fn version_json() -> String {
+    format!(
+        "{{\"name\":\"pchome-signal\",\"version\":\"{}\",\"protocol\":2}}",
+        env!("CARGO_PKG_VERSION")
+    )
+}
+
+fn metrics_body(reg: &Registry) -> String {
+    let rooms = reg.rooms.len();
+    let desktops = reg.rooms.values().filter(|r| r.desktop.is_some()).count();
+    let mobiles = reg.rooms.values().filter(|r| r.mobile.is_some()).count();
+    let persistent = reg.rooms.values().filter(|r| r.persistent).count();
+    format!(
+        "# TYPE pchome_rooms_active gauge\npchome_rooms_active {}\n\
+         # TYPE pchome_desktops_connected gauge\npchome_desktops_connected {}\n\
+         # TYPE pchome_mobiles_connected gauge\npchome_mobiles_connected {}\n\
+         # TYPE pchome_persistent_rooms gauge\npchome_persistent_rooms {}\n",
+        rooms, desktops, mobiles, persistent
+    )
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
@@ -106,14 +181,14 @@ async fn main() -> Result<()> {
         .unwrap_or(20);
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    log::info!("PChome signal server listening on ws://{}/ws", addr);
+    log::info!("PChome sinyal sunucusu dinliyor: ws://{}/ws (protokol v2)", addr);
 
     let registry = Arc::new(Mutex::new(Registry::default()));
     let rate_limiter = Arc::new(Mutex::new(RateLimiter::default()));
 
     spawn_health_server(registry.clone(), health_port);
 
-    // Background sweeper: evict rooms whose PIN lifetime (TTL) has elapsed.
+    // Arka plan süpürücü: süresi dolmuş odaları atar.
     {
         let registry = Arc::clone(&registry);
         tokio::spawn(async move {
@@ -124,7 +199,7 @@ async fn main() -> Result<()> {
                 let before = reg.rooms.len();
                 reg.rooms.retain(|_, room| !room.is_expired());
                 if before != reg.rooms.len() {
-                    log::info!("room sweeper: evicted {} stale rooms", before - reg.rooms.len());
+                    log::info!("oda süpürücü: {} bayat oda atıldı", before - reg.rooms.len());
                 }
             }
         });
@@ -135,32 +210,29 @@ async fn main() -> Result<()> {
         {
             let mut limiter = rate_limiter.lock().await;
             if !limiter.allow(peer.ip(), rate_limit) {
-                log::warn!("rate limit exceeded for {}, dropping", peer.ip());
+                log::warn!("oran limiti aşıldı ({}), bağlantı düşürüldü", peer.ip());
                 drop(stream);
                 continue;
             }
         }
         let registry = Arc::clone(&registry);
         tokio::spawn(async move {
-            // Plain-HTTP probes (/health, /metrics) are answered on the SAME
-            // port as the WebSocket relay so hosting platforms that expose a
-            // single port (Render, Railway, Fly...) always reach both.
+            // Tek portta barındırma yapan platformlar için: WebSocket yükseltmesi
+            // OLMAYAN düz HTTP istekleri aynı portta yanıtlanır.
             let stream = match serve_http_probe(stream, &registry).await {
                 Some(s) => s,
                 None => return,
             };
             if let Err(e) = handle_conn(stream, registry).await {
-                log::warn!("connection ended: {}", e);
+                log::warn!("bağlantı kapandı: {}", e);
             }
         });
     }
 }
 
-/// Peeks at the request head: plain HTTP requests that are NOT WebSocket
-/// upgrades are answered inline (`GET /health` and `GET /metrics` with 200,
-/// anything else with 404) and None is returned (connection done).
-/// Everything else — including WebSocket handshakes and undecodable traffic —
-/// returns the untouched stream for WebSocket handling.
+/// İstek başına bakış: WebSocket yükseltmesi olmayan düz HTTP istekleri
+/// içeride yanıtlanır (`GET /health`, `/metrics`, `/version` -> 200, diğer
+/// -> 404) ve None dönülür. Diğer her şey WebSocket'e bırakılır.
 async fn serve_http_probe(
     mut stream: tokio::net::TcpStream,
     registry: &Arc<Mutex<Registry>>,
@@ -181,28 +253,19 @@ async fn serve_http_probe(
         return Some(stream);
     }
     let path = head.split_whitespace().nth(1).unwrap_or("");
-    let (status, body) = match path {
-        "/health" => ("200 OK", "OK".to_string()),
+    let (status, content_type, body) = match path {
+        "/health" => ("200 OK", "text/plain", "OK".to_string()),
         "/metrics" => {
             let reg = registry.lock().await;
-            let rooms = reg.rooms.len();
-            let desktops = reg.rooms.values().filter(|r| r.desktop.is_some()).count();
-            let mobiles = reg.rooms.values().filter(|r| r.mobile.is_some()).count();
-            (
-                "200 OK",
-                format!(
-                    "# TYPE pchome_rooms_active gauge\npchome_rooms_active {}\n\
-                     # TYPE pchome_desktops_connected gauge\npchome_desktops_connected {}\n\
-                     # TYPE pchome_mobiles_connected gauge\npchome_mobiles_connected {}\n",
-                    rooms, desktops, mobiles
-                ),
-            )
+            ("200 OK", "text/plain", metrics_body(&reg))
         }
-        _ => ("404 Not Found", "not found\n".to_string()),
+        "/version" => ("200 OK", "application/json", version_json()),
+        _ => ("404 Not Found", "text/plain", "not found\n".to_string()),
     };
     let resp = format!(
-        "HTTP/1.1 {}\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        "HTTP/1.1 {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
         status,
+        content_type,
         body.len(),
         body
     );
@@ -211,20 +274,18 @@ async fn serve_http_probe(
     None
 }
 
-/// Minimal HTTP sidecar serving `/health` and Prometheus-style `/metrics`
-/// on a dedicated port so orchestrators can probe the relay without
-/// speaking WebSocket.
+/// Ayrı porttaki minimal HTTP yardımcısı (`/health` + `/metrics` + `/version`).
 fn spawn_health_server(registry: Arc<Mutex<Registry>>, port: u16) {
     tokio::spawn(async move {
         let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
         let listener = match tokio::net::TcpListener::bind(addr).await {
             Ok(l) => l,
             Err(e) => {
-                log::warn!("health endpoint unavailable on {}: {}", addr, e);
+                log::warn!("sağlık uç noktası {} üzerinde açılamadı: {}", addr, e);
                 return;
             }
         };
-        log::info!("health endpoint listening on http://{}/health", addr);
+        log::info!("sağlık uç noktası dinliyor: http://{}/health", addr);
         loop {
             let Ok((mut stream, _)) = listener.accept().await else {
                 continue;
@@ -236,27 +297,20 @@ fn spawn_health_server(registry: Arc<Mutex<Registry>>, port: u16) {
                 let n = stream.read(&mut buf).await.unwrap_or(0);
                 let req = String::from_utf8_lossy(&buf[..n]);
                 let path = req.split_whitespace().nth(1).unwrap_or("/");
-                let (status, body) = match path {
-                    "/health" => ("200 OK", "OK".to_string()),
+                let (status, content_type, body) = match path {
+                    "/health" => ("200 OK", "text/plain", "OK".to_string()),
                     "/metrics" => {
                         let reg = registry.lock().await;
-                        let rooms = reg.rooms.len();
-                        let desktops = reg.rooms.values().filter(|r| r.desktop.is_some()).count();
-                        let mobiles = reg.rooms.values().filter(|r| r.mobile.is_some()).count();
-                        let body = format!(
-                            "# TYPE pchome_rooms_active gauge\npchome_rooms_active {}\n\
-                             # TYPE pchome_desktops_connected gauge\npchome_desktops_connected {}\n\
-                             # TYPE pchome_mobiles_connected gauge\npchome_mobiles_connected {}\n",
-                            rooms, desktops, mobiles
-                        );
-                        ("200 OK", body)
+                        ("200 OK", "text/plain", metrics_body(&reg))
                     }
-                    _ => ("404 Not Found", "not found\n".to_string()),
+                    "/version" => ("200 OK", "application/json", version_json()),
+                    _ => ("404 Not Found", "text/plain", "not found\n".to_string()),
                 };
                 drop(registry);
                 let resp = format!(
-                    "HTTP/1.1 {}\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    "HTTP/1.1 {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                     status,
+                    content_type,
                     body.len(),
                     body
                 );
@@ -285,26 +339,35 @@ async fn handle_conn(
     let ws = tokio_tungstenite::accept_hdr_async(stream, callback).await?;
     let query = query_cell.lock().unwrap().take().unwrap_or_default();
     let params = parse_query(&query);
-    let pin = match params.get("pin") {
-        Some(p) if !p.is_empty() => p.clone(),
-        _ => {
-            log::warn!("reject: missing pin");
+    let (key, persistent) = match room_key(&params) {
+        Some(k) => k,
+        None => {
+            log::warn!("reddedildi: pc_id/pin eksik ya da bozuk");
             return Ok(());
         }
     };
     let role = params.get("role").cloned().unwrap_or_default();
+    if role != "desktop" && role != "mobile" {
+        log::warn!("reddedildi: bilinmeyen rol '{}'", role);
+        return Ok(());
+    }
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
     {
         let mut reg = registry.lock().await;
-        let room = reg.rooms.entry(pin.clone()).or_default();
-        room.touch();
+        let room = reg.rooms.entry(key.clone()).or_default();
+        room.touch(persistent);
         match role.as_str() {
             "desktop" => room.desktop = Some(tx.clone()),
             "mobile" => room.mobile = Some(tx.clone()),
             _ => {}
         }
-        log::info!("peer joined pin={} role={}", pin, role);
+        log::info!(
+            "uç katıldı oda={} rol={} kalıcı={}",
+            key,
+            role,
+            room.persistent
+        );
     }
 
     let (mut writer, mut reader) = ws.split();
@@ -326,7 +389,7 @@ async fn handle_conn(
         let text = msg.into_text().unwrap_or_default();
         let peer = {
             let reg = registry.lock().await;
-            let room = reg.rooms.get(&pin);
+            let room = reg.rooms.get(&key);
             match role.as_str() {
                 "desktop" => room.and_then(|r| r.mobile.clone()),
                 "mobile" => room.and_then(|r| r.desktop.clone()),
@@ -340,16 +403,74 @@ async fn handle_conn(
 
     write_task.abort();
     let mut reg = registry.lock().await;
-    if let Some(room) = reg.rooms.get_mut(&pin) {
+    if let Some(room) = reg.rooms.get_mut(&key) {
         match role.as_str() {
             "desktop" => room.desktop = None,
             "mobile" => room.mobile = None,
             _ => {}
         }
-        if room.desktop.is_none() && room.mobile.is_none() {
-            reg.rooms.remove(&pin);
+        room.last_activity = Some(std::time::Instant::now());
+        if room.desktop.is_none() && room.mobile.is_none() && !room.persistent {
+            reg.rooms.remove(&key);
         }
     }
-    log::info!("peer left pin={} role={}", pin, role);
+    log::info!("uç ayrıldı oda={} rol={}", key, role);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn oda_anahtari_once_pc_id() {
+        let mut p = HashMap::new();
+        p.insert("pc_id".to_string(), "482-913".to_string());
+        p.insert("pin".to_string(), "111111".to_string());
+        p.insert("role".to_string(), "mobile".to_string());
+        let (key, persistent) = room_key(&p).unwrap();
+        assert_eq!(key, "482913");
+        assert!(persistent);
+    }
+
+    #[test]
+    fn oda_anahtari_eski_pin() {
+        let mut p = HashMap::new();
+        p.insert("pin".to_string(), "123456".to_string());
+        let (key, persistent) = room_key(&p).unwrap();
+        assert_eq!(key, "123456");
+        assert!(!persistent);
+    }
+
+    #[test]
+    fn oda_anahtari_bos_reddedilir() {
+        let p = HashMap::new();
+        assert!(room_key(&p).is_none());
+    }
+
+    #[test]
+    fn kalici_oda_desktop_bagliyken_supurulmez() {
+        let mut room = Room::default();
+        room.touch(true);
+        room.desktop = Some(tokio::sync::mpsc::unbounded_channel().0);
+        // 300 sn geçse bile desktop bağlıysa yaşar.
+        room.created_at = Some(std::time::Instant::now() - std::time::Duration::from_secs(600));
+        assert!(!room.is_expired());
+    }
+
+    #[test]
+    fn eski_pin_odasi_300sn_sonra_gider() {
+        let mut room = Room::default();
+        room.touch(false);
+        room.created_at = Some(std::time::Instant::now() - std::time::Duration::from_secs(301));
+        assert!(room.is_expired());
+    }
+
+    #[test]
+    fn bos_kalici_oda_60sn_sonra_gider() {
+        let mut room = Room::default();
+        room.touch(true);
+        room.last_activity = Some(std::time::Instant::now() - std::time::Duration::from_secs(61));
+        assert!(room.is_expired());
+    }
 }
