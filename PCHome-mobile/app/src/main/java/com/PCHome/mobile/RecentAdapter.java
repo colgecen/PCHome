@@ -58,6 +58,11 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.Holder> {
         String title = pc.pcName.isEmpty() ? ("PC " + pc.pcId) : pc.pcName;
         h.title.setText(title);
         h.subtitle.setText(pc.subtitle());
+        if (pc.rememberPassword && !pc.password.isEmpty()) {
+            h.password.setText("Şifre: " + pc.password);
+        } else {
+            h.password.setText("Şifre: ••••••");
+        }
         CharSequence ago = DateUtils.getRelativeTimeSpanString(
                 pc.lastSeen, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS);
         h.lastSeen.setText(pc.resolution.isEmpty() ? ago : (pc.resolution + "  •  " + ago));
@@ -97,6 +102,7 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.Holder> {
         final ImageView thumb;
         final MaterialTextView title;
         final MaterialTextView subtitle;
+        final MaterialTextView password;
         final MaterialTextView lastSeen;
         final View delete;
 
@@ -106,6 +112,7 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.Holder> {
             thumb = itemView.findViewById(R.id.recent_thumb);
             title = itemView.findViewById(R.id.recent_title);
             subtitle = itemView.findViewById(R.id.recent_subtitle);
+            password = itemView.findViewById(R.id.recent_password);
             lastSeen = itemView.findViewById(R.id.recent_last_seen);
             delete = itemView.findViewById(R.id.recent_delete);
         }

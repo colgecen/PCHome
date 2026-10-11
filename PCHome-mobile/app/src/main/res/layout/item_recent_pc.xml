@@ -71,6 +71,16 @@
                 android:layout_marginTop="2dp" />
 
             <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/recent_password"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="@color/PCHome_cyan"
+                android:fontFamily="monospace"
+                android:textSize="13sp"
+                android:layout_marginTop="2dp" />
+
+            <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/recent_last_seen"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

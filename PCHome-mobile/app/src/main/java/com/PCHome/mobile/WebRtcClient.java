@@ -50,6 +50,10 @@ public class WebRtcClient {
     private String localSdp;
     private final List<IceCandidate> iceCandidates = new ArrayList<>();
     private WebRtcListener listener;
+    private Context appContext;
+    // Native kitaplık bir süreçte bir kez ilklendirilir; factory/EGL ise
+    // her tam kopuşta bırakılıp yeniden kurulur (sızıntı çökertiyordu).
+    private static boolean sLibInitialized = false;
     // Sinyal dalgalanmasında el sıkışmayı öldürmemek için: medya tek kez
     // başlatılır, PeerConnection sinyal yeniden bağlanışlarında YENİDEN
     // kurulmaz (var olan bağlantı üzerinden hello/offer devam eder).
@@ -69,24 +73,31 @@ public class WebRtcClient {
     }
 
     public WebRtcClient(Context context, SurfaceViewRenderer localRenderer, SurfaceViewRenderer remoteRenderer) {
+        this.appContext = context.getApplicationContext();
         this.localRenderer = localRenderer;
         this.remoteRenderer = remoteRenderer;
         this.state = ConnectionState.NEW;
-        initPeerConnectionFactory(context);
+        initPeerConnectionFactory(appContext);
     }
 
     private void initPeerConnectionFactory(Context context) {
-        PeerConnectionFactory.InitializationOptions initOptions = PeerConnectionFactory.InitializationOptions.builder(context)
-                .setEnableInternalTracer(true)
-                .createInitializationOptions();
-        PeerConnectionFactory.initialize(initOptions);
+        if (!sLibInitialized) {
+            PeerConnectionFactory.InitializationOptions initOptions = PeerConnectionFactory.InitializationOptions.builder(context)
+                    .setEnableInternalTracer(true)
+                    .createInitializationOptions();
+            PeerConnectionFactory.initialize(initOptions);
+            sLibInitialized = true;
+        }
 
-        eglBase = EglBase.create();
-
-        factory = PeerConnectionFactory.builder()
-                .setVideoEncoderFactory(new org.webrtc.DefaultVideoEncoderFactory(eglBase.getEglBaseContext(), true, true))
-                .setVideoDecoderFactory(new org.webrtc.DefaultVideoDecoderFactory(eglBase.getEglBaseContext()))
-                .createPeerConnectionFactory();
+        if (eglBase == null) {
+            eglBase = EglBase.create();
+        }
+        if (factory == null) {
+            factory = PeerConnectionFactory.builder()
+                    .setVideoEncoderFactory(new org.webrtc.DefaultVideoEncoderFactory(eglBase.getEglBaseContext(), true, true))
+                    .setVideoDecoderFactory(new org.webrtc.DefaultVideoDecoderFactory(eglBase.getEglBaseContext()))
+                    .createPeerConnectionFactory();
+        }
     }
 
     /**
@@ -97,6 +108,18 @@ public class WebRtcClient {
     public void connect(String signalUrl, String pcId, String password) {
         state = ConnectionState.CONNECTING;
         notifyStateChanged();
+        // Yeniden denemede fabrika bırakılmış olabilir; gerekirse kur.
+        if (factory == null || eglBase == null) {
+            try {
+                initPeerConnectionFactory(appContext);
+            } catch (Exception e) {
+                Log.e(TAG, "Factory kurulamadı: " + e.getMessage());
+                state = ConnectionState.FAILED;
+                notifyStateChanged();
+                if (listener != null) listener.onError("Medya başlatılamadı: " + e.getMessage());
+                return;
+            }
+        }
         mediaStarted = false;
         offerReceived = false;
         helloTries = 0;
@@ -496,8 +519,59 @@ public class WebRtcClient {
         } catch (Exception e) {
             Log.w(TAG, "Signal kapatılamadı: " + e.getMessage());
         }
+        // Medya kaynaklarını bırak: bırakılmazsa EGL bağlamları birikip
+        // birkaç denemede uygulama çöküyordu ("başa atma").
+        try {
+            if (localVideoTrack != null) {
+                localVideoTrack.dispose();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "VideoTrack bırakılamadı: " + e.getMessage());
+        }
+        try {
+            if (videoSource != null) {
+                videoSource.dispose();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "VideoSource bırakılamadı: " + e.getMessage());
+        }
+        try {
+            if (localAudioTrack != null) {
+                localAudioTrack.dispose();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "AudioTrack bırakılamadı: " + e.getMessage());
+        }
+        try {
+            if (audioSource != null) {
+                audioSource.dispose();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "AudioSource bırakılamadı: " + e.getMessage());
+        }
+        try {
+            if (factory != null) {
+                factory.dispose();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Factory bırakılamadı: " + e.getMessage());
+        }
+        try {
+            if (eglBase != null) {
+                eglBase.release();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "EGL bırakılamadı: " + e.getMessage());
+        }
         peerConnection = null;
         dataChannel = null;
+        localVideoTrack = null;
+        videoSource = null;
+        videoCapturer = null;
+        localAudioTrack = null;
+        audioSource = null;
+        factory = null;
+        eglBase = null;
         mediaStarted = false;
         state = ConnectionState.DISCONNECTED;
         notifyStateChanged();

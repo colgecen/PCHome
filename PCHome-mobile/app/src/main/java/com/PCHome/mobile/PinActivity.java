@@ -100,8 +100,16 @@ public class PinActivity extends AppCompatActivity {
         recentAdapter = new RecentAdapter(new RecentAdapter.Listener() {
             @Override
             public void onOpen(RecentPc pc) {
-                openConnection(serverEdit.getText().toString().trim(), pc.pcId,
-                        pc.rememberPassword ? pc.password : "", pc.rememberPassword);
+                if (pc.rememberPassword && pc.password.length() == 6) {
+                    openConnection(serverEdit.getText().toString().trim(), pc.pcId,
+                            pc.password, true);
+                } else {
+                    // Şifre kayıtlı değilse forma doldur, kullanıcı yazsın.
+                    pcIdEdit.setText(pc.pcId);
+                    passwordEdit.setText("");
+                    passwordEdit.requestFocus();
+                    toast("Karttaki şifreyi yazıp bağlan");
+                }
             }
 
             @Override
