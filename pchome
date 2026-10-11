@@ -287,7 +287,12 @@ EOF
     chmod +x "$tool"
   fi
   ARCH=x86_64 "$tool" --appimage-extract-and-run \
-    "$appdir" "$DIST/PChome-${VERSION}-x86_64.AppImage"
+    "$appdir" "$DIST/PChome-${VERSION}-x86_64.AppImage" || {
+    # Hedef dosya çalışıyorsa (Text file busy) önce silinip yeniden denenir.
+    rm -f "$DIST/PChome-${VERSION}-x86_64.AppImage"
+    ARCH=x86_64 "$tool" --appimage-extract-and-run \
+      "$appdir" "$DIST/PChome-${VERSION}-x86_64.AppImage"
+  }
   rm -rf "$appdir"
   echo "==> dist/PChome-${VERSION}-x86_64.AppImage"
 }
