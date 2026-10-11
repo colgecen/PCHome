@@ -13,39 +13,16 @@
         android:gravity="center_horizontal"
         android:padding="16dp">
 
-        <!-- Marka başlığı -->
-        <LinearLayout
-            android:layout_width="match_parent"
+        <!-- Sade ortalanmış başlık -->
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="center_horizontal"
-            android:background="@drawable/bg_neon_header"
-            android:padding="18dp">
-
-            <com.google.android.material.textview.MaterialTextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="⬢"
-                android:textSize="40sp"
-                android:textColor="@color/pchome_cyan" />
-
-            <com.google.android.material.textview.MaterialTextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/app_name"
-                android:textAppearance="?attr/textAppearanceHeadlineLarge"
-                android:textColor="@color/pchome_cyan"
-                android:letterSpacing="0.08" />
-
-            <com.google.android.material.textview.MaterialTextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/connect_subtitle"
-                android:textAppearance="?attr/textAppearanceBodyMedium"
-                android:textColor="@color/pchome_muted"
-                android:layout_marginTop="2dp"
-                android:layout_marginBottom="4dp" />
-        </LinearLayout>
+            android:text="@string/app_name"
+            android:textAppearance="?attr/textAppearanceHeadlineLarge"
+            android:textColor="@color/pchome_cyan"
+            android:letterSpacing="0.08"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="4dp" />
 
         <!-- Bağlantı kartı -->
         <com.google.android.material.card.MaterialCardView
@@ -72,6 +49,14 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:hint="@string/signal_server_hint"
+                    app:helperText="@string/signal_server_help"
+                    app:helperTextTextColor="@color/pchome_muted"
+                    app:startIconDrawable="@drawable/ic_server"
+                    app:startIconTint="@color/pchome_cyan"
+                    
+                    
+                    
+                    
                     app:boxStrokeColor="@color/pchome_cyan"
                     app:boxStrokeWidth="1dp"
                     app:boxStrokeWidthFocused="2dp"
@@ -101,6 +86,8 @@
                         android:layout_weight="1"
                         android:layout_marginEnd="5dp"
                         android:hint="@string/pc_id_hint"
+                        app:startIconDrawable="@drawable/ic_id"
+                        app:startIconTint="@color/pchome_cyan"
                         app:boxStrokeColor="@color/pchome_cyan"
                         app:boxStrokeWidth="1dp"
                         app:boxStrokeWidthFocused="2dp"
@@ -128,6 +115,8 @@
                         android:layout_marginStart="5dp"
                         android:hint="@string/password_hint"
                         app:endIconMode="password_toggle"
+                        app:startIconDrawable="@drawable/ic_key"
+                        app:startIconTint="@color/pchome_cyan"
                         app:boxStrokeColor="@color/pchome_cyan"
                         app:boxStrokeWidth="1dp"
                         app:boxStrokeWidthFocused="2dp"
@@ -210,37 +199,6 @@
             android:layout_height="wrap_content"
             android:nestedScrollingEnabled="false"
             android:clipToPadding="false" />
-
-        <!-- Hareket rehberi -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            style="@style/Widget.PChome.ConnectCard">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
-
-                <com.google.android.material.textview.MaterialTextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/gesture_hint_title"
-                    android:textAppearance="?attr/textAppearanceTitleSmall"
-                    android:textColor="@color/pchome_cyan"
-                    android:layout_marginBottom="6dp" />
-
-                <com.google.android.material.textview.MaterialTextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/gesture_hint_body"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
-                    android:textColor="@color/pchome_muted"
-                    android:lineSpacingExtra="3dp" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
 
         <!-- Güncelleme (en alt, masaüstüyle aynı mantık) -->
         <com.google.android.material.card.MaterialCardView

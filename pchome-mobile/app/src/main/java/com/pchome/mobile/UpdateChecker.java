@@ -165,7 +165,7 @@ public class UpdateChecker {
                 dest.delete();
             }
             DownloadManager.Request req = new DownloadManager.Request(Uri.parse(info.apkUrl));
-            req.setTitle("PChome " + info.version + " indiriliyor");
+            req.setTitle("PCHome " + info.version + " indiriliyor");
             req.setDescription("Güncelleme paketi");
             req.setNotificationVisibility(
                     DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);

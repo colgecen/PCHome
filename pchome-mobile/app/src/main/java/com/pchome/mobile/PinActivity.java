@@ -53,7 +53,7 @@ public class PinActivity extends AppCompatActivity {
         updateStateText = findViewById(R.id.update_state_text);
         updateStateText.setText(getString(R.string.update_idle));
         MaterialTextView versionFooter = findViewById(R.id.version_footer);
-        versionFooter.setText("PChome v" + BuildConfig.VERSION_NAME);
+        versionFooter.setText("PCHome v" + BuildConfig.VERSION_NAME);
         prefs = new Prefs(this);
         recentStore = new RecentStore(this);
 

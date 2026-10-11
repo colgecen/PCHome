@@ -1,16 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">PChome</string>
-    <string name="accessibility_service_description">PChome accessibility service for remote input control</string>
+    <string name="app_name">PCHome</string>
+    <string name="accessibility_service_description">PCHome accessibility service for remote input control</string>
     <string name="pin_hint">PIN shown on the desktop</string>
     <string name="pc_id_hint">PC ID (6 hane)</string>
     <string name="password_hint">Şifre (6 hane)</string>
     <string name="remember_password">Şifreyi hatırla</string>
-    <string name="connect_subtitle">ID + şifreyle PC\'ne bağlan</string>
     <string name="connect_card_title">🔌 Yeni Bağlantı</string>
     <string name="recent_hint">aç: dokun • sil: çöp kutusu</string>
-    <string name="gesture_hint_title">👆 Kumanda hareketleri</string>
-    <string name="gesture_hint_body">• Dokun: sol tık\n• Uzun bas: sağ tık\n• Çift dokun: çift tık\n• İki parmak: kaydır\n• TOUCHPAD kipi: telefon touchpad gibi çalışır</string>
     <string name="recent_title">Son Girilenler</string>
     <string name="recent_empty">Henüz bağlantı yok — yukarıdan ilk bağlantını kur.</string>
     <string name="recent_thumb_desc">PC son görüntüsü</string>
@@ -28,6 +25,7 @@
     <string name="update_retry">Tekrar dene</string>
     <string name="update_failed">Denetlenemedi: %1$s</string>
     <string name="signal_server_hint">Signal server (wss://host/ws)</string>
+    <string name="signal_server_help">PC uygulamasındaki adresle aynı olmalı</string>
     <string name="idle">Idle</string>
     <string name="connect">Connect</string>
     <string name="disconnect">Disconnect</string>
@@ -42,6 +40,6 @@
     <string name="retry">Tekrar dene</string>
     <string name="go_back">Geri dön</string>
     <string name="signal_url_hint">wss://your-service.onrender.com/ws</string>
-    <string name="screen_capture_notification">PChome Screen Capture</string>
+    <string name="screen_capture_notification">PCHome Screen Capture</string>
     <string name="screen_capture_notification_channel">Screen Capture</string>
 </resources>
