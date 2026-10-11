@@ -16,6 +16,10 @@ mod metrics;
 mod network;
 mod pin;
 mod state;
+#[cfg(feature = "gui")]
+mod theme;
+#[cfg(feature = "gui")]
+mod updater;
 #[cfg(all(feature = "capture", target_family = "unix"))]
 mod uinput;
 
