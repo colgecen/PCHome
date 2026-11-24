@@ -55,6 +55,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private boolean recentSaved = false;
     private boolean connectedOnce = false;
     private boolean fatalShown = false;
+    private boolean firstFrameRendered = false;
     private AlertDialog fatalDialog;
     private final Runnable timeoutCheck = () -> {
         if (!connectedOnce && !isFinishing()) {
@@ -142,9 +143,17 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                         @Override
                         public void onFirstFrameRendered() {
                             runOnUiThread(() -> {
+                                firstFrameRendered = true;
                                 markConnected();
                                 streamStatus.setVisibility(View.GONE);
                                 Diag.phase(DisplayActivity.this, "ilk-kare");
+                                surfaceView.post(() -> {
+                                    if (surfaceView.getWidth() > 0 && surfaceView.getHeight() > 0) {
+                                        reticle.setPosition(
+                                                surfaceView.getLeft() + surfaceView.getWidth() / 2f,
+                                                surfaceView.getTop() + surfaceView.getHeight() / 2f);
+                                    }
+                                });
                             });
                         }
 
@@ -467,16 +476,16 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                 break;
             case MotionEvent.ACTION_UP:
                 pressed = false;
-                updateReticleHide();
                 if (longPressFired) {
                     sendClick("right", "up");
                 } else {
                     sendClick("left", "up");
-                    // Two taps within the OS double-click interval already
-                    // become a double click on the PC; sending an extra
-                    // "double" message produced four clicks.
+                    // İki dokunuş OS'nin çift tıklama aralığındaysa zaten
+                    // çift tıklama olur; ayrıca "double" göndermiyoruz.
                     lastTapTime = System.currentTimeMillis();
                 }
+                // Reticle görünür kalsın: kullanıcı imlecin son konumunu
+                // dokunmayı bıraktıktan sonra da görsün.
                 break;
             case MotionEvent.ACTION_CANCEL:
                 pressed = false;
@@ -542,7 +551,11 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     }
 
     private void updateReticle(float x, float y) {
-        uiHandler.post(() -> reticle.setPosition(x, y));
+        // x,y SurfaceView'a göre; ReticleView tüm ekranı kapladığı için
+        // SurfaceView'ın üst/left kaymasını ekle.
+        final float ox = surfaceView.getLeft();
+        final float oy = surfaceView.getTop();
+        uiHandler.post(() -> reticle.setPosition(ox + x, oy + y));
     }
 
     private void updateReticleHide() {
@@ -601,15 +614,20 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             if (state == WebRtcClient.ConnectionState.CONNECTED) {
                 markConnected();
                 // İlk kare gelene kadar durumu görünür tut; siyah ekranda
-                // kullanıcı ne olduğunu anlasın.
-                streamStatus.setText(R.string.conn_phase_video);
-                streamStatus.setVisibility(View.VISIBLE);
+                // kullanıcı ne olduğunu anlasın. İlk kareden sonra çipi
+                // yeniden gösterme (aksi hâlde "ilk kare" yazısı ekranda kalıyor).
+                if (!firstFrameRendered) {
+                    streamStatus.setText(R.string.conn_phase_video);
+                    streamStatus.setVisibility(View.VISIBLE);
+                }
             } else if (state == WebRtcClient.ConnectionState.DISCONNECTED) {
                 saveRecent();
+                if (reticle != null) reticle.setVisible(false);
                 streamStatus.setText(R.string.disconnected);
                 streamStatus.setVisibility(View.VISIBLE);
             } else if (state == WebRtcClient.ConnectionState.FAILED) {
                 saveRecent();
+                if (reticle != null) reticle.setVisible(false);
                 streamStatus.setText(R.string.error);
                 streamStatus.setVisibility(View.VISIBLE);
             }
