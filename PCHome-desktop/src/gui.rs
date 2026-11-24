@@ -367,8 +367,14 @@ impl DesktopGui {
                     v.widgets.inactive.bg_fill = handle;
                     v.widgets.hovered.bg_fill = Color32::from_gray(235);
                     v.widgets.active.bg_fill = Color32::from_gray(245);
+                    let vis = if hovered {
+                        egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded
+                    } else {
+                        egui::scroll_area::ScrollBarVisibility::AlwaysHidden
+                    };
                     egui::ScrollArea::vertical()
                         .auto_shrink([false, false])
+                        .scroll_bar_visibility(vis)
                         .show(ui, |ui| {
                             // İçeriği scrollbar'dan uzak tut; scrollbar panelin
                             // en sağ kenarına yapışık kalsın.
