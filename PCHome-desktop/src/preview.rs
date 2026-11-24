@@ -55,6 +55,7 @@ fn run_wayland_loop(state: &SharedState) {
                 if !bytes.is_empty() {
                     let (w, h) = png_size(&bytes).unwrap_or((0, 0));
                     *state.preview_jpeg.lock().unwrap() = Some((bytes, w, h));
+                    state.preview_seq.fetch_add(1, Ordering::SeqCst);
                 }
             }
         }
@@ -192,6 +193,7 @@ fn run_mirror(state: &SharedState, width: u32, height: u32) {
         while let Some(frame) = take_jpeg(&mut buf) {
             let (fw, fh) = jpeg_size(&frame).unwrap_or((544, 306));
             *state.preview_jpeg.lock().unwrap() = Some((frame, fw, fh));
+            state.preview_seq.fetch_add(1, Ordering::SeqCst);
             if let Some((cx, cy)) = cursor.position(width, height) {
                 *state.preview_cursor.lock().unwrap() = Some((cx, cy));
             }

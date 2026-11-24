@@ -62,6 +62,7 @@ pub fn run(state: SharedState) {
                 update_rx,
                 settings_rect: None,
                 update_rect: None,
+                was_peer_connected: false,
             }))
         }),
     );
@@ -102,6 +103,7 @@ struct DesktopGui {
     update_rx: Receiver<UpdateEvent>,
     settings_rect: Option<egui::Rect>,
     update_rect: Option<egui::Rect>,
+    was_peer_connected: bool,
 }
 
 enum UpdateModalState {
@@ -268,7 +270,12 @@ impl DesktopGui {
                     .inner_margin(egui::Margin::symmetric(18.0, 16.0)),
             )
             .show(ctx, |ui| {
+                // Sunucu kartı her zaman görünür kalsın: üstteki kimlik ve
+                // cihaz kartları gerekirse kendi içinde kaydırılır.
+                let server_block = 210.0;
+                let scroll_h = (ui.available_height() - server_block).max(220.0);
                 egui::ScrollArea::vertical()
+                    .max_height(scroll_h)
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         theme::section_label(ui, "BAĞLANTI");
@@ -278,20 +285,11 @@ impl DesktopGui {
                         theme::section_label(ui, "CİHAZ");
                         ui.add_space(8.0);
                         self.card_peer(ui);
-                        ui.add_space(12.0);
-                        theme::section_label(ui, "SUNUCU");
-                        ui.add_space(8.0);
-                        self.card_server(ui);
-                        ui.add_space(12.0);
-                        ui.label(
-                            RichText::new(format!(
-                                "PCHome v{} • uçtan uca WebRTC",
-                                crate::updater::current_version()
-                            ))
-                            .size(10.0)
-                            .color(theme::dim()),
-                        );
                     });
+                ui.add_space(6.0);
+                theme::section_label(ui, "SUNUCU");
+                ui.add_space(4.0);
+                self.card_server(ui);
             });
     }
 
@@ -466,6 +464,8 @@ impl DesktopGui {
     }
 
     fn card_server(&mut self, ui: &mut egui::Ui) {
+        let upd = self.state.update_status.lock().unwrap().clone();
+        let has_update = upd.contains("yeni sürüm") || upd.contains("kuruldu");
         theme::card_frame().show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.horizontal(|ui| {
@@ -477,10 +477,23 @@ impl DesktopGui {
                         .strong(),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    theme::dot(
+                        ui,
+                        if has_update {
+                            theme::success()
+                        } else {
+                            theme::dim()
+                        },
+                        5.0,
+                    );
                     ui.label(
                         RichText::new(format!("v{}", crate::updater::current_version()))
                             .font(theme::mono_font(10.0))
-                            .color(theme::dim()),
+                            .color(if has_update {
+                                theme::success()
+                            } else {
+                                theme::dim()
+                            }),
                     );
                 });
             });
@@ -517,26 +530,17 @@ impl DesktopGui {
                     self.settings_msg.clear();
                     self.show_settings = true;
                 }
-                if theme::icon_button_auto(
+                let resp = theme::icon_button_auto(
                     ui,
                     theme::I_UPDATE,
                     "Güncelle",
                     theme::alpha(Color32::WHITE, 6),
                     theme::text(),
-                )
-                .on_hover_text("Güncellemeleri denetle")
-                .clicked()
-                {
+                );
+                if resp.on_hover_text(upd).clicked() {
                     self.update_modal = UpdateModalState::Idle;
                 }
             });
-            let upd = self.state.update_status.lock().unwrap().clone();
-            let has_update = upd.contains("yeni sürüm") || upd.contains("kuruldu");
-            ui.label(RichText::new(upd).size(10.0).color(if has_update {
-                theme::success()
-            } else {
-                theme::muted()
-            }));
         });
     }
 
@@ -1565,6 +1569,17 @@ impl eframe::App for DesktopGui {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
         theme::apply(ctx);
+        let peer = self.state.peer_connected.load(Ordering::SeqCst);
+        if peer && !self.was_peer_connected {
+            // Telefon bağlanınca masaüstü penceresini öne getir; kullanıcı
+            // kimlik/şifre ve canlı önizlemeyi anında görsün.
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                egui::UserAttentionType::Informational,
+            ));
+        }
+        self.was_peer_connected = peer;
         self.top_bar(ctx);
         self.side_panel(ctx);
         self.central(ctx);
