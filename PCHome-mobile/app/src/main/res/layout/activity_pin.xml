@@ -162,7 +162,7 @@
                         android:maxLines="1"
                         android:textColor="@color/PCHome_text"
                         android:textColorHint="@color/PCHome_dim"
-                        android:textSize="13.5sp" />
+                        android:textSize="15sp" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <LinearLayout
@@ -188,14 +188,14 @@
                         <com.google.android.material.textfield.TextInputLayout
                             style="@style/Widget.PCHome.Input"
                             android:layout_width="match_parent"
-                            android:layout_height="48dp"
+                            android:layout_height="56dp"
                             android:layout_marginTop="6dp"
                             app:hintEnabled="false">
 
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/pc_id_input"
                                 android:layout_width="match_parent"
-                                android:layout_height="match_parent"
+                                android:layout_height="wrap_content"
                                 android:fontFamily="@font/inter_semibold"
                                 android:gravity="center_vertical"
                                 android:imeOptions="actionNext"
@@ -223,7 +223,7 @@
                         <com.google.android.material.textfield.TextInputLayout
                             style="@style/Widget.PCHome.Input"
                             android:layout_width="match_parent"
-                            android:layout_height="48dp"
+                            android:layout_height="56dp"
                             android:layout_marginTop="6dp"
                             app:endIconMode="password_toggle"
                             app:hintEnabled="false">
@@ -231,7 +231,7 @@
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/password_input"
                                 android:layout_width="match_parent"
-                                android:layout_height="match_parent"
+                                android:layout_height="wrap_content"
                                 android:fontFamily="@font/inter_regular"
                                 android:gravity="center_vertical"
                                 android:imeOptions="actionDone"
