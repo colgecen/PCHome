@@ -49,6 +49,14 @@ fn main() -> Result<()> {
     env_logger::init();
     log::info!("PCHome Desktop starting");
 
+    // GUI henüz SIGUSR1 dinleyicisini kurmadan önce ikinci bir örnek
+    // "pencereyi öne getir" sinyali gönderirse varsayılan davranış süreci
+    // sonlandırırdı. GUI hazır olana kadar sinyali yok say.
+    #[cfg(unix)]
+    unsafe {
+        libc::signal(libc::SIGUSR1, libc::SIG_IGN);
+    }
+
     // Tek örnek kilidi: ikinci bir AppImage/daemon aynı anda yakalama
     // yapıp makineyi dondurmasın.
     let _instance_lock = match config::acquire_instance_lock() {
