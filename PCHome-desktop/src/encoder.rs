@@ -206,12 +206,12 @@ impl H264Capture {
                 .unwrap_or_default()
                 .to_ascii_lowercase();
             let kde = is_kde_wayland();
-            // KWin ScreenShot2 has no portal dialog, but it renders each frame
-            // through a GPU readback and caps out around 20-25 fps on many
-            // machines. A saved portal token means the compositor already
-            // granted a 30 fps screencast, so prefer that for smoothness.
-            let has_token = read_restore_token().is_some();
-            let kwin_first = kde && force != "portal" && (force == "kwin" || !has_token);
+            // KWin ScreenShot2 captures the compositor cursor (include-cursor)
+            // and therefore mirrors the real mouse pointer to the phone. The
+            // portal path is smoother (30 fps) but KDE does not embed the
+            // cursor into the PipeWire stream. Default to KWin on KDE; use
+            // PCHOME_CAPTURE=portal for the faster, cursor-less path.
+            let kwin_first = kde && force != "portal";
 
             if kwin_first {
                 match Self::try_start_kwin(out_width, out_height, fps, bitrate).await {
@@ -224,9 +224,6 @@ impl H264Capture {
             }
 
             if force != "kwin" {
-                if has_token && kwin_first {
-                    log::info!("portal kayıtlı izin bulundu; 30 fps akış için portal denenecek");
-                }
                 let portal = tokio::time::timeout(
                     std::time::Duration::from_secs(25),
                     Self::start_portal(out_width, out_height, fps, bitrate),

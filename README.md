@@ -172,7 +172,7 @@ Everything is configured through environment variables (a local untracked `.env`
 | `PCHOME_FRAME_RATE` | `30` | Capture/encode frame rate |
 | `PCHOME_BITRATE` | `2000000` | Target H.264 bitrate (bits/s) |
 | `PCHOME_METRICS_ADDR` | `0.0.0.0:9091` | Bind address for the metrics endpoint |
-| `PCHOME_CAPTURE` | auto | Capture path: `portal` (30 fps screencast), `kwin` (KDE screenshot loop, no portal dialog), or `x11`. KDE uses the portal automatically once a screencast token has been granted. |
+| `PCHOME_CAPTURE` | auto | Capture path: `portal` (smoother 30 fps; KDE does not embed the mouse cursor), `kwin` (KDE screenshot loop with the real cursor, ~22 fps), or `x11`. KDE defaults to `kwin` so the phone mirrors the real pointer. |
 
 Example:
 
