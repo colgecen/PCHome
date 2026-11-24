@@ -7,8 +7,11 @@
     android:background="@drawable/bg_app"
     android:clipToPadding="true"
     android:fillViewport="true"
+    android:fadeScrollbars="false"
     android:overScrollMode="never"
-    android:scrollbars="none">
+    android:scrollbarStyle="insideInset"
+    android:scrollbarThumbVertical="@drawable/scrollbar_white"
+    android:scrollbars="vertical">
 
     <LinearLayout
         android:id="@+id/pin_content"

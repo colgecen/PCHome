@@ -21,6 +21,7 @@ pub fn run(state: SharedState) {
         }
     }
     let options = eframe::NativeOptions {
+        persist_window: false,
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1200.0, 800.0])
             .with_min_inner_size([1000.0, 680.0])
@@ -171,6 +172,19 @@ fn status_of(status: &str) -> (&'static str, Color32) {
     } else {
         ("Hazırlanıyor", theme::muted())
     }
+}
+
+/// Pencereyi gerçekten öne getirir. KDE Wayland'de winit'in nazik Focus
+/// isteği odak çalma korumasına takılabiliyor; KWin script'i ile aktif
+/// pencereyi doğrudan ayarlıyoruz. Diğer masaüstlerinde komut sessizce
+/// başarısız olur, ViewportCommand yine denenir.
+fn raise_window(ctx: &egui::Context) {
+    // Wayland'de odak çalma koruması olabilir; yine de kibarca iste.
+    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+    ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+        egui::UserAttentionType::Informational,
+    ));
 }
 
 fn event_color(line: &str) -> egui::Color32 {
@@ -343,19 +357,25 @@ impl DesktopGui {
                     0.0,
                     theme::border(),
                 );
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        self.sidebar_identity(ctx, ui);
-                        theme::divider(ui);
-                        theme::section_label(ui, "CİHAZ");
-                        ui.add_space(6.0);
-                        self.sidebar_device(ui);
-                        theme::divider(ui);
-                        self.sidebar_peer(ui);
-                        theme::divider(ui);
-                        self.sidebar_server(ui);
-                    });
+                ui.scope(|ui| {
+                    let w = &mut ui.style_mut().visuals.widgets;
+                    w.inactive.bg_fill = Color32::from_gray(150);
+                    w.hovered.bg_fill = Color32::from_gray(190);
+                    w.active.bg_fill = Color32::from_gray(220);
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            self.sidebar_identity(ctx, ui);
+                            theme::divider(ui);
+                            theme::section_label(ui, "CİHAZ");
+                            ui.add_space(6.0);
+                            self.sidebar_device(ui);
+                            theme::divider(ui);
+                            self.sidebar_peer(ui);
+                            theme::divider(ui);
+                            self.sidebar_server(ui);
+                        });
+                });
             });
     }
 
@@ -452,7 +472,17 @@ impl DesktopGui {
             ),
             (
                 "Yakalama",
-                dash(self.state.capture_status.lock().unwrap().clone()),
+                dash(
+                    self.state
+                        .capture_status
+                        .lock()
+                        .unwrap()
+                        .split('•')
+                        .next()
+                        .unwrap_or("")
+                        .trim()
+                        .to_string(),
+                ),
             ),
             ("Kip", dash(self.state.mode.lock().unwrap().clone())),
         ];
@@ -947,33 +977,39 @@ impl DesktopGui {
                 .take(80)
                 .cloned()
                 .collect();
-            egui::ScrollArea::vertical()
-                .max_height((height - 38.0).max(40.0))
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    if lines.is_empty() {
-                        ui.label(
-                            RichText::new("Henüz olay yok.")
-                                .size(10.0)
-                                .color(theme::muted()),
-                        );
-                    }
-                    for line in lines {
-                        let color = event_color(&line);
-                        ui.horizontal_wrapped(|ui| {
-                            ui.spacing_mut().item_spacing.x = 6.0;
-                            theme::dot(ui, color, 4.0);
-                            ui.add(
-                                egui::Label::new(
-                                    RichText::new(line)
-                                        .font(theme::mono_font(9.5))
-                                        .color(theme::text2()),
-                                )
-                                .wrap(),
+            ui.scope(|ui| {
+                let w = &mut ui.style_mut().visuals.widgets;
+                w.inactive.bg_fill = Color32::from_gray(150);
+                w.hovered.bg_fill = Color32::from_gray(190);
+                w.active.bg_fill = Color32::from_gray(220);
+                egui::ScrollArea::vertical()
+                    .max_height((height - 38.0).max(40.0))
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        if lines.is_empty() {
+                            ui.label(
+                                RichText::new("Henüz olay yok.")
+                                    .size(10.0)
+                                    .color(theme::muted()),
                             );
-                        });
-                    }
-                });
+                        }
+                        for line in lines {
+                            let color = event_color(&line);
+                            ui.horizontal_wrapped(|ui| {
+                                ui.spacing_mut().item_spacing.x = 6.0;
+                                theme::dot(ui, color, 4.0);
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new(line)
+                                            .font(theme::mono_font(9.5))
+                                            .color(theme::text2()),
+                                    )
+                                    .wrap(),
+                                );
+                            });
+                        }
+                    });
+            });
         }
     }
 

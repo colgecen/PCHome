@@ -72,7 +72,7 @@ fn main() -> Result<()> {
             let _ = std::process::Command::new("notify-send")
                 .args([
                     "PCHome",
-                    "PCHome zaten çalışıyor — mevcut pencere öne getiriliyor.",
+                    "PCHome zaten çalışıyor — görev çubuğundaki PCHome penceresini aç.",
                 ])
                 .spawn();
             return Ok(());

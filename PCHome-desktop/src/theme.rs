@@ -235,7 +235,10 @@ pub fn apply(ctx: &egui::Context) {
     style.spacing.item_spacing = egui::vec2(8.0, 6.0);
     style.spacing.button_padding = egui::vec2(12.0, 7.0);
     style.spacing.interact_size = egui::vec2(34.0, 30.0);
-    style.spacing.scroll = egui::style::ScrollStyle::thin();
+    let mut scroll = egui::style::ScrollStyle::thin();
+    scroll.bar_width = 6.0;
+    scroll.floating = false;
+    style.spacing.scroll = scroll;
     ctx.set_style(style);
 }
 
