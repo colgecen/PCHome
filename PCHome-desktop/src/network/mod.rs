@@ -11,6 +11,45 @@ use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
+/// 3xx yanıtındaki `Location` başlığını mevcut WebSocket adresine göre çözer.
+/// Render/Cloudflare gibi sağlayıcılar `http://` isteğini `https://` adresine
+/// 301 ile yönlendirir; tungstenite yönlendirmeleri kendiliğinden takip
+/// etmediği için `ws://` yapılandırması sonsuz yeniden bağlanma döngüsüne
+/// girer. Bu yardımcı, mutlak (`https://...`) ve kök-göreli (`/ws?...`)
+/// yönlendirmeleri `wss://` adresine çevirir.
+fn resolve_ws_redirect(base: &str, location: &str) -> Option<String> {
+    let location = location.trim();
+    if location.is_empty() {
+        return None;
+    }
+    if let Some(rest) = location.strip_prefix("https://") {
+        return Some(format!("wss://{}", rest));
+    }
+    if let Some(rest) = location.strip_prefix("http://") {
+        return Some(format!("ws://{}", rest));
+    }
+    if location.starts_with("wss://") || location.starts_with("ws://") {
+        return Some(location.to_string());
+    }
+
+    let scheme_end = base.find("://")?;
+    let scheme = &base[..scheme_end];
+    let rest = &base[scheme_end + 3..];
+    let authority_end = rest.find('/').unwrap_or(rest.len());
+    let origin = format!("{}://{}", scheme, &rest[..authority_end]);
+
+    if location.starts_with('/') {
+        return Some(format!("{}{}", origin, location));
+    }
+    if location.starts_with('?') {
+        let path = &rest[authority_end..];
+        let path = path.split('?').next().unwrap_or(path);
+        return Some(format!("{}{}{}", origin, path, location));
+    }
+    // Göreli yol: sinyal uç noktaları kök altında olduğu için kökten çöz.
+    Some(format!("{}/{}", origin, location.trim_start_matches("./")))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConnectionState {
     Disconnected,
@@ -71,16 +110,56 @@ impl ConnectionManager {
         // without ever producing a doubled /ws/ws path.
         let signal_url = self.signal_url.read().await.clone();
         let base = signal_url.trim_end_matches('/');
-        let url = if base.ends_with("/ws") {
+        let mut url = if base.ends_with("/ws") {
             format!("{}?pc_id={}&role=desktop", base, clean)
         } else {
             format!("{}/ws?pc_id={}&role=desktop", base, clean)
         };
         log::info!("Connecting to signal server at {}", url);
 
-        let (ws, _resp) = connect_async(url)
-            .await
-            .map_err(|e| anyhow::anyhow!("signal ws connect failed: {}", e))?;
+        // 301/302/307/308 yönlendirmelerini takip et (en fazla 3 adım).
+        // Render, `ws://pchome.onrender.com` isteğini `wss://...` adresine
+        // yönlendirir; tungstenite bunu otomatik yapmaz.
+        let mut redirects = 0u8;
+        let (ws, _resp) = loop {
+            match connect_async(&url).await {
+                Ok(pair) => break pair,
+                Err(tokio_tungstenite::tungstenite::Error::Http(resp))
+                    if resp.status().is_redirection() && redirects < 3 =>
+                {
+                    let status = resp.status();
+                    let location = resp
+                        .headers()
+                        .get("location")
+                        .and_then(|v| v.to_str().ok())
+                        .map(str::to_string);
+                    let Some(location) = location else {
+                        anyhow::bail!(
+                            "signal ws connect failed: HTTP error: {} (Location başlığı yok)",
+                            status
+                        );
+                    };
+                    let Some(next) = resolve_ws_redirect(&url, &location) else {
+                        anyhow::bail!(
+                            "signal ws connect failed: HTTP error: {} (yönlendirme çözülemedi: {})",
+                            status,
+                            location
+                        );
+                    };
+                    redirects += 1;
+                    log::warn!(
+                        "sinyal sunucusu yönlendirdi ({}): {} -> {}",
+                        status,
+                        url,
+                        next
+                    );
+                    url = next;
+                }
+                Err(e) => {
+                    return Err(anyhow::anyhow!("signal ws connect failed: {}", e));
+                }
+            }
+        };
         let (mut write, mut read) = ws.split();
 
         let (otx, mut o_rx) = mpsc::unbounded_channel::<String>();
@@ -223,5 +302,30 @@ mod connection_manager_tests {
         assert_eq!(cm.signal_url().await, "ws://127.0.0.1:9090/ws");
         cm.disconnect().await;
         assert_eq!(cm.state().await, ConnectionState::Disconnected);
+    }
+
+    #[test]
+    fn yonlendirme_mutlak_https_adresini_wss_yapar() {
+        let next = resolve_ws_redirect(
+            "ws://pchome.onrender.com/ws?pc_id=1&role=desktop",
+            "https://pchome.onrender.com/ws?pc_id=1&role=desktop",
+        )
+        .unwrap();
+        assert_eq!(next, "wss://pchome.onrender.com/ws?pc_id=1&role=desktop");
+    }
+
+    #[test]
+    fn yonlendirme_kok_goreli_yolu_cozer() {
+        let next = resolve_ws_redirect(
+            "ws://pchome.onrender.com/ws?pc_id=1&role=desktop",
+            "/ws?pc_id=1&role=desktop",
+        )
+        .unwrap();
+        assert_eq!(next, "ws://pchome.onrender.com/ws?pc_id=1&role=desktop");
+    }
+
+    #[test]
+    fn yonlendirme_bos_basligi_reddeder() {
+        assert!(resolve_ws_redirect("ws://x/ws", "   ").is_none());
     }
 }
