@@ -8,8 +8,8 @@ use serde_json::Value;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
-use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::Message;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConnectionState {
@@ -29,7 +29,7 @@ pub struct ConnectionManager {
     epoch: Arc<AtomicU64>,
     /// Soketten gelen son mesajın zamanı (kalp atışı bekçisi için).
     last_seen: Arc<Mutex<std::time::Instant>>,
-    signal_url: String,
+    signal_url: Arc<RwLock<String>>,
     outgoing: Arc<Mutex<Option<mpsc::UnboundedSender<String>>>>,
     incoming_rx: Arc<Mutex<mpsc::UnboundedReceiver<Value>>>,
     incoming_tx: mpsc::UnboundedSender<Value>,
@@ -42,7 +42,7 @@ impl ConnectionManager {
             state: Arc::new(RwLock::new(ConnectionState::Disconnected)),
             epoch: Arc::new(AtomicU64::new(0)),
             last_seen: Arc::new(Mutex::new(std::time::Instant::now())),
-            signal_url: signal_url.into(),
+            signal_url: Arc::new(RwLock::new(signal_url.into())),
             outgoing: Arc::new(Mutex::new(None)),
             incoming_rx: Arc::new(Mutex::new(irx)),
             incoming_tx: itx,
@@ -60,13 +60,17 @@ impl ConnectionManager {
             *state = ConnectionState::Connecting;
         }
 
-        let clean: String = pc_id.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
+        let clean: String = pc_id
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric())
+            .collect();
         if clean.is_empty() {
             anyhow::bail!("geçersiz PC kimliği");
         }
         // Accept both ws://host[:port] and ws://host[:port]/ws spellings
         // without ever producing a doubled /ws/ws path.
-        let base = self.signal_url.trim_end_matches('/');
+        let signal_url = self.signal_url.read().await.clone();
+        let base = signal_url.trim_end_matches('/');
         let url = if base.ends_with("/ws") {
             format!("{}?pc_id={}&role=desktop", base, clean)
         } else {
@@ -121,6 +125,9 @@ impl ConnectionManager {
             let seen = Arc::clone(&self.last_seen);
             tokio::spawn(async move {
                 while let Some(Ok(msg)) = read.next().await {
+                    if epoch.load(Ordering::SeqCst) != my_epoch {
+                        break;
+                    }
                     *seen.lock().await = std::time::Instant::now();
                     match msg {
                         Message::Text(t) => {
@@ -152,9 +159,7 @@ impl ConnectionManager {
                     let silent = seen.lock().await.elapsed();
                     if silent >= std::time::Duration::from_secs(75) {
                         *state.write().await = ConnectionState::Disconnected;
-                        log::warn!(
-                            "sinyal 75 sn sessiz kaldı, yeniden bağlanılıyor (ölü soket?)"
-                        );
+                        log::warn!("sinyal 75 sn sessiz kaldı, yeniden bağlanılıyor (ölü soket?)");
                         break;
                     }
                 }
@@ -164,6 +169,24 @@ impl ConnectionManager {
         *self.state.write().await = ConnectionState::Connected;
         log::info!("Connected to signal server");
         Ok(())
+    }
+
+    /// Kullanıcı GUI'den adresi değiştirdiğinde bir sonraki bağlantı yeni
+    /// adresi kullanır.
+    pub async fn set_signal_url(&self, url: impl Into<String>) {
+        *self.signal_url.write().await = url.into();
+    }
+
+    pub async fn signal_url(&self) -> String {
+        self.signal_url.read().await.clone()
+    }
+
+    /// Mevcut WebSocket'i bırakır; yeniden bağlanma gözcüsü yeni adresle
+    /// bağlanır. Eski soket görevlerinin durumu ezmesini epoch engeller.
+    pub async fn disconnect(&self) {
+        self.epoch.fetch_add(1, Ordering::SeqCst);
+        *self.outgoing.lock().await = None;
+        *self.state.write().await = ConnectionState::Disconnected;
     }
 
     pub async fn send_json(&self, v: &Value) {
@@ -186,4 +209,19 @@ impl ConnectionManager {
 pub async fn init_network() -> Result<()> {
     log::info!("network module initialized");
     Ok(())
+}
+
+#[cfg(test)]
+mod connection_manager_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn sinyal_adresi_degistirilebilir() {
+        let cm = ConnectionManager::new("ws://127.0.0.1:8080/ws");
+        assert_eq!(cm.signal_url().await, "ws://127.0.0.1:8080/ws");
+        cm.set_signal_url("ws://127.0.0.1:9090/ws").await;
+        assert_eq!(cm.signal_url().await, "ws://127.0.0.1:9090/ws");
+        cm.disconnect().await;
+        assert_eq!(cm.state().await, ConnectionState::Disconnected);
+    }
 }

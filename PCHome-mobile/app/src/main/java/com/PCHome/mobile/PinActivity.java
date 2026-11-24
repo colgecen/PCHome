@@ -67,8 +67,8 @@ public class PinActivity extends AppCompatActivity {
                 this, android.R.layout.simple_dropdown_item_1line, servers);
         serverEdit.setAdapter(adapter);
         if (!servers.isEmpty()) {
-            int lastIdx = Math.min(prefs.getLastServerIndex(), servers.size() - 1);
-            serverEdit.setText(servers.get(Math.max(0, lastIdx)), false);
+            // Prefs listesi en son kullanılan başta olacak şekilde sıralıdır.
+            serverEdit.setText(servers.get(0), false);
         }
 
         // En alt güncelleme bölümü: modalı açar (masaüstüyle aynı mantık).
@@ -102,9 +102,20 @@ public class PinActivity extends AppCompatActivity {
         recentAdapter = new RecentAdapter(new RecentAdapter.Listener() {
             @Override
             public void onOpen(RecentPc pc) {
+                // Kart kendi sunucusunu hatırlıyorsa onu kullan; yoksa
+                // ekrandaki güncel adrese düş.
+                String server = pc.server == null ? "" : pc.server.trim();
+                if (server.isEmpty()) {
+                    server = serverEdit.getText().toString().trim();
+                }
+                if (server.isEmpty()) {
+                    toast("Önce sinyal sunucusu adresini gir");
+                    serverEdit.requestFocus();
+                    return;
+                }
+                serverEdit.setText(server, false);
                 if (pc.rememberPassword && pc.password.length() == 6) {
-                    openConnection(serverEdit.getText().toString().trim(), pc.pcId,
-                            pc.password, true);
+                    openConnection(server, pc.pcId, pc.password, true);
                 } else {
                     // Şifre kayıtlı değilse forma doldur, kullanıcı yazsın.
                     pcIdEdit.setText(pc.pcId);
@@ -201,20 +212,8 @@ public class PinActivity extends AppCompatActivity {
         recentEmpty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
     }
 
-    private String normalizeServer(String server) {
-        if (!server.startsWith("wss://") && !server.startsWith("ws://")) {
-            server = "wss://" + server;
-        } else if (server.startsWith("ws://")) {
-            server = "wss://" + server.substring(5);
-        }
-        if (!server.endsWith("/ws")) {
-            server = server.replaceAll("/+$", "") + "/ws";
-        }
-        return server;
-    }
-
     private void openConnection(String server, String pcId, String password, boolean remember) {
-        server = normalizeServer(server);
+        server = SignalClient.normalizeServer(server);
         prefs.addServer(server);
 
         // Kartı hemen başa taşı (cihaz bilgisi + görüntü kapanışta dolar).
@@ -224,6 +223,7 @@ public class PinActivity extends AppCompatActivity {
         }
         entry.password = remember ? password : "";
         entry.rememberPassword = remember;
+        entry.server = server;
         entry.lastSeen = System.currentTimeMillis();
         recentStore.upsert(entry);
 

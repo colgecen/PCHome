@@ -69,26 +69,21 @@ pub fn apply(ctx: &egui::Context) {
     ctx.set_visuals(visuals);
 
     let mut style = (*ctx.style()).clone();
-    style.text_styles.insert(
-        egui::TextStyle::Body,
-        egui::FontId::proportional(16.0),
-    );
-    style.text_styles.insert(
-        egui::TextStyle::Small,
-        egui::FontId::proportional(13.5),
-    );
-    style.text_styles.insert(
-        egui::TextStyle::Button,
-        egui::FontId::proportional(16.0),
-    );
-    style.text_styles.insert(
-        egui::TextStyle::Heading,
-        egui::FontId::proportional(23.0),
-    );
-    style.text_styles.insert(
-        egui::TextStyle::Monospace,
-        egui::FontId::monospace(15.0),
-    );
+    style
+        .text_styles
+        .insert(egui::TextStyle::Body, egui::FontId::proportional(16.0));
+    style
+        .text_styles
+        .insert(egui::TextStyle::Small, egui::FontId::proportional(13.5));
+    style
+        .text_styles
+        .insert(egui::TextStyle::Button, egui::FontId::proportional(16.0));
+    style
+        .text_styles
+        .insert(egui::TextStyle::Heading, egui::FontId::proportional(23.0));
+    style
+        .text_styles
+        .insert(egui::TextStyle::Monospace, egui::FontId::monospace(15.0));
     ctx.set_style(style);
 }
 
@@ -104,7 +99,12 @@ pub fn card_frame() -> egui::Frame {
 /// Kart başlığı: ikon + neon başlık, tek satır.
 pub fn card_title(ui: &mut egui::Ui, icon: &str, title: &str) {
     ui.horizontal(|ui| {
-        ui.label(egui::RichText::new(format!("{} {}", icon, title)).color(primary()).strong().size(16.0));
+        ui.label(
+            egui::RichText::new(format!("{} {}", icon, title))
+                .color(primary())
+                .strong()
+                .size(16.0),
+        );
     });
     ui.add_space(4.0);
 }
@@ -125,13 +125,11 @@ fn draw_button(
     } else {
         // Yazı genişliğini ölç: sıfır genişlikli kutuya çizim üst üste
         // binmeye yol açıyordu (bozuk "GGöster" görünümü).
-        let galley = ui.fonts(|f| f.layout(label.to_owned(), font.clone(), text_color, f32::INFINITY));
+        let galley =
+            ui.fonts(|f| f.layout(label.to_owned(), font.clone(), text_color, f32::INFINITY));
         galley.size().x + 28.0
     };
-    let (rect, resp) = ui.allocate_exact_size(
-        egui::vec2(width, 36.0),
-        egui::Sense::click(),
-    );
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, 36.0), egui::Sense::click());
     let bg = if resp.is_pointer_button_down_on() {
         press_fill
     } else if resp.hovered() {
@@ -198,7 +196,16 @@ pub fn ghost_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
 
 /// İçerik kadar genişlikte varyantlar (üst bar / kart içi satırlar için).
 pub fn neon_button_auto(ui: &mut egui::Ui, label: &str) -> egui::Response {
-    draw_button(ui, label, primary(), hex("#4DEBFF"), secondary(), hex("#04121A"), secondary(), false)
+    draw_button(
+        ui,
+        label,
+        primary(),
+        hex("#4DEBFF"),
+        secondary(),
+        hex("#04121A"),
+        secondary(),
+        false,
+    )
 }
 
 /// İçerik kadar genişlikte varyantlar (üst bar / kart içi satırlar için).

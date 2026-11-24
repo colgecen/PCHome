@@ -29,6 +29,8 @@
     <string name="idle">Idle</string>
     <string name="connect">Connect</string>
     <string name="disconnect">Disconnect</string>
+    <string name="refresh">⟳ YENİLE</string>
+    <string name="refreshing_stream">Görüntü yenileniyor…</string>
     <string name="connecting">Connecting...</string>
     <string name="connected">Connected</string>
     <string name="disconnected">Disconnected</string>
@@ -37,6 +39,7 @@
     <string name="waiting_for_stream">Waiting for stream...</string>
     <string name="conn_phase_signal">Sinyale bağlanılıyor…</string>
     <string name="conn_phase_verified">PC doğrulandı, görüntü bekleniyor…</string>
+    <string name="conn_phase_video">Bağlandı, ilk kare bekleniyor…</string>
     <string name="retry">Tekrar dene</string>
     <string name="go_back">Geri dön</string>
     <string name="signal_url_hint">wss://your-service.onrender.com/ws</string>

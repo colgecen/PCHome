@@ -14,8 +14,8 @@ PCHome operates as a monorepo with three decoupled yet seamlessly integrated mod
 **Network**: WebSocket signaling + WebRTC PeerConnection  
 
 **Architecture Flow**:
-1. Screen capture via ffmpeg (PipeWire source, HW encode when available)
-2. Hardware-accelerated H.264 encoding
+1. Screen capture via the XDG portal + PipeWire on Wayland (ffmpeg x11grab on X11)
+2. Low-latency H.264 encoding (hardware when available, software fallback)
 3. Transmission via WebRTC video track
 4. Rendering in the Android app's SurfaceViewRenderer
 
@@ -79,7 +79,7 @@ PCHome operates as a monorepo with three decoupled yet seamlessly integrated mod
 
 1. **Handshake Phase**: PIN authentication via Signal server WebSockets
 2. **Connection Phase**: WebRTC SDP/ICE candidate exchange for NAT traversal
-3. **Stream Phase**: ffmpeg PipeWire capture → H.264 encoding → WebRTC video track
+3. **Stream Phase**: portal/PipeWire (or x11grab) capture → H.264 encoding → WebRTC video track
 4. **Input Phase**: /dev/uinput (Desktop) / on-screen touch + hardware keyboard (Mobile) → WebRTC DataChannel
 5. **Control Phase**: Asynchronous command routing via the WebRTC DataChannel
 

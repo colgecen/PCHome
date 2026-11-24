@@ -8,6 +8,7 @@ public class RecentPcTest {
     @Test
     public void testJsonGidisDonus() throws Exception {
         RecentPc r = new RecentPc("482913", "Masaüstü");
+        r.server = "wss://signal.example.com/ws";
         r.password = "123456";
         r.rememberPassword = true;
         r.ip = "192.168.1.10";
@@ -20,6 +21,7 @@ public class RecentPcTest {
         RecentPc back = RecentPc.fromJson(o);
         Assert.assertEquals("482913", back.pcId);
         Assert.assertEquals("Masaüstü", back.pcName);
+        Assert.assertEquals("wss://signal.example.com/ws", back.server);
         Assert.assertEquals("123456", back.password);
         Assert.assertTrue(back.rememberPassword);
         Assert.assertEquals("192.168.1.10", back.ip);

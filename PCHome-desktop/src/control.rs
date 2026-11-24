@@ -7,15 +7,77 @@ use crate::state::SharedState;
 use crate::uinput::{button_code, UInputDevice};
 
 /// Dispatches control messages received over the WebRTC DataChannel to the
-/// kernel via `/dev/uinput`.
+/// kernel via `/dev/uinput`. A missing uinput device only disables that part of
+/// input injection; video viewing keeps working.
+///
+/// Absolute touch, relative trackpad movement and keyboard events live on
+/// separate uinput devices because mixing EV_ABS and EV_REL makes libinput
+/// classify the device as a relative mouse and ignore absolute coordinates.
 pub struct ControlHandler {
-    uinput: Arc<Mutex<UInputDevice>>,
+    abs: Option<Arc<Mutex<UInputDevice>>>,
+    rel: Option<Arc<Mutex<UInputDevice>>>,
+    keyboard: Option<Arc<Mutex<UInputDevice>>>,
     state: SharedState,
 }
 
 impl ControlHandler {
-    pub fn new(uinput: Arc<Mutex<UInputDevice>>, state: SharedState) -> Arc<Self> {
-        Arc::new(Self { uinput, state })
+    pub fn new(
+        abs: Option<Arc<Mutex<UInputDevice>>>,
+        rel: Option<Arc<Mutex<UInputDevice>>>,
+        keyboard: Option<Arc<Mutex<UInputDevice>>>,
+        state: SharedState,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            abs,
+            rel,
+            keyboard,
+            state,
+        })
+    }
+
+    async fn inject_abs<F>(&self, action: F)
+    where
+        F: FnOnce(&UInputDevice) -> anyhow::Result<()>,
+    {
+        match &self.abs {
+            Some(dev) => {
+                let dev = dev.lock().await;
+                if let Err(e) = action(&dev) {
+                    log::warn!("uinput absolute injection failed: {}", e);
+                }
+            }
+            None => log::debug!("mutlak işaretçi yok; kontrol olayı yoksayıldı"),
+        }
+    }
+
+    async fn inject_rel<F>(&self, action: F)
+    where
+        F: FnOnce(&UInputDevice) -> anyhow::Result<()>,
+    {
+        match &self.rel {
+            Some(dev) => {
+                let dev = dev.lock().await;
+                if let Err(e) = action(&dev) {
+                    log::warn!("uinput relative injection failed: {}", e);
+                }
+            }
+            None => log::debug!("göreli işaretçi yok; kontrol olayı yoksayıldı"),
+        }
+    }
+
+    async fn inject_key<F>(&self, action: F)
+    where
+        F: FnOnce(&UInputDevice) -> anyhow::Result<()>,
+    {
+        match &self.keyboard {
+            Some(dev) => {
+                let dev = dev.lock().await;
+                if let Err(e) = action(&dev) {
+                    log::warn!("uinput keyboard injection failed: {}", e);
+                }
+            }
+            None => log::debug!("klavye cihazı yok; tuş yoksayıldı"),
+        }
     }
 
     pub async fn handle(&self, msg: &Value) {
@@ -25,46 +87,39 @@ impl ControlHandler {
                 let x = msg.get("x").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
                 let y = msg.get("y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
                 *self.state.mode.lock().unwrap() = "EV_ABS".to_string();
-                if let Err(e) = self.uinput.lock().await.move_absolute(x, y) {
-                    log::warn!("move_absolute failed: {}", e);
-                }
+                self.inject_abs(|d| d.move_absolute(x, y)).await;
                 self.state.push_event(format!("ABS {} {}", x, y));
             }
             "move_rel" => {
                 let dx = msg.get("dx").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
                 let dy = msg.get("dy").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
                 *self.state.mode.lock().unwrap() = "EV_REL".to_string();
-                if let Err(e) = self.uinput.lock().await.move_relative(dx, dy) {
-                    log::warn!("move_relative failed: {}", e);
-                }
+                self.inject_rel(|d| d.move_relative(dx, dy)).await;
                 self.state.push_event(format!("REL {} {}", dx, dy));
             }
             "click" => {
                 let button = msg.get("button").and_then(|v| v.as_str()).unwrap_or("left");
-                let action = msg.get("action").and_then(|v| v.as_str()).unwrap_or("click");
+                let action = msg
+                    .get("action")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("click");
                 let code = button_code(button);
-                let r = match action {
-                    "down" => self.uinput.lock().await.button(code, true),
-                    "up" => self.uinput.lock().await.button(code, false),
-                    "click" => self.uinput.lock().await.click(code),
-                    "double" => self.uinput.lock().await.double_click(code),
-                    "hold" => self.uinput.lock().await.button(code, true),
+                match action {
+                    "down" | "hold" => self.inject_abs(|d| d.button(code, true)).await,
+                    "up" => self.inject_abs(|d| d.button(code, false)).await,
+                    "click" => self.inject_abs(|d| d.click(code)).await,
+                    "double" => self.inject_abs(|d| d.double_click(code)).await,
                     other => {
                         log::warn!("unknown click action: {}", other);
-                        Ok(())
                     }
-                };
-                if let Err(e) = r {
-                    log::warn!("click failed: {}", e);
                 }
-                self.state.push_event(format!("CLICK {} {}", button, action));
+                self.state
+                    .push_event(format!("CLICK {} {}", button, action));
             }
             "scroll" => {
                 let dx = msg.get("dx").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
                 let dy = msg.get("dy").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-                if let Err(e) = self.uinput.lock().await.wheel(dx, dy) {
-                    log::warn!("wheel failed: {}", e);
-                }
+                self.inject_rel(|d| d.wheel(dx, dy)).await;
                 self.state.push_event(format!("WHEEL {} {}", dx, dy));
             }
             "key" => {
@@ -74,20 +129,15 @@ impl ControlHandler {
                     .and_then(|v| v.as_str())
                     .map(|a| a != "up")
                     .unwrap_or(true);
-                if let Err(e) = self.uinput.lock().await.key(code, down) {
-                    log::warn!("key failed: {}", e);
-                }
-                self.state.push_event(format!(
-                    "KEY {} {}",
-                    code,
-                    if down { "dn" } else { "up" }
-                ));
+                self.inject_key(|d| d.key(code, down)).await;
+                self.state
+                    .push_event(format!("KEY {} {}", code, if down { "dn" } else { "up" }));
             }
             "pong" => {
                 let sent = msg.get("t").and_then(|v| v.as_u64()).unwrap_or(0);
                 if sent > 0 {
                     let now = std::time::SystemTime::now()
-                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                        .duration_since(std::time::UNIX_EPOCH)
                         .map(|d| d.as_millis() as u64)
                         .unwrap_or(0);
                     let rtt = now.saturating_sub(sent).min(u32::MAX as u64) as u32;

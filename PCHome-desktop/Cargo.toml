@@ -3,7 +3,7 @@ members = ["."]
 
 [package]
 name = "PCHome-desktop"
-version = "0.3.3"
+version = "0.4.0"
 edition = "2021"
 
 [features]
@@ -36,11 +36,15 @@ prometheus = "0.13"
 lazy_static = "1.4"
 thiserror = "1.0"
 futures-util = "0.3"
+# Wayland screen capture through the XDG Desktop Portal (ScreenCast + PipeWire)
+ashpd = { version = "0.14", features = ["screencast", "tokio"] }
+# KDE ScreenShot2 DBus (portal penceresi olmadan tüm ekranları yakalama)
+zbus = { version = "6", features = ["tokio"] }
 
 # WebRTC peer connection + media (offerer, H.264 video track, control DataChannel)
-webrtc = { version = "0.12", optional = true }
+webrtc = { version = "0.17", optional = true }
 # Access to NetworkType for restricting ICE to IPv4 (avoids IPv6 link-local bind errors)
-webrtc-ice = "0.12"
+webrtc-ice = "0.17"
 # Desktop GUI (header/panel/telemetry/terminate + live preview)
 eframe = { version = "0.29", optional = true }
 egui = { version = "0.29", optional = true }

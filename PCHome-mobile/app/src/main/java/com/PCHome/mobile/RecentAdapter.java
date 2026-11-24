@@ -65,7 +65,12 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.Holder> {
         }
         CharSequence ago = DateUtils.getRelativeTimeSpanString(
                 pc.lastSeen, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS);
-        h.lastSeen.setText(pc.resolution.isEmpty() ? ago : (pc.resolution + "  •  " + ago));
+        String host = pc.serverHost();
+        StringBuilder meta = new StringBuilder();
+        if (!pc.resolution.isEmpty()) meta.append(pc.resolution).append("  •  ");
+        if (!host.isEmpty()) meta.append(host).append("  •  ");
+        meta.append(ago);
+        h.lastSeen.setText(meta.toString());
 
         File thumb = new File(pc.thumbnail);
         if (!pc.thumbnail.isEmpty() && thumb.exists()) {

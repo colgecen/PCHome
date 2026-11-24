@@ -54,7 +54,13 @@ fn normalize(v: &str) -> Vec<u64> {
     v.trim()
         .trim_start_matches('v')
         .split(|c| c == '.' || c == '-' || c == '+')
-        .filter_map(|p| p.chars().take_while(|c| c.is_ascii_digit()).collect::<String>().parse::<u64>().ok())
+        .filter_map(|p| {
+            p.chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect::<String>()
+                .parse::<u64>()
+                .ok()
+        })
         .collect()
 }
 
@@ -141,7 +147,10 @@ pub fn check_once(state: &SharedState) {
         Ok(Some(info)) => {
             set_status(
                 state,
-                format!("yeni sürüm mevcut: {} — Ayarlar'dan güncelleyin", info.version),
+                format!(
+                    "yeni sürüm mevcut: {} — Ayarlar'dan güncelleyin",
+                    info.version
+                ),
             );
             state.push_event(format!("güncelleme bulundu: {}", info.version));
         }
@@ -247,7 +256,10 @@ fn download_to(url: &str, dest: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
-fn install_appimage_next_to_current(state: &SharedState, info: &UpdateInfo) -> Result<std::path::PathBuf> {
+fn install_appimage_next_to_current(
+    state: &SharedState,
+    info: &UpdateInfo,
+) -> Result<std::path::PathBuf> {
     let current = std::env::var("APPIMAGE").context("APPIMAGE yolu yok")?;
     let dir = std::path::Path::new(&current)
         .parent()
@@ -266,7 +278,10 @@ fn install_appimage_next_to_current(state: &SharedState, info: &UpdateInfo) -> R
     Ok(dest)
 }
 
-fn install_tarball_over_current(state: &SharedState, info: &UpdateInfo) -> Result<std::path::PathBuf> {
+fn install_tarball_over_current(
+    state: &SharedState,
+    info: &UpdateInfo,
+) -> Result<std::path::PathBuf> {
     let tmp = std::env::temp_dir().join(format!("pchome-update-{}", std::process::id()));
     std::fs::create_dir_all(&tmp)?;
     let tgz = tmp.join("pkg.tar.gz");

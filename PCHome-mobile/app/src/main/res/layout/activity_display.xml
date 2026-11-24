@@ -42,99 +42,130 @@
         app:chipStrokeColor="@color/PCHome_border"
         android:textColor="@color/PCHome_muted" />
 
-    <!-- Cyber keyboard overlay (hidden until toggled) -->
+    <!-- Cyber keyboard overlay (hidden until toggled); sits above the bar -->
     <LinearLayout
         android:id="@+id/keyboard_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
+        android:layout_marginBottom="84dp"
         android:orientation="vertical"
         android:background="?attr/colorSurface"
-        android:padding="8dp"
+        android:padding="6dp"
         android:visibility="gone" />
 
-    <com.google.android.material.bottomappbar.BottomAppBar
-        android:id="@+id/bottom_app_bar"
+    <!-- Scrollable control bar: on narrow phones all buttons stay reachable -->
+    <LinearLayout
+        android:id="@+id/control_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        app:fabAlignmentMode="center"
-        app:fabCradleMargin="8dp"
-        app:fabCradleRoundedCornerRadius="16dp">
+        android:background="@drawable/bg_control_bar"
+        android:orientation="vertical"
+        android:paddingStart="6dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="6dp"
+        android:paddingBottom="8dp">
 
-        <LinearLayout
-            android:layout_width="wrap_content"
+        <HorizontalScrollView
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center">
+            android:fillViewport="true"
+            android:scrollbars="none">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_mode"
-                style="@style/Widget.PCHome.ControlButton"
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="DOĞRUDAN"
-                android:textSize="11sp" />
+                android:gravity="center"
+                android:orientation="horizontal">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_left"
-                style="@style/Widget.PCHome.ControlButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="SOL"
-                android:textSize="11sp" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_disconnect"
+                    style="@style/Widget.PCHome.ControlButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/disconnect"
+                    android:textColor="@color/white"
+                    android:textSize="11sp"
+                    app:backgroundTint="@color/PCHome_danger"
+                    app:strokeColor="@color/PCHome_danger" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_right"
-                style="@style/Widget.PCHome.ControlButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="SAĞ"
-                android:textSize="11sp" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_refresh"
+                    style="@style/Widget.PCHome.ControlButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/refresh"
+                    android:textColor="@color/PCHome_success"
+                    android:textSize="11sp"
+                    app:strokeColor="@color/PCHome_success" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_esc"
-                style="@style/Widget.PCHome.ControlButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="ESC"
-                android:textSize="11sp" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_mode"
+                    style="@style/Widget.PCHome.ControlButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="DOĞRUDAN"
+                    android:textSize="11sp" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_ctrl"
-                style="@style/Widget.PCHome.ControlButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="CTRL"
-                android:textSize="11sp" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_left"
+                    style="@style/Widget.PCHome.ControlButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SOL"
+                    android:textSize="11sp" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_keyboard"
-                style="@style/Widget.PCHome.ControlButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="ABC"
-                android:textSize="11sp" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_right"
+                    style="@style/Widget.PCHome.ControlButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SAĞ"
+                    android:textSize="11sp" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_rotate"
-                style="@style/Widget.PCHome.ControlButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="ROT"
-                android:textSize="11sp" />
-        </LinearLayout>
-    </com.google.android.material.bottomappbar.BottomAppBar>
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_esc"
+                    style="@style/Widget.PCHome.ControlButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ESC"
+                    android:textSize="11sp" />
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/btn_disconnect"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
-        android:src="@android:drawable/ic_menu_close_clear_cancel"
-        android:contentDescription="@string/disconnect"
-        app:backgroundTint="@color/PCHome_danger"
-        app:tint="@color/white" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_ctrl"
+                    style="@style/Widget.PCHome.ControlButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="CTRL"
+                    android:textSize="11sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_shift"
+                    style="@style/Widget.PCHome.ControlButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SHIFT"
+                    android:textSize="11sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_keyboard"
+                    style="@style/Widget.PCHome.ControlButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ABC"
+                    android:textSize="11sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_rotate"
+                    style="@style/Widget.PCHome.ControlButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ROT"
+                    android:textSize="11sp" />
+
+            </LinearLayout>
+        </HorizontalScrollView>
+    </LinearLayout>
 
 </FrameLayout>

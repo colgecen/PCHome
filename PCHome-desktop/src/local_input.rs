@@ -22,11 +22,19 @@ impl LocalClicker {
             ) {
                 Ok(dev) => {
                     log::info!("yerel tıklayıcı hazır (/dev/uinput)");
-                    return Self { dev: Some(dev), width, height };
+                    return Self {
+                        dev: Some(dev),
+                        width,
+                        height,
+                    };
                 }
                 Err(e) => log::warn!("yerel tıklayıcı açılamadı: {}", e),
             }
-            Self { dev: None, width, height }
+            Self {
+                dev: None,
+                width,
+                height,
+            }
         }
         #[cfg(not(all(feature = "capture", target_family = "unix")))]
         {
@@ -56,7 +64,10 @@ impl LocalClicker {
     pub fn click_at(&self, x: i32, y: i32) -> Result<()> {
         #[cfg(all(feature = "capture", target_family = "unix"))]
         {
-            let dev = self.dev.as_ref().ok_or_else(|| anyhow::anyhow!("yerel tıklayıcı yok"))?;
+            let dev = self
+                .dev
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("yerel tıklayıcı yok"))?;
             let (x, y) = self.clamp_point(x, y);
             dev.move_absolute(x, y)?;
             dev.click(crate::uinput::button_code("left"))?;
@@ -72,7 +83,10 @@ impl LocalClicker {
     pub fn right_click_at(&self, x: i32, y: i32) -> Result<()> {
         #[cfg(all(feature = "capture", target_family = "unix"))]
         {
-            let dev = self.dev.as_ref().ok_or_else(|| anyhow::anyhow!("yerel tıklayıcı yok"))?;
+            let dev = self
+                .dev
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("yerel tıklayıcı yok"))?;
             let (x, y) = self.clamp_point(x, y);
             dev.move_absolute(x, y)?;
             dev.click(crate::uinput::button_code("right"))?;

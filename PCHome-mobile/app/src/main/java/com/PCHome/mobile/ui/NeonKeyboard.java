@@ -20,13 +20,14 @@ public class NeonKeyboard {
     private final String[][] ROWS = {
             {"Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"},
             {"A", "S", "D", "F", "G", "H", "J", "K", "L"},
-            {"Z", "X", "C", "V", "B", "N", "M"},
+            {"Z", "X", "C", "V", "B", "N", "M", ",", ".", "/"},
             {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0"},
             {"ESC", "TAB", "CTRL", "SHIFT", "ALT", "SPACE", "ENTER", "DEL"},
     };
 
     public void build(LinearLayout container, OnKeyListener listener) {
         container.removeAllViews();
+        int rowHeight = (int) (48 * container.getResources().getDisplayMetrics().density);
         for (String[] row : ROWS) {
             LinearLayout rowLayout = new LinearLayout(container.getContext());
             rowLayout.setOrientation(LinearLayout.HORIZONTAL);
@@ -38,11 +39,16 @@ public class NeonKeyboard {
                 btn.setAllCaps(true);
                 btn.setTypeface(Typeface.MONOSPACE);
                 btn.setTextColor(Color.BLACK);
-                btn.setBackgroundColor(0xFF00F4FF);
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT);
-                lp.setMargins(4, 4, 4, 4);
+                btn.setTextSize(label.length() > 1 ? 12f : 16f);
+                btn.setGravity(Gravity.CENTER);
+                btn.setMinWidth(0);
+                btn.setMinimumWidth(0);
+                btn.setMinHeight(0);
+                btn.setMinimumHeight(0);
+                btn.setPadding(0, 0, 0, 0);
+                btn.setBackgroundColor(0xFF00E5FF);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, rowHeight, 1f);
+                lp.setMargins(2, 2, 2, 2);
                 btn.setLayoutParams(lp);
                 btn.setOnTouchListener((v, event) -> {
                     int action = event.getActionMasked();
@@ -62,19 +68,7 @@ public class NeonKeyboard {
 
     private int linuxCodeForLabel(String label) {
         if (label.length() == 1) {
-            char c = label.charAt(0);
-            if (c >= 'A' && c <= 'Z') {
-                return KeyCodeMap.KEY_A + (c - 'A');
-            }
-            if (c >= 'a' && c <= 'z') {
-                return KeyCodeMap.KEY_A + (c - 'a');
-            }
-            if (c >= '1' && c <= '9') {
-                return KeyCodeMap.KEY_1 + (c - '1');
-            }
-            if (c == '0') {
-                return KeyCodeMap.KEY_0;
-            }
+            return KeyCodeMap.charToLinux(label.charAt(0));
         }
         switch (label) {
             case "ESC":

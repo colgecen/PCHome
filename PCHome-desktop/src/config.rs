@@ -24,10 +24,15 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             signal_url: "ws://localhost:8080".to_string(),
-            capture_width: 1920,
-            capture_height: 1080,
-            frame_rate: 60,
-            bitrate: 4_000_000,
+            // Stream target. Native screen size is still reported to the
+            // phone for touch mapping; 720p keeps software H.264 encoding at
+            // 30 fps on modest CPUs (1080p software encoding adds latency).
+            capture_width: 1280,
+            capture_height: 720,
+            // 30 fps keeps software encoding (and therefore latency) under
+            // control; 60 fps is still available with PCHOME_FRAME_RATE=60.
+            frame_rate: 30,
+            bitrate: 2_000_000,
             metrics_addr: "0.0.0.0:9091".parse().unwrap(),
         }
     }
@@ -61,6 +66,9 @@ impl Config {
         if let Ok(v) = std::env::var("PCHOME_CAPTURE_HEIGHT") {
             cfg.capture_height = v.parse().unwrap_or(cfg.capture_height);
         }
+        if let Ok(v) = std::env::var("PCHOME_FRAME_RATE") {
+            cfg.frame_rate = v.parse().unwrap_or(cfg.frame_rate);
+        }
         if let Ok(v) = std::env::var("PCHOME_BITRATE") {
             cfg.bitrate = v.parse().unwrap_or(cfg.bitrate);
         }
@@ -68,6 +76,68 @@ impl Config {
             cfg.metrics_addr = v.parse().unwrap_or(cfg.metrics_addr);
         }
         Ok(cfg)
+    }
+
+    /// GUI/mobil ile aynı kurallarla sinyal adresini normalize eder:
+    /// http(s) -> ws(s), şemasız -> wss, sonda /ws yoksa ekler.
+    pub fn normalize_signal_url(input: &str) -> Option<String> {
+        let mut v = input.trim().to_string();
+        if v.is_empty() {
+            return None;
+        }
+        if let Some(rest) = v.strip_prefix("https://") {
+            v = format!("wss://{}", rest);
+        } else if let Some(rest) = v.strip_prefix("http://") {
+            v = format!("ws://{}", rest);
+        } else if !v.starts_with("ws://") && !v.starts_with("wss://") {
+            // Şemasız yerel/özel ağ adresleri ws://, dış adresler wss://.
+            v = format!(
+                "{}{}",
+                if Self::looks_local_host(&v) {
+                    "ws://"
+                } else {
+                    "wss://"
+                },
+                v
+            );
+        }
+        v = v.trim_end_matches('/').to_string();
+        if !v.ends_with("/ws") {
+            v.push_str("/ws");
+        }
+        let host = v.split("://").nth(1).unwrap_or("");
+        if host.trim_matches('/').is_empty() {
+            return None;
+        }
+        Some(v)
+    }
+
+    fn looks_local_host(raw: &str) -> bool {
+        let mut host = raw.trim();
+        if let Some((_, rest)) = host.split_once("://") {
+            host = rest;
+        }
+        host = host.split('/').next().unwrap_or(host);
+        let host = if let Some(rest) = host.strip_prefix('[') {
+            rest.split(']').next().unwrap_or(rest)
+        } else {
+            host.split(':').next().unwrap_or(host)
+        }
+        .to_ascii_lowercase();
+        if matches!(host.as_str(), "localhost" | "0.0.0.0" | "::1") || host.ends_with(".local") {
+            return true;
+        }
+        if host.starts_with("127.") || host.starts_with("10.") || host.starts_with("192.168.") {
+            return true;
+        }
+        if let Some(rest) = host.strip_prefix("172.") {
+            if let Some(second) = rest.split('.').next() {
+                if let Ok(n) = second.parse::<u8>() {
+                    return (16..=31).contains(&n);
+                }
+            }
+        }
+        false
     }
 
     /// Persist just the signal URL to the user settings file so the GUI choice
@@ -136,5 +206,57 @@ fn load_dotenv(path: &str) {
                 std::env::set_var(key, value);
             }
         }
+    }
+}
+
+/// Aynı anda ikinci bir PCHome örneğinin açılmasını engeller. Eski/orphan
+/// yakalama süreçlerinin üst üste binip CPU'yu doldurması burada önlenir.
+pub fn acquire_instance_lock() -> Option<std::fs::File> {
+    use std::os::unix::io::AsRawFd;
+    let dir = user_config_dir();
+    let _ = std::fs::create_dir_all(&dir);
+    let path = dir.join("pchome.lock");
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&path)
+        .ok()?;
+    let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+    if rc == 0 {
+        Some(file)
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod config_tests {
+    use super::*;
+
+    #[test]
+    fn sinyal_adresi_normalize() {
+        assert_eq!(
+            Config::normalize_signal_url("pchome.example.com").as_deref(),
+            Some("wss://pchome.example.com/ws")
+        );
+        assert_eq!(
+            Config::normalize_signal_url("http://127.0.0.1:8080").as_deref(),
+            Some("ws://127.0.0.1:8080/ws")
+        );
+        assert_eq!(
+            Config::normalize_signal_url("https://x/ws/").as_deref(),
+            Some("wss://x/ws")
+        );
+        assert_eq!(
+            Config::normalize_signal_url("192.168.1.20:8080").as_deref(),
+            Some("ws://192.168.1.20:8080/ws")
+        );
+        assert_eq!(
+            Config::normalize_signal_url("127.0.0.1:8080").as_deref(),
+            Some("ws://127.0.0.1:8080/ws")
+        );
+        assert_eq!(Config::normalize_signal_url("   "), None);
     }
 }

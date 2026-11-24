@@ -7,9 +7,7 @@ fn format_pin(value: u32) -> String {
 }
 
 fn bench_pin_format(c: &mut Criterion) {
-    c.bench_function("format_pin", |b| {
-        b.iter(|| format_pin(black_box(849204)))
-    });
+    c.bench_function("format_pin", |b| b.iter(|| format_pin(black_box(849204))));
 }
 
 criterion_group!(benches, bench_pin_format);

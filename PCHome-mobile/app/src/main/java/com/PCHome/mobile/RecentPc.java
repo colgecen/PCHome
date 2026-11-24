@@ -10,6 +10,8 @@ import org.json.JSONObject;
 public class RecentPc {
     public String pcId = "";
     public String pcName = "";
+    /** Bu PC'ye hangi sinyal sunucusundan bağlanıldı (kart tıklanınca kullanılır). */
+    public String server = "";
     public String password = "";
     public boolean rememberPassword = false;
     public String ip = "";
@@ -30,6 +32,7 @@ public class RecentPc {
         JSONObject o = new JSONObject();
         o.put("pcId", pcId);
         o.put("pcName", pcName);
+        o.put("server", server);
         o.put("password", rememberPassword ? password : "");
         o.put("rememberPassword", rememberPassword);
         o.put("ip", ip);
@@ -44,6 +47,7 @@ public class RecentPc {
         RecentPc r = new RecentPc();
         r.pcId = o.optString("pcId", "");
         r.pcName = o.optString("pcName", "");
+        r.server = o.optString("server", "");
         r.password = o.optString("password", "");
         r.rememberPassword = o.optBoolean("rememberPassword", false);
         r.ip = o.optString("ip", "");
@@ -52,6 +56,20 @@ public class RecentPc {
         r.lastSeen = o.optLong("lastSeen", 0);
         r.thumbnail = o.optString("thumbnail", "");
         return r;
+    }
+
+    /** Kartta gösterilecek kısa sunucu adı (şema ve /ws atılır). */
+    public String serverHost() {
+        String s = server == null ? "" : server.trim();
+        int scheme = s.indexOf("://");
+        if (scheme >= 0) {
+            s = s.substring(scheme + 3);
+        }
+        int slash = s.indexOf('/');
+        if (slash >= 0) {
+            s = s.substring(0, slash);
+        }
+        return s;
     }
 
     /** Kartın alt satırı: "ID • IP • MAC". */

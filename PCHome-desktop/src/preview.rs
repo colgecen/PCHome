@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -90,9 +90,24 @@ impl WaylandTool {
 /// Plazma → GNOME → wlroots sırasıyla ilk bulunan araç.
 fn detect_wayland_tool() -> Option<WaylandTool> {
     const CANDIDATES: [WaylandTool; 3] = [
-        WaylandTool { name: "spectacle", bin: "spectacle", args: &["-b", "-n", "-f"], out_flag: "-o" },
-        WaylandTool { name: "gnome-screenshot", bin: "gnome-screenshot", args: &["-p"], out_flag: "-f" },
-        WaylandTool { name: "grim", bin: "grim", args: &[], out_flag: "" },
+        WaylandTool {
+            name: "spectacle",
+            bin: "spectacle",
+            args: &["-b", "-n", "-f"],
+            out_flag: "-o",
+        },
+        WaylandTool {
+            name: "gnome-screenshot",
+            bin: "gnome-screenshot",
+            args: &["-p"],
+            out_flag: "-f",
+        },
+        WaylandTool {
+            name: "grim",
+            bin: "grim",
+            args: &[],
+            out_flag: "",
+        },
     ];
     CANDIDATES.into_iter().find(|t| {
         std::process::Command::new(t.bin)
@@ -107,10 +122,7 @@ fn detect_wayland_tool() -> Option<WaylandTool> {
 
 /// PNG IHDR'den boyut (bulunamazsa None; GUI harf-korumayı atlar).
 fn png_size(bytes: &[u8]) -> Option<(u32, u32)> {
-    if bytes.len() >= 24
-        && &bytes[..8] == b"\x89PNG\r\n\x1a\n"
-        && &bytes[12..16] == b"IHDR"
-    {
+    if bytes.len() >= 24 && &bytes[..8] == b"\x89PNG\r\n\x1a\n" && &bytes[12..16] == b"IHDR" {
         let w = u32::from_be_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]);
         let h = u32::from_be_bytes([bytes[20], bytes[21], bytes[22], bytes[23]]);
         if w > 0 && h > 0 {
@@ -128,14 +140,22 @@ fn run_mirror(state: &SharedState, width: u32, height: u32) {
     }
     let mut child = match Command::new("ffmpeg")
         .args([
-            "-loglevel", "error",
-            "-f", "x11grab",
-            "-framerate", "5",
-            "-video_size", &format!("{}x{}", width, height),
-            "-i", &display,
-            "-vf", "scale=544:-2",
-            "-q:v", "6",
-            "-f", "mjpeg",
+            "-loglevel",
+            "error",
+            "-f",
+            "x11grab",
+            "-framerate",
+            "5",
+            "-video_size",
+            &format!("{}x{}", width, height),
+            "-i",
+            &display,
+            "-vf",
+            "scale=544:-2",
+            "-q:v",
+            "6",
+            "-f",
+            "mjpeg",
             "-",
         ])
         .stdout(Stdio::piped())
@@ -242,7 +262,9 @@ impl CursorQuery {
             match x11rb::connect(None) {
                 Ok((conn, screen)) => {
                     let root = conn.setup().roots[screen].root;
-                    return Self { conn: Some((conn, root)) };
+                    return Self {
+                        conn: Some((conn, root)),
+                    };
                 }
                 Err(e) => log::debug!("X11 imleç sorgusu yok: {}", e),
             }
@@ -313,4 +335,94 @@ mod tests {
         assert_eq!(png_size(&[0xFF, 0xD8, 0xFF, 0xD9]), None);
         assert_eq!(png_size(&[]), None);
     }
+}
+
+/// Canlı H.264 akışını (telefonun aldığı aynı kareler) önizlemeye çevirir.
+/// Böylece Wayland'de 2 sn'de bir spectacle çalıştırmaya gerek kalmaz;
+/// GUI, telefondaki görüntüyü ~100-200 ms gecikmeyle gösterir.
+pub fn start_stream_preview(state: SharedState) -> std::sync::mpsc::SyncSender<Vec<u8>> {
+    let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<u8>>(2);
+    std::thread::Builder::new()
+        .name("pchome-stream-preview".to_string())
+        .spawn(move || {
+            let mut child = match Command::new("ffmpeg")
+                .args([
+                    "-loglevel",
+                    "error",
+                    "-fflags",
+                    "nobuffer",
+                    "-flags",
+                    "low_delay",
+                    "-f",
+                    "h264",
+                    "-i",
+                    "pipe:0",
+                    "-vf",
+                    "fps=5,scale=544:-2",
+                    "-q:v",
+                    "6",
+                    "-f",
+                    "mjpeg",
+                    "pipe:1",
+                ])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .spawn()
+            {
+                Ok(c) => c,
+                Err(e) => {
+                    log::warn!("akış önizleme ffmpeg'i başlatılamadı: {}", e);
+                    state.preview_alive.store(false, Ordering::SeqCst);
+                    return;
+                }
+            };
+            let mut stdin = match child.stdin.take() {
+                Some(s) => s,
+                None => return,
+            };
+            let mut stdout = match child.stdout.take() {
+                Some(s) => s,
+                None => return,
+            };
+            state.preview_alive.store(true, Ordering::SeqCst);
+            log::info!("akış önizlemesi başladı (telefonla aynı H.264 kareleri)");
+
+            std::thread::spawn(move || {
+                for frame in rx {
+                    if stdin.write_all(&frame).is_err() {
+                        break;
+                    }
+                    let _ = stdin.flush();
+                }
+            });
+
+            let mut buf: Vec<u8> = Vec::with_capacity(128 * 1024);
+            let mut tmp = [0u8; 16384];
+            loop {
+                if state.terminate.load(Ordering::SeqCst) {
+                    break;
+                }
+                let n = match stdout.read(&mut tmp) {
+                    Ok(0) => break,
+                    Ok(n) => n,
+                    Err(_) => break,
+                };
+                buf.extend_from_slice(&tmp[..n]);
+                while let Some(frame) = take_jpeg(&mut buf) {
+                    let (fw, fh) = jpeg_size(&frame).unwrap_or((544, 306));
+                    *state.preview_jpeg.lock().unwrap() = Some((frame, fw, fh));
+                    state.preview_seq.fetch_add(1, Ordering::SeqCst);
+                    // Portal akışı imleci zaten içeriyor; ayrıca ok çizmeyelim.
+                    *state.preview_cursor.lock().unwrap() = None;
+                }
+                if buf.len() > 4 * 1024 * 1024 {
+                    buf.clear();
+                }
+            }
+            let _ = child.kill();
+            state.preview_alive.store(false, Ordering::SeqCst);
+        })
+        .ok();
+    tx
 }

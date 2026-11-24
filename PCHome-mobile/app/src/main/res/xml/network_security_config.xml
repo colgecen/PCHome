@@ -5,7 +5,9 @@
         <domain includeSubdomains="true">127.0.0.1</domain>
         <domain includeSubdomains="true">10.0.2.2</domain>
     </domain-config>
-    <base-config cleartextTrafficPermitted="false">
+    <!-- Yerel/self-hosted sinyal sunucuları ws:// kullanabilir. Medya zaten
+         WebRTC (DTLS/SRTP) ile şifrelenir; sinyal yalnız SDP/ICE taşır. -->
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>

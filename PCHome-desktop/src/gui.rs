@@ -31,8 +31,10 @@ pub fn run(state: SharedState) {
             let (cap_w, cap_h) = crate::config::Config::from_env()
                 .map(|c| (c.capture_width, c.capture_height))
                 .unwrap_or((1920, 1080));
-            *state.update_status.lock().unwrap() =
-                format!("v{} — güncellemeler denetleniyor…", crate::updater::current_version());
+            *state.update_status.lock().unwrap() = format!(
+                "v{} — güncellemeler denetleniyor…",
+                crate::updater::current_version()
+            );
             let updater_state = state.clone();
             crate::updater::spawn_background_checker(updater_state);
             let (update_tx, update_rx) = channel();
@@ -49,6 +51,7 @@ pub fn run(state: SharedState) {
                 tex: None,
                 tex_dims: (0, 0),
                 tex_bytes: 0,
+                preview_seq: 0,
                 clicker: None,
                 press_start: None,
                 press_fired: false,
@@ -88,6 +91,7 @@ struct DesktopGui {
     tex: Option<egui::TextureHandle>,
     tex_dims: (u32, u32),
     tex_bytes: usize,
+    preview_seq: u64,
     clicker: Option<LocalClicker>,
     press_start: Option<(Instant, egui::Pos2)>,
     press_fired: bool,
@@ -112,7 +116,10 @@ enum UpdateModalState {
 
 impl UpdateModalState {
     fn busy(&self) -> bool {
-        matches!(self, UpdateModalState::Checking | UpdateModalState::Busy { .. })
+        matches!(
+            self,
+            UpdateModalState::Checking | UpdateModalState::Busy { .. }
+        )
     }
 }
 
@@ -127,18 +134,15 @@ fn fmt_clock(epoch: u32) -> String {
         return "—".to_string();
     }
     chrono::DateTime::from_timestamp(epoch as i64, 0)
-        .map(|dt| {
-            dt.with_timezone(&chrono::Local)
-                .format("%H:%M")
-                .to_string()
-        })
+        .map(|dt| dt.with_timezone(&chrono::Local).format("%H:%M").to_string())
         .unwrap_or_else(|| "—".to_string())
 }
 
 /// Olay satırının tonu: hata kırmızı, başarı yeşil, diğer soluk.
 fn event_color(line: &str) -> egui::Color32 {
     let l = line.to_lowercase();
-    if l.contains("yanlış") || l.contains("hata") || l.contains("kilit") || l.contains("başarısız") {
+    if l.contains("yanlış") || l.contains("hata") || l.contains("kilit") || l.contains("başarısız")
+    {
         theme::danger()
     } else if l.contains("doğrulandı")
         || l.contains("bağlan")
@@ -159,7 +163,12 @@ impl DesktopGui {
             .exact_height(54.0)
             .show(ctx, |ui| {
                 ui.horizontal_centered(|ui| {
-                    ui.label(egui::RichText::new("PCHome").color(theme::primary()).strong().size(17.0));
+                    ui.label(
+                        egui::RichText::new("PCHome")
+                            .color(theme::primary())
+                            .strong()
+                            .size(17.0),
+                    );
                     ui.label(
                         egui::RichText::new(format!("v{}", crate::updater::current_version()))
                             .color(theme::muted())
@@ -185,12 +194,19 @@ impl DesktopGui {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if theme::danger_button_auto(ui, "⏻ Kapat").clicked() {
                             if self.update_modal.busy() {
-                                self.state.push_event(
-                                    "kurulum bitmeden kapatılamaz — bekle".to_string(),
-                                );
+                                self.state
+                                    .push_event("kurulum bitmeden kapatılamaz — bekle".to_string());
                             } else {
                                 self.state.terminate.store(true, Ordering::SeqCst);
                             }
+                        }
+                        if theme::ghost_button_auto(ui, "⟳ Yayın")
+                            .on_hover_text("Ekran yakalamayı yeniden başlat")
+                            .clicked()
+                        {
+                            self.state.restart_capture.fetch_add(1, Ordering::SeqCst);
+                            self.state
+                                .push_event("ekran yakalama yenileniyor…".to_string());
                         }
                         if theme::ghost_button_auto(ui, "⚙ Ayarlar").clicked() {
                             self.new_pc_name = self.state.pc_name.lock().unwrap().clone();
@@ -219,24 +235,32 @@ impl DesktopGui {
             .resizable(false)
             .exact_width(326.0)
             .show(ctx, |ui| {
-                self.card_identity(ctx, ui);
-                ui.add_space(6.0);
-                self.card_device(ui);
-                ui.add_space(6.0);
-                self.card_signal(ui);
-                ui.add_space(6.0);
-                self.card_update(ui);
-                ui.add_space(6.0);
-                self.card_peer(ui);
-                ui.add_space(6.0);
-                self.card_events(ui);
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        self.card_identity(ctx, ui);
+                        ui.add_space(6.0);
+                        self.card_device(ui);
+                        ui.add_space(6.0);
+                        self.card_signal(ui);
+                        ui.add_space(6.0);
+                        self.card_update(ui);
+                        ui.add_space(6.0);
+                        self.card_peer(ui);
+                        ui.add_space(6.0);
+                        self.card_events(ui);
+                    });
             });
     }
 
     fn card_identity(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         theme::card_frame().show(ui, |ui| {
             theme::card_title(ui, "💻", "PC KİMLİĞİ");
-            ui.label(egui::RichText::new("Telefondaki ID alanına").color(theme::muted()).small());
+            ui.label(
+                egui::RichText::new("Telefondaki ID alanına")
+                    .color(theme::muted())
+                    .small(),
+            );
             ui.label(
                 egui::RichText::new(self.state.pc_id.lock().unwrap().clone())
                     .color(theme::primary())
@@ -244,33 +268,59 @@ impl DesktopGui {
                     .size(38.0),
             );
             ui.add_space(4.0);
-            ui.label(egui::RichText::new("Şifre — 6 hane, sabit").color(theme::muted()).small());
+            ui.label(
+                egui::RichText::new("Şifre — 6 hane, sabit")
+                    .color(theme::muted())
+                    .small(),
+            );
             let shown = if self.show_password {
                 self.state.password.lock().unwrap().clone()
             } else {
                 "••••••".to_string()
             };
-            ui.label(egui::RichText::new(shown).monospace().size(28.0).color(theme::text()));
+            ui.label(
+                egui::RichText::new(shown)
+                    .monospace()
+                    .size(28.0)
+                    .color(theme::text()),
+            );
             ui.add_space(4.0);
             // Tek Göster/Gizle düğmesi + yenile/kopyala ayrı satırda.
-            let eye = if self.show_password { "🙈 Gizle" } else { "👁 Göster" };
+            let eye = if self.show_password {
+                "🙈 Gizle"
+            } else {
+                "👁 Göster"
+            };
             if theme::ghost_button(ui, eye).clicked() {
                 self.show_password = !self.show_password;
             }
             ui.add_space(4.0);
-            egui::Grid::new("pw_buttons").num_columns(2).spacing([6.0, 4.0]).show(ui, |ui| {
-                if theme::ghost_button(ui, "🔄").on_hover_text("Şifreyi yenile").clicked() {
-                    self.refresh_password();
-                }
-                if theme::ghost_button(ui, "📋 Kopyala").on_hover_text("ID + şifreyi kopyala").clicked() {
-                    let id = self.state.pc_id.lock().unwrap().clone();
-                    let pw = self.state.password.lock().unwrap().clone();
-                    ctx.copy_text(format!("ID:{} Şifre:{}", id, pw));
-                }
-                ui.end_row();
-            });
+            egui::Grid::new("pw_buttons")
+                .num_columns(2)
+                .spacing([6.0, 4.0])
+                .show(ui, |ui| {
+                    if theme::ghost_button(ui, "🔄")
+                        .on_hover_text("Şifreyi yenile")
+                        .clicked()
+                    {
+                        self.refresh_password();
+                    }
+                    if theme::ghost_button(ui, "📋 Kopyala")
+                        .on_hover_text("ID + şifreyi kopyala")
+                        .clicked()
+                    {
+                        let id = self.state.pc_id.lock().unwrap().clone();
+                        let pw = self.state.password.lock().unwrap().clone();
+                        ctx.copy_text(format!("ID:{} Şifre:{}", id, pw));
+                    }
+                    ui.end_row();
+                });
             if !self.settings_msg.is_empty() {
-                ui.label(egui::RichText::new(&self.settings_msg).color(theme::danger()).small());
+                ui.label(
+                    egui::RichText::new(&self.settings_msg)
+                        .color(theme::danger())
+                        .small(),
+                );
             }
         });
     }
@@ -282,6 +332,7 @@ impl DesktopGui {
                 ("Ad", self.state.pc_name.lock().unwrap().clone()),
                 ("Yerel IP", self.state.local_ip.lock().unwrap().clone()),
                 ("Çözünürlük", self.state.resolution.lock().unwrap().clone()),
+                ("Ekran", self.state.capture_status.lock().unwrap().clone()),
                 ("Kip", self.state.mode.lock().unwrap().clone()),
             ];
             // Tam genişlik satırlar: etiket solda, değer sağda.
@@ -289,18 +340,31 @@ impl DesktopGui {
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new(k).color(theme::muted()).small());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(egui::RichText::new(v).monospace().small().color(theme::text()));
+                        ui.label(
+                            egui::RichText::new(v)
+                                .monospace()
+                                .small()
+                                .color(theme::text()),
+                        );
                     });
                 });
             }
             ui.add_space(2.0);
             let uinput = self.state.uinput_active.load(Ordering::SeqCst);
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("Giriş (uinput)").color(theme::muted()).small());
+                ui.label(
+                    egui::RichText::new("Giriş (uinput)")
+                        .color(theme::muted())
+                        .small(),
+                );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(
                         egui::RichText::new(if uinput { "● ETKİN" } else { "○ KAPALI" })
-                            .color(if uinput { theme::success() } else { theme::danger() })
+                            .color(if uinput {
+                                theme::success()
+                            } else {
+                                theme::danger()
+                            })
                             .strong()
                             .small(),
                     );
@@ -312,7 +376,12 @@ impl DesktopGui {
     fn card_signal(&mut self, ui: &mut egui::Ui) {
         theme::card_frame().show(ui, |ui| {
             theme::card_title(ui, "📡", "SİNYAL");
-            ui.label(egui::RichText::new(self.signal_url.clone()).monospace().small().color(theme::text()));
+            ui.label(
+                egui::RichText::new(self.signal_url.clone())
+                    .monospace()
+                    .small()
+                    .color(theme::text()),
+            );
             ui.add_space(6.0);
             if theme::ghost_button(ui, "✎ Adresi değiştir").clicked() {
                 self.new_pc_name = self.state.pc_name.lock().unwrap().clone();
@@ -327,11 +396,11 @@ impl DesktopGui {
             theme::card_title(ui, "⬆", "GÜNCELLEME");
             let upd = self.state.update_status.lock().unwrap().clone();
             let has_update = upd.contains("yeni sürüm") || upd.contains("kuruldu");
-            ui.label(
-                egui::RichText::new(upd)
-                    .small()
-                    .color(if has_update { theme::success() } else { theme::muted() }),
-            );
+            ui.label(egui::RichText::new(upd).small().color(if has_update {
+                theme::success()
+            } else {
+                theme::muted()
+            }));
             ui.add_space(6.0);
             if theme::ghost_button(ui, "🔍 Güncellemeleri kontrol et").clicked() {
                 self.update_modal = UpdateModalState::Idle;
@@ -349,20 +418,20 @@ impl DesktopGui {
         // Olay pompası: arka plan iş parçacıklarından gelen sonuçlar.
         while let Ok(ev) = self.update_rx.try_recv() {
             match ev {
-                UpdateEvent::Checked(Ok((info, size))) => {
-                    match info {
-                        Some(info) => {
-                            self.state.push_event(format!("güncelleme bulundu: {}", info.version));
-                            self.update_modal = UpdateModalState::Available { info, size };
-                        }
-                        None => self.update_modal = UpdateModalState::UpToDate,
+                UpdateEvent::Checked(Ok((info, size))) => match info {
+                    Some(info) => {
+                        self.state
+                            .push_event(format!("güncelleme bulundu: {}", info.version));
+                        self.update_modal = UpdateModalState::Available { info, size };
                     }
-                }
+                    None => self.update_modal = UpdateModalState::UpToDate,
+                },
                 UpdateEvent::Checked(Err(msg)) => {
                     self.update_modal = UpdateModalState::Failed { msg };
                 }
                 UpdateEvent::Installed(Ok(path)) => {
-                    self.state.push_event("güncelleme kuruldu, yeniden başlatılıyor".to_string());
+                    self.state
+                        .push_event("güncelleme kuruldu, yeniden başlatılıyor".to_string());
                     crate::updater::relaunch(&path);
                 }
                 UpdateEvent::Installed(Err(msg)) => {
@@ -407,12 +476,16 @@ impl DesktopGui {
                         if !info.notes.trim().is_empty() {
                             ui.add_space(4.0);
                             let notes: String = info.notes.chars().take(800).collect();
-                            egui::ScrollArea::vertical().max_height(140.0).show(ui, |ui| {
-                                ui.label(egui::RichText::new(notes).small());
-                            });
+                            egui::ScrollArea::vertical()
+                                .max_height(140.0)
+                                .show(ui, |ui| {
+                                    ui.label(egui::RichText::new(notes).small());
+                                });
                         }
                         ui.add_space(8.0);
-                        if theme::neon_button(ui, &format!("⬆ Şimdi güncelle ({})", info.version)).clicked() {
+                        if theme::neon_button(ui, &format!("⬆ Şimdi güncelle ({})", info.version))
+                            .clicked()
+                        {
                             self.start_install();
                         }
                     }
@@ -509,11 +582,20 @@ impl DesktopGui {
         theme::card_frame().show(ui, |ui| {
             theme::card_title(ui, "📱", "BAĞLI CİHAZ");
             let connected = self.state.peer_connected.load(Ordering::SeqCst);
+            let peer_name = self.state.peer_name.lock().unwrap().clone();
+            let seen = self.state.seen_devices.lock().unwrap().clone();
             if connected {
                 let since = self.state.peer_since.load(Ordering::SeqCst);
                 let last = self.state.peer_last_auth.load(Ordering::SeqCst);
                 let fails = self.state.peer_fails.load(Ordering::SeqCst);
-                ui.label(egui::RichText::new("● BAĞLI").color(theme::success()).strong());
+                ui.label(
+                    egui::RichText::new("● BAĞLI")
+                        .color(theme::success())
+                        .strong(),
+                );
+                if !peer_name.is_empty() {
+                    ui.label(egui::RichText::new(peer_name).strong().color(theme::text()));
+                }
                 ui.label(
                     egui::RichText::new(format!(
                         "{}'den beri • son doğrulama {} • başarısız: {}",
@@ -535,6 +617,31 @@ impl DesktopGui {
                     );
                 }
             }
+            if !seen.is_empty() {
+                ui.add_space(3.0);
+                ui.label(
+                    egui::RichText::new("Son cihazlar")
+                        .small()
+                        .color(theme::muted()),
+                );
+                for device in seen.iter().take(3) {
+                    let line = if device.os.is_empty() {
+                        format!(
+                            "• {} • {}",
+                            device.name,
+                            crate::device::format_seen(device.last_seen)
+                        )
+                    } else {
+                        format!(
+                            "• {} • {} • {}",
+                            device.name,
+                            device.os,
+                            crate::device::format_seen(device.last_seen)
+                        )
+                    };
+                    ui.label(egui::RichText::new(line).small().color(theme::text()));
+                }
+            }
         });
     }
 
@@ -551,7 +658,11 @@ impl DesktopGui {
                         (200.0 + 55.0 * pulse) as u8,
                     );
                     ui.label(egui::RichText::new("●").color(dot).strong().size(16.0));
-                    ui.label(egui::RichText::new("CANLI ÖNİZLEME").color(theme::primary()).strong());
+                    ui.label(
+                        egui::RichText::new("CANLI ÖNİZLEME")
+                            .color(theme::primary())
+                            .strong(),
+                    );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
                             egui::RichText::new(if self.clicker_available() {
@@ -574,7 +685,10 @@ impl DesktopGui {
         if self.clicker.is_none() {
             self.clicker = Some(LocalClicker::open(self.cap_w, self.cap_h));
         }
-        self.clicker.as_ref().map(|c| c.available()).unwrap_or(false)
+        self.clicker
+            .as_ref()
+            .map(|c| c.available())
+            .unwrap_or(false)
     }
 
     /// JPEG kareyi dokuya çevir (değişmişse) ve harf-korumalı bas + imleç çiz.
@@ -585,13 +699,10 @@ impl DesktopGui {
         let area = egui::Rect::from_min_size(ui.cursor().min, egui::vec2(area_w, area_h));
         ui.painter().rect_filled(area, 8.0, theme::bg_panel());
 
-        if !self.state.peer_connected.load(Ordering::SeqCst) {
-            self.waiting_screen(ui, area);
-            return;
-        }
         let frame = self.state.preview_jpeg.lock().unwrap().clone();
+        let seq = self.state.preview_seq.load(Ordering::SeqCst);
         if let Some((bytes, fw, fh)) = frame {
-            if bytes.len() != self.tex_bytes || (fw, fh) != self.tex_dims {
+            if seq != self.preview_seq {
                 if let Ok(img) = image::load_from_memory(&bytes) {
                     let rgba = img.to_rgba8();
                     let (w, h) = (rgba.width(), rgba.height());
@@ -611,6 +722,7 @@ impl DesktopGui {
                     }
                     self.tex_dims = (w, h);
                     self.tex_bytes = bytes.len();
+                    self.preview_seq = seq;
                 }
             }
             if let Some(tex) = &self.tex {
@@ -623,10 +735,8 @@ impl DesktopGui {
                 );
                 // İmleç oku (normalize konum → kutu içi).
                 if let Some((cx, cy)) = *self.state.preview_cursor.lock().unwrap() {
-                    let p = egui::pos2(
-                        fit.left() + cx * fit.width(),
-                        fit.top() + cy * fit.height(),
-                    );
+                    let p =
+                        egui::pos2(fit.left() + cx * fit.width(), fit.top() + cy * fit.height());
                     let s = 11.0;
                     let arrow = vec![
                         p,
@@ -640,27 +750,31 @@ impl DesktopGui {
                         egui::Stroke::new(1.0_f32, egui::Color32::BLACK),
                     ));
                 }
-                // BAĞLANDI rozeti: cihaz bilgisi görüntünün üstünde.
-                let since = self.state.peer_since.load(Ordering::SeqCst);
-                let bar = egui::Rect::from_min_size(
-                    fit.left_top() + egui::vec2(8.0, 8.0),
-                    egui::vec2(fit.width() - 16.0, 30.0),
-                );
-                ui.painter().rect_filled(bar, 6.0, egui::Color32::from_black_alpha(160));
-                ui.painter().text(
-                    bar.left_center() + egui::vec2(10.0, 0.0),
-                    egui::Align2::LEFT_CENTER,
-                    format!(
-                        "● BAĞLANDI  {}'den beri • {} • {}fps • {}ms",
-                        fmt_clock(since),
-                        self.state.resolution.lock().unwrap(),
-                        self.state.fps.load(Ordering::SeqCst),
-                        self.state.ping_ms.load(Ordering::SeqCst),
-                    ),
-                    egui::FontId::proportional(14.5),
-                    theme::success(),
-                );
-                self.preview_click(ctx, ui, area, fit);            } else {
+                // BAĞLANDI rozeti yalnız gerçek bir telefon bağlıyken.
+                if self.state.peer_connected.load(Ordering::SeqCst) {
+                    let since = self.state.peer_since.load(Ordering::SeqCst);
+                    let bar = egui::Rect::from_min_size(
+                        fit.left_top() + egui::vec2(8.0, 8.0),
+                        egui::vec2(fit.width() - 16.0, 30.0),
+                    );
+                    ui.painter()
+                        .rect_filled(bar, 6.0, egui::Color32::from_black_alpha(160));
+                    ui.painter().text(
+                        bar.left_center() + egui::vec2(10.0, 0.0),
+                        egui::Align2::LEFT_CENTER,
+                        format!(
+                            "● BAĞLANDI  {}'den beri • {} • {}fps • {}ms",
+                            fmt_clock(since),
+                            self.state.resolution.lock().unwrap(),
+                            self.state.fps.load(Ordering::SeqCst),
+                            self.state.ping_ms.load(Ordering::SeqCst),
+                        ),
+                        egui::FontId::proportional(14.5),
+                        theme::success(),
+                    );
+                }
+                self.preview_click(ctx, ui, area, fit);
+            } else {
                 // Kare var ama doku hazır değil (çözümleme patladı) → bekleme.
                 self.waiting_screen(ui, area);
             }
@@ -684,13 +798,13 @@ impl DesktopGui {
         } else if alive {
             ("●", theme::primary(), "kare bekleniyor…")
         } else if wayland {
+            ("●", theme::primary(), "ekran akışı hazırlanıyor…")
+        } else {
             (
                 "●",
                 theme::primary(),
-                "Wayland: önizleme spectacle/gnome-screenshot/grim'den birini kur",
+                "cihaz bekleniyor — telefondan bağlan",
             )
-        } else {
-            ("●", theme::primary(), "cihaz bekleniyor — telefondan bağlan")
         };
         ui.painter().text(
             area.center() + egui::vec2(0.0, -12.0),
@@ -758,9 +872,15 @@ impl DesktopGui {
         let label = if right { "SAĞ" } else { "SOL" };
         match &self.clicker {
             Some(c) => {
-                let r = if right { c.right_click_at(x, y) } else { c.click_at(x, y) };
+                let r = if right {
+                    c.right_click_at(x, y)
+                } else {
+                    c.click_at(x, y)
+                };
                 match r {
-                    Ok(()) => self.state.push_event(format!("YEREL {} tık {} {}", label, x, y)),
+                    Ok(()) => self
+                        .state
+                        .push_event(format!("YEREL {} tık {} {}", label, x, y)),
                     Err(e) => self.state.push_event(format!("yerel tık hatası: {}", e)),
                 }
             }
@@ -773,23 +893,39 @@ impl DesktopGui {
     fn card_events(&mut self, ui: &mut egui::Ui) {
         theme::card_frame().show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("OLAY AKIŞI").color(theme::primary()).strong());
+                ui.label(
+                    egui::RichText::new("OLAY AKIŞI")
+                        .color(theme::primary())
+                        .strong(),
+                );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if theme::ghost_button_auto(ui, "🗑 Temizle").clicked() {
                         self.state.clear_events();
                     }
                 });
             });
-            let lines: Vec<String> =
-                self.state.events.lock().unwrap().iter().rev().take(60).cloned().collect();
-            // Kalan dikey boşluğun tamamı kaydırma alanına verilir.
-            let h = ui.available_height().max(90.0);
-            egui::ScrollArea::vertical().max_height(h).auto_shrink([false, true]).show(ui, |ui| {
+            let lines: Vec<String> = self
+                .state
+                .events
+                .lock()
+                .unwrap()
+                .iter()
+                .rev()
+                .take(60)
+                .cloned()
+                .collect();
+            // Sabit yükseklik: yan panel kendi içinde kaydırılabilir.
+            egui::ScrollArea::vertical()
+                .max_height(180.0)
+                .auto_shrink([false, true])
+                .show(ui, |ui| {
                     if lines.is_empty() {
                         ui.label(
-                            egui::RichText::new("Henüz olay yok — telefon bağlanınca burada görünür.")
-                                .small()
-                                .color(theme::muted()),
+                            egui::RichText::new(
+                                "Henüz olay yok — telefon bağlanınca burada görünür.",
+                            )
+                            .small()
+                            .color(theme::muted()),
                         );
                     }
                     for line in lines {
@@ -817,7 +953,11 @@ impl DesktopGui {
             .collapsible(false)
             .min_width(380.0)
             .show(ctx, |ui| {
-                ui.label(egui::RichText::new("Sinyal Sunucusu").strong().color(theme::primary()));
+                ui.label(
+                    egui::RichText::new("Sinyal Sunucusu")
+                        .strong()
+                        .color(theme::primary()),
+                );
                 egui::Frame::none()
                     .fill(theme::bg_panel())
                     .stroke(egui::Stroke::new(1.0_f32, theme::border()))
@@ -832,13 +972,25 @@ impl DesktopGui {
                         );
                     });
                 ui.add_space(6.0);
-                ui.label(egui::RichText::new("PC Adı").strong().color(theme::primary()));
+                ui.label(
+                    egui::RichText::new("PC Adı")
+                        .strong()
+                        .color(theme::primary()),
+                );
                 ui.text_edit_singleline(&mut self.new_pc_name);
                 ui.add_space(6.0);
-                ui.label(egui::RichText::new("Yeni Şifre (6 hane, boş bırak = değişmesin)").strong().color(theme::primary()));
+                ui.label(
+                    egui::RichText::new("Yeni Şifre (6 hane, boş bırak = değişmesin)")
+                        .strong()
+                        .color(theme::primary()),
+                );
                 ui.text_edit_singleline(&mut self.new_password);
                 if !self.settings_msg.is_empty() {
-                    ui.label(egui::RichText::new(&self.settings_msg).color(theme::danger()).small());
+                    ui.label(
+                        egui::RichText::new(&self.settings_msg)
+                            .color(theme::danger())
+                            .small(),
+                    );
                 }
                 ui.add_space(8.0);
                 if theme::neon_button(ui, "💾 Kaydet").clicked() {
@@ -874,16 +1026,17 @@ impl DesktopGui {
     }
 
     fn save_settings(&mut self) {
-        let url = self.signal_url.trim().to_string();
-        if !url.is_empty() {
-            if !(url.starts_with("ws://") || url.starts_with("wss://")) {
-                self.settings_msg =
-                    "adres ws:// ya da wss:// ile başlamalı".to_string();
+        let raw_url = self.signal_url.trim().to_string();
+        if !raw_url.is_empty() {
+            let Some(url) = crate::config::Config::normalize_signal_url(&raw_url) else {
+                self.settings_msg = "geçerli bir sinyal adresi gir".to_string();
                 return;
-            }
+            };
             let _ = crate::config::Config::save_signal_url(&url);
-            *self.state.status.lock().unwrap() =
-                "SİNYAL: yeniden başlatınca uygulanır".to_string();
+            self.signal_url = url.clone();
+            *self.state.signal_url.lock().unwrap() = url.clone();
+            *self.state.status.lock().unwrap() = "SİNYAL: ADRES GÜNCELLENDİ".to_string();
+            self.state.push_event(format!("sinyal adresi: {}", url));
         }
         if !self.new_pc_name.trim().is_empty() {
             if let Ok(mut id) = crate::identity::Identity::load_or_create() {
@@ -933,7 +1086,10 @@ fn aspect_fit(area: egui::Rect, iw: f32, ih: f32) -> egui::Rect {
     let fw = iw * scale;
     let fh = ih * scale;
     egui::Rect::from_min_size(
-        egui::pos2(area.left() + (area.width() - fw) / 2.0, area.top() + (area.height() - fh) / 2.0),
+        egui::pos2(
+            area.left() + (area.width() - fw) / 2.0,
+            area.top() + (area.height() - fh) / 2.0,
+        ),
         egui::vec2(fw, fh),
     )
 }

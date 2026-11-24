@@ -1,25 +1,27 @@
 use anyhow::Result;
 use bytes::Bytes;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant, SystemTime};
+use webrtc::api::media_engine::MediaEngine;
+use webrtc::api::setting_engine::SettingEngine;
 use webrtc::api::APIBuilder;
 use webrtc::data_channel::data_channel_init::RTCDataChannelInit;
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::media::Sample;
 use webrtc::peer_connection::configuration::RTCConfiguration;
+use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::peer_connection::RTCPeerConnection;
-use webrtc::api::media_engine::MediaEngine;
-use webrtc::api::setting_engine::SettingEngine;
 use webrtc::rtp_transceiver::rtp_codec::{
     RTCRtpCodecCapability, RTCRtpCodecParameters, RTPCodecType,
 };
-use webrtc_ice::network_type::NetworkType;
+use webrtc::rtp_transceiver::RTCPFeedback;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
+use webrtc_ice::network_type::NetworkType;
 
 use crate::control::ControlHandler;
 use crate::network::ConnectionManager;
@@ -27,6 +29,10 @@ use crate::network::ConnectionManager;
 /// WebRTC offerer. Captures the desktop screen into an H.264 video track and
 /// exchanges control messages with the mobile client over an unordered,
 /// unreliable DataChannel named `control`.
+///
+/// One instance is created per mobile `hello`. The old instance is closed and
+/// dropped before a new one is built, because DTLS/SRTP/ICE state cannot be
+/// reused across phone reconnects.
 pub struct WebRtcEngine {
     pc: Arc<RTCPeerConnection>,
     video_track: Arc<TrackLocalStaticSample>,
@@ -37,6 +43,41 @@ pub struct WebRtcEngine {
     width: u32,
     height: u32,
     fps: u32,
+    generation: u64,
+    last_sample: tokio::sync::Mutex<Option<Instant>>,
+    /// ICE candidates that arrived before the answer/remote description.
+    pending_ice: tokio::sync::Mutex<Vec<RTCIceCandidateInit>>,
+    closed: AtomicBool,
+}
+
+fn h264_capability() -> RTCRtpCodecCapability {
+    RTCRtpCodecCapability {
+        mime_type: "video/H264".to_string(),
+        clock_rate: 90_000,
+        channels: 0,
+        sdp_fmtp_line: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f"
+            .to_string(),
+        // PLI/FIR let the phone ask for a fresh keyframe after loss or when it
+        // just started decoding; NACK improves recovery on lossy links.
+        rtcp_feedback: vec![
+            RTCPFeedback {
+                typ: "nack".to_string(),
+                parameter: String::new(),
+            },
+            RTCPFeedback {
+                typ: "nack".to_string(),
+                parameter: "pli".to_string(),
+            },
+            RTCPFeedback {
+                typ: "ccm".to_string(),
+                parameter: "fir".to_string(),
+            },
+            RTCPFeedback {
+                typ: "goog-remb".to_string(),
+                parameter: String::new(),
+            },
+        ],
+    }
 }
 
 impl WebRtcEngine {
@@ -47,20 +88,13 @@ impl WebRtcEngine {
         width: u32,
         height: u32,
         fps: u32,
+        generation: u64,
     ) -> Result<Arc<Self>> {
         let mut media_engine = MediaEngine::default();
         media_engine
             .register_codec(
                 RTCRtpCodecParameters {
-                    capability: RTCRtpCodecCapability {
-                        mime_type: "video/H264".to_string(),
-                        clock_rate: 90_000,
-                        channels: 0,
-                        sdp_fmtp_line:
-                            "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01e"
-                                .to_string(),
-                        rtcp_feedback: vec![],
-                    },
+                    capability: h264_capability(),
                     payload_type: 102,
                     ..Default::default()
                 },
@@ -72,6 +106,19 @@ impl WebRtcEngine {
         // addresses fails with EINVAL on Linux and only produces spurious
         // warnings; link-local can't route across the signal server anyway.
         setting_engine.set_network_types(vec![NetworkType::Udp4]);
+        // Sanal/VPN arayüzlerini ICE'den çıkar. Docker/Tailscale adayları
+        // telefonun yanlış (yüksek gecikmeli) yoldan bağlanmasına yol
+        // açabiliyordu; Wi-Fi/Ethernet ve onun üzerinden STUN yeterli.
+        setting_engine.set_interface_filter(Box::new(|name: &str| {
+            !(name == "lo"
+                || name.starts_with("docker")
+                || name.starts_with("veth")
+                || name.starts_with("br-")
+                || name.starts_with("virbr")
+                || name.starts_with("tailscale")
+                || name.starts_with("tun")
+                || name.starts_with("wg"))
+        }));
         let api = APIBuilder::new()
             .with_media_engine(media_engine)
             .with_setting_engine(setting_engine)
@@ -86,15 +133,7 @@ impl WebRtcEngine {
         let pc = Arc::new(api.new_peer_connection(config).await?);
 
         let video_track = Arc::new(TrackLocalStaticSample::new(
-            RTCRtpCodecCapability {
-                mime_type: "video/H264".to_string(),
-                clock_rate: 90_000,
-                channels: 0,
-                sdp_fmtp_line:
-                    "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01e"
-                        .to_string(),
-                rtcp_feedback: vec![],
-            },
+            h264_capability(),
             "video".to_string(),
             "pchome".to_string(),
         ));
@@ -110,39 +149,53 @@ impl WebRtcEngine {
         let dc = Arc::clone(&pc.create_data_channel("control", Some(dc_init)).await?);
 
         let conn_ice = connection.clone();
-        pc.on_ice_candidate(Box::new(move |candidate: Option<webrtc::ice_transport::ice_candidate::RTCIceCandidate>| {
-            let conn = conn_ice.clone();
-            Box::pin(async move {
-                if let Some(cand) = candidate {
-                    if let Ok(init) = cand.to_json() {
-                        let msg = json!({
-                            "type": "ice-candidate",
-                            "candidate": init.candidate,
-                            "sdpMid": init.sdp_mid.unwrap_or_default(),
-                            "sdpMLineIndex": init.sdp_mline_index.unwrap_or(0),
-                        });
-                        conn.send_json(&msg).await;
+        pc.on_ice_candidate(Box::new(
+            move |candidate: Option<webrtc::ice_transport::ice_candidate::RTCIceCandidate>| {
+                let conn = conn_ice.clone();
+                Box::pin(async move {
+                    if let Some(cand) = candidate {
+                        if let Ok(init) = cand.to_json() {
+                            let msg = json!({
+                                "type": "ice-candidate",
+                                "candidate": init.candidate,
+                                "sdpMid": init.sdp_mid.unwrap_or_default(),
+                                "sdpMLineIndex": init.sdp_mline_index.unwrap_or(0),
+                            });
+                            conn.send_json(&msg).await;
+                        }
                     }
-                }
-            })
-        }));
+                })
+            },
+        ));
 
         let conn_open = connection.clone();
         let state_open = state.clone();
+        let dc_open = Arc::clone(&dc);
         let (w, h) = (width, height);
         dc.on_open(Box::new(move || {
             let conn = conn_open.clone();
             let st = state_open.clone();
+            let dc = Arc::clone(&dc_open);
             Box::pin(async move {
+                st.peer_generation.store(generation, Ordering::SeqCst);
                 st.peer_connected.store(true, Ordering::SeqCst);
                 st.peer_since.store(now_epoch(), Ordering::SeqCst);
                 st.push_event("cihaz bağlandı (veri kanalı açık)".to_string());
-                conn.send_json(&json!({
+                log::info!(
+                    "control data channel opened (session {}, {}x{})",
+                    generation,
+                    w,
+                    h
+                );
+                let info = json!({
                     "type": "display_info",
                     "width": w,
                     "height": h,
-                }))
-                .await;
+                });
+                // Signal yolu kopsa bile telefon gerçek çözünürlüğü
+                // veri kanalından alsın.
+                let _ = dc.send(&Bytes::from(info.to_string().into_bytes())).await;
+                conn.send_json(&info).await;
             })
         }));
 
@@ -150,8 +203,14 @@ impl WebRtcEngine {
         dc.on_close(Box::new(move || {
             let st = state_close.clone();
             Box::pin(async move {
-                st.peer_connected.store(false, Ordering::SeqCst);
-                st.push_event("cihaz ayrıldı (veri kanalı kapandı)".to_string());
+                // Only the session that owns the current generation may clear
+                // the connected flag; an old engine closing late must not hide
+                // a newly established connection.
+                if st.peer_generation.load(Ordering::SeqCst) == generation {
+                    st.peer_connected.store(false, Ordering::SeqCst);
+                    st.push_event("cihaz ayrıldı (veri kanalı kapandı)".to_string());
+                    log::info!("control data channel closed (session {})", generation);
+                }
             })
         }));
 
@@ -160,13 +219,17 @@ impl WebRtcEngine {
             let control = control_msg.clone();
             Box::pin(async move {
                 let data: Bytes = msg.data;
+                log::debug!(
+                    "control message received: {}",
+                    String::from_utf8_lossy(&data)
+                );
                 if let Ok(v) = serde_json::from_slice::<Value>(&data) {
                     control.handle(&v).await;
                 }
             })
         }));
 
-        Ok(Arc::new(Self {
+        let engine = Arc::new(Self {
             pc,
             video_track,
             data_channel: dc,
@@ -176,136 +239,112 @@ impl WebRtcEngine {
             width,
             height,
             fps,
-        }))
+            generation,
+            last_sample: tokio::sync::Mutex::new(None),
+            pending_ice: tokio::sync::Mutex::new(Vec::new()),
+            closed: AtomicBool::new(false),
+        });
+        engine.spawn_ping_loop();
+        Ok(engine)
     }
 
-    /// Sinyal akışını sürer: mobil önce `join` (ID + şifre) gönderir, şifre
-    /// doğrulanınca `auth_ok` dönülür; ardından mobilin `hello` mesajı üzerine
-    /// offer üretilir, `answer` + `ice-candidate` uygulanır. 5 yanlış şifrede
-    /// 60 sn kilit devreye girer. Ayrıca periyodik ping ile RTT ölçülür.
-    pub async fn run(self: Arc<Self>) -> Result<()> {
-        self.spawn_ping_loop();
-        let incoming = self.connection.incoming();
-        let mut rx = incoming.lock().await;
-        let mut authed = false;
-        let mut fails = 0u32;
-        let mut lockout_until: Option<Instant> = None;
-        while let Some(msg) = rx.recv().await {
-            let typ = msg.get("type").and_then(|v| v.as_str()).unwrap_or("");
-            match typ {
-                "join" => {
-                    if let Some(until) = lockout_until {
-                        if Instant::now() < until {
-                            self.connection
-                                .send_json(&json!({ "type": "auth_rejected", "reason": "kilitli, 60 sn bekleyin" }))
-                                .await;
-                            continue;
-                        } else {
-                            lockout_until = None;
-                            fails = 0;
-                        }
-                    }
-                    let candidate = msg.get("password").and_then(|v| v.as_str()).unwrap_or("");
-                    let expected = self.state.password.lock().unwrap().clone();
-                    if crate::identity::verify_password(&expected, candidate) {
-                        authed = true;
-                        fails = 0;
-                        self.state.peer_last_auth.store(now_epoch(), Ordering::SeqCst);
-                        self.state.peer_fails.store(0, Ordering::SeqCst);
-                        let (pc_id, pc_name) = (
-                            self.state.pc_id.lock().unwrap().clone(),
-                            self.state.pc_name.lock().unwrap().clone(),
-                        );
-                        self.connection
-                            .send_json(&crate::device::auth_ok_json(
-                                &pc_id, &pc_name, self.width, self.height,
-                            ))
-                            .await;
-                        self.state.push_event("telefon doğrulandı, offer bekleniyor".to_string());
-                        log::info!("mobil doğrulandı (pc_id={})", pc_id);
-                    } else {
-                        fails += 1;
-                        self.state.peer_fails.store(fails, Ordering::SeqCst);
-                        if fails >= 5 {
-                            lockout_until = Some(Instant::now() + Duration::from_secs(60));
-                            self.state.push_event("5 yanlış şifre: 60 sn kilit".to_string());
-                            log::warn!("art arda 5 yanlış şifre, 60 sn kilit");
-                        }
-                        self.connection
-                            .send_json(&json!({ "type": "auth_rejected", "reason": "şifre hatalı" }))
-                            .await;
-                    }
-                }
-                "get_device_info" => {
-                    if authed {
-                        let (pc_id, pc_name) = (
-                            self.state.pc_id.lock().unwrap().clone(),
-                            self.state.pc_name.lock().unwrap().clone(),
-                        );
-                        self.connection
-                            .send_json(&crate::device::device_info_json(
-                                &pc_id, &pc_name, self.width, self.height,
-                            ))
-                            .await;
-                    }
-                }
-                "hello" => {
-                    if !authed {
-                        log::warn!("yetkisiz hello yoksayıldı (önce join gerekli)");
-                        continue;
-                    }
-                    if let Err(e) = self.create_offer().await {
-                        log::warn!("create_offer failed: {}", e);
-                    }
-                }
-                "answer" => {
-                    if let Some(sdp) = msg.get("sdp").and_then(|v| v.as_str()) {
-                        log::info!("WebRTC: received answer, setting remote description");
-                        match RTCSessionDescription::answer(sdp.to_string()) {
-                            Ok(ans) => {
-                                if let Err(e) = self.pc.set_remote_description(ans).await {
-                                    log::warn!("set_remote_description failed: {}", e);
-                                }
-                            }
-                            Err(e) => log::warn!("invalid answer: {}", e),
-                        }
-                    }
-                }
-                "ice-candidate" => {
-                    let candidate = msg.get("candidate").and_then(|v| v.as_str());
-                    let sdp_mid = msg.get("sdpMid").and_then(|v| v.as_str()).map(|s| s.to_string());
-                    let sdp_mline_index = msg
-                        .get("sdpMLineIndex")
-                        .and_then(|v| v.as_u64())
-                        .map(|n| n as u16);
-                    if let Some(candidate) = candidate {
-                        let init = RTCIceCandidateInit {
-                            candidate: candidate.to_string(),
-                            sdp_mid,
-                            sdp_mline_index,
-                            username_fragment: None,
-                        };
-                        if let Err(e) = self.pc.add_ice_candidate(init).await {
-                            log::warn!("add_ice_candidate failed: {}", e);
-                        }
-                    }
-                }
-                _ => {}
-            }
+    /// Builds the SDP offer and sends it to the phone. Called once per session
+    /// right after the phone's `hello`.
+    pub async fn create_offer(&self) -> Result<()> {
+        if self.closed.load(Ordering::SeqCst) {
+            anyhow::bail!("engine closed");
         }
-        Ok(())
-    }
-
-    async fn create_offer(&self) -> Result<()> {
-        log::info!("WebRTC: creating offer");
+        log::info!("WebRTC: creating offer (session {})", self.generation);
         let offer = self.pc.create_offer(None).await?;
         self.pc.set_local_description(offer).await?;
         if let Some(local) = self.pc.local_description().await {
+            log::debug!("local offer SDP:\n{}", local.sdp);
             self.connection
                 .send_json(&json!({ "type": "offer", "sdp": local.sdp }))
                 .await;
         }
         Ok(())
+    }
+
+    pub async fn set_answer(&self, sdp: &str) {
+        log::info!("WebRTC: received answer, setting remote description");
+        log::debug!("remote answer SDP:\n{}", sdp);
+        match RTCSessionDescription::answer(sdp.to_string()) {
+            Ok(ans) => match self.pc.set_remote_description(ans).await {
+                Ok(()) => {
+                    let pending: Vec<RTCIceCandidateInit> = {
+                        let mut buf = self.pending_ice.lock().await;
+                        std::mem::take(&mut *buf)
+                    };
+                    if !pending.is_empty() {
+                        log::info!("WebRTC: {} bekleyen ICE adayı uygulanıyor", pending.len());
+                    }
+                    for candidate in pending {
+                        if let Err(e) = self.pc.add_ice_candidate(candidate).await {
+                            log::warn!("buffered add_ice_candidate failed: {}", e);
+                        }
+                    }
+                }
+                Err(e) => log::warn!("set_remote_description failed: {}", e),
+            },
+            Err(e) => log::warn!("invalid answer: {}", e),
+        }
+    }
+
+    pub async fn add_ice_candidate(
+        &self,
+        candidate: String,
+        sdp_mid: Option<String>,
+        sdp_mline_index: Option<u16>,
+    ) {
+        let init = RTCIceCandidateInit {
+            candidate,
+            sdp_mid,
+            sdp_mline_index,
+            username_fragment: None,
+        };
+        // Cevap gelmeden gelen adayları kaybetme. Kontrol ve kuyruğa
+        // ekleme aynı kilit altında yapılır; set_answer ile yarışırsa aday
+        // ya kuyrukta kalır ya da hemen uygulanır.
+        let ready: Option<Vec<RTCIceCandidateInit>> = {
+            let mut buf = self.pending_ice.lock().await;
+            buf.push(init);
+            if self.pc.remote_description().await.is_some() {
+                Some(std::mem::take(&mut *buf))
+            } else {
+                None
+            }
+        };
+        if let Some(candidates) = ready {
+            for candidate in candidates {
+                if let Err(e) = self.pc.add_ice_candidate(candidate).await {
+                    log::warn!("add_ice_candidate failed: {}", e);
+                }
+            }
+        }
+    }
+
+    /// True while this session can carry video/control. Used by the signaling
+    /// supervisor to decide whether a repeated `hello` needs a fresh engine.
+    pub fn is_alive(&self) -> bool {
+        !self.closed.load(Ordering::SeqCst)
+            && self.data_channel.ready_state()
+                == webrtc::data_channel::data_channel_state::RTCDataChannelState::Open
+            && self.pc.connection_state() == RTCPeerConnectionState::Connected
+    }
+
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    pub async fn close(&self) {
+        if self.closed.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        log::info!("WebRTC: closing session {}", self.generation);
+        if let Err(e) = self.pc.close().await {
+            log::debug!("peer connection close failed: {}", e);
+        }
     }
 
     /// Sends `{"type":"ping","t":<epoch_ms>}` every 5s while the control
@@ -316,7 +355,12 @@ impl WebRtcEngine {
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(Duration::from_secs(5)).await;
-                if engine.data_channel.ready_state() != webrtc::data_channel::data_channel_state::RTCDataChannelState::Open {
+                if engine.closed.load(Ordering::SeqCst) {
+                    break;
+                }
+                if engine.data_channel.ready_state()
+                    != webrtc::data_channel::data_channel_state::RTCDataChannelState::Open
+                {
                     continue;
                 }
                 let now = SystemTime::now()
@@ -324,19 +368,35 @@ impl WebRtcEngine {
                     .map(|d| d.as_millis() as u64)
                     .unwrap_or(0);
                 let msg = json!({ "type": "ping", "t": now }).to_string();
-                if let Err(e) = engine.data_channel.send(&bytes::Bytes::from(msg.into_bytes())).await {
+                if let Err(e) = engine
+                    .data_channel
+                    .send(&bytes::Bytes::from(msg.into_bytes()))
+                    .await
+                {
                     log::debug!("ping send failed: {}", e);
                 }
             }
         });
     }
 
-    /// Push one encoded H.264 frame (Annex-B) into the outbound video track.
+    /// Push one encoded H.264 access unit (Annex-B) into the outbound video
+    /// track. The RTP timestamp advances by the *real* elapsed time, so a
+    /// frame-rate mismatch never makes playback run fast/slow or grow latency.
     pub async fn push_video_sample(&self, data: &[u8], _keyframe: bool) -> Result<()> {
+        if self.closed.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+        let nominal = Duration::from_secs_f64(1.0 / self.fps.max(1) as f64);
+        let duration = {
+            let mut last = self.last_sample.lock().await;
+            let elapsed = last.map(|t| t.elapsed()).unwrap_or(nominal);
+            *last = Some(Instant::now());
+            elapsed.clamp(Duration::from_millis(5), Duration::from_millis(250))
+        };
         let sample = Sample {
             data: Bytes::from(data.to_vec()),
             timestamp: SystemTime::now(),
-            duration: Duration::from_secs_f64(1.0 / self.fps.max(1) as f64),
+            duration,
             packet_timestamp: 0,
             prev_dropped_packets: 0,
             prev_padding_packets: 0,

@@ -18,14 +18,15 @@ import org.webrtc.VideoSource;
 import org.webrtc.VideoTrack;
 
 import android.content.Context;
+import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import org.webrtc.EglBase;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class WebRtcClient {
     private static final String TAG = "WebRtcClient";
@@ -49,19 +50,32 @@ public class WebRtcClient {
     private ConnectionState state;
     private String localSdp;
     private final List<IceCandidate> iceCandidates = new ArrayList<>();
+    private final List<IceCandidate> localIceCandidates = new ArrayList<>();
+    private volatile boolean answerSent = false;
     private WebRtcListener listener;
     private Context appContext;
     // Native kitaplık bir süreçte bir kez ilklendirilir; factory/EGL ise
     // her tam kopuşta bırakılıp yeniden kurulur (sızıntı çökertiyordu).
     private static boolean sLibInitialized = false;
     // Sinyal dalgalanmasında el sıkışmayı öldürmemek için: medya tek kez
-    // başlatılır, PeerConnection sinyal yeniden bağlanışlarında YENİDEN
-    // kurulmaz (var olan bağlantı üzerinden hello/offer devam eder).
+    // başlatılır; PeerConnection yalnız P2P gerçekten öldüğünde yeniden kurulur.
     private boolean mediaStarted = false;
     private volatile boolean offerReceived = false;
     private volatile int helloTries = 0;
+    private volatile boolean closing = false;
+    private volatile boolean authReceived = false;
+    private volatile boolean p2pConnected = false;
+    private volatile int recoverTries = 0;
     private static final int MAX_HELLO_TRIES = 4;
     private static final long HELLO_RETRY_MS = 8000;
+    private static final int MAX_JOIN_TRIES = 20;
+    private static final long JOIN_RETRY_MS = 3000;
+    private static final int MAX_RECOVER_TRIES = 5;
+    private static final long RECOVER_DELAY_MS = 5000;
+    private Thread joinWatchdog;
+    private volatile int pcGeneration = 0;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable recoveryRunnable = this::recoverPeer;
 
     public interface WebRtcListener {
         void onStateChanged(ConnectionState state);
@@ -106,9 +120,14 @@ public class WebRtcClient {
      * Şifre reddedilirse yeniden deneme yapılmaz, hata dinleyiciye iletilir.
      */
     public void connect(String signalUrl, String pcId, String password) {
+        closing = false;
+        authReceived = false;
+        p2pConnected = false;
+        recoverTries = 0;
         state = ConnectionState.CONNECTING;
         notifyStateChanged();
         Diag.phase(appContext, "bağlan-başladı pc=" + pcId);
+        handler.removeCallbacks(recoveryRunnable);
         // Yeniden denemede fabrika bırakılmış olabilir; gerekirse kur.
         if (factory == null || eglBase == null) {
             try {
@@ -125,8 +144,19 @@ public class WebRtcClient {
         offerReceived = false;
         helloTries = 0;
         iceCandidates.clear();
+        stopJoinWatchdog();
 
-        signalClient = new SignalClient(signalUrl, pcId, password, new SignalClient.SignalListener() {
+        String manufacturer = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.trim();
+        String model = Build.MODEL == null ? "" : Build.MODEL.trim();
+        String phoneName = model.isEmpty()
+                ? manufacturer
+                : (model.toLowerCase(java.util.Locale.ROOT)
+                        .startsWith(manufacturer.toLowerCase(java.util.Locale.ROOT))
+                    ? model
+                    : (manufacturer + " " + model).trim());
+        String phoneOs = "Android " + (Build.VERSION.RELEASE == null ? "" : Build.VERSION.RELEASE);
+        signalClient = new SignalClient(signalUrl, pcId, password,
+                new SignalClient.SignalListener() {
             @Override
             public void onConnected() {
                 Diag.phase(appContext, "sinyal-açık");
@@ -135,11 +165,11 @@ public class WebRtcClient {
                 if (!mediaStarted) {
                     mediaStarted = true;
                     startLocalMedia();
-                    createPeerConnection();
+                    // PeerConnection, auth_ok sonrasında (join kabul edilince)
+                    // temiz olarak kurulur.
                     Diag.phase(appContext, "medya-hazır");
                 }
-                // join SignalClient tarafından otomatik gönderildi;
-                // hello yalnız auth_ok gelince gider.
+                startJoinWatchdog();
             }
 
             @Override
@@ -147,6 +177,11 @@ public class WebRtcClient {
                 Diag.phase(appContext, "sinyal-kapandı");
                 state = ConnectionState.DISCONNECTED;
                 notifyStateChanged();
+                // P2P sağlıklıysa sinyal kopması görüntüyü etkilemez; yalnız
+                // P2P de öldüyse kurtarma planla.
+                if (!isP2pHealthy()) {
+                    scheduleRecovery("sinyal-koptu", 3000);
+                }
             }
 
             @Override
@@ -160,8 +195,11 @@ public class WebRtcClient {
                 state = ConnectionState.FAILED;
                 notifyStateChanged();
                 if (listener != null) listener.onError(error);
+                if (!isP2pHealthy()) {
+                    scheduleRecovery("sinyal-hata", 5000);
+                }
             }
-        });
+        }, phoneName, phoneOs, BuildConfig.VERSION_NAME);
         signalClient.connect();
     }
 
@@ -212,6 +250,7 @@ public class WebRtcClient {
     }
 
     private void createPeerConnection() {
+        final int gen = ++pcGeneration;
         List<PeerConnection.IceServer> iceServers = new ArrayList<>();
         iceServers.add(PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer());
 
@@ -221,26 +260,25 @@ public class WebRtcClient {
         peerConnection = factory.createPeerConnection(config, new PeerConnection.Observer() {
             @Override
             public void onIceCandidate(IceCandidate candidate) {
+                if (gen != pcGeneration) return;
                 Log.i(TAG, "onIceCandidate: " + candidate.sdp);
-                try {
-                    JSONObject msg = new JSONObject();
-                    msg.put("type", "ice-candidate");
-                    msg.put("candidate", candidate.sdp);
-                    msg.put("sdpMid", candidate.sdpMid);
-                    msg.put("sdpMLineIndex", candidate.sdpMLineIndex);
-                    signalClient.sendMessage(msg);
-                } catch (JSONException e) {
-                    Log.e(TAG, "Failed to send ICE candidate", e);
+                // Answer gitmeden aday gönderme: masaüstü remote description
+                // olmadan adayı reddedip bağlantıyı kaçırabiliyordu.
+                if (!answerSent) {
+                    localIceCandidates.add(candidate);
+                    return;
                 }
+                sendLocalIceCandidate(candidate);
             }
 
             @Override
             public void onAddStream(MediaStream stream) {
-                if (listener != null) listener.onRemoteTrack(stream);
+                if (gen == pcGeneration && listener != null) listener.onRemoteTrack(stream);
             }
 
             @Override
             public void onTrack(org.webrtc.RtpTransceiver transceiver) {
+                if (gen != pcGeneration) return;
                 org.webrtc.MediaStreamTrack track = transceiver.getReceiver().track();
                 Log.i(TAG, "onTrack fired: " + (track != null ? track.kind() : "null"));
                 if (track instanceof VideoTrack) {
@@ -257,17 +295,39 @@ public class WebRtcClient {
 
             @Override
             public void onDataChannel(DataChannel dc) {
+                if (gen != pcGeneration) return;
                 Diag.phase(appContext, "veri-kanalı");
+                Log.i(TAG, "onDataChannel: label=" + dc.label() + " state=" + dc.state());
+                final DataChannel mine = dc;
                 dataChannel = dc;
                 dataChannel.registerObserver(new DataChannel.Observer() {
                     @Override
                     public void onMessage(DataChannel.Buffer buffer) {
-                        answerPing(buffer);
-                        if (listener != null) listener.onDataChannelMessage(buffer);
+                        // answerPing reads its own duplicate; the listener must
+                        // still see the original bytes (previously the buffer
+                        // position was consumed and display_info arrived empty).
+                        answerPing(new DataChannel.Buffer(buffer.data.duplicate(), buffer.binary));
+                        if (listener != null) {
+                            listener.onDataChannelMessage(
+                                    new DataChannel.Buffer(buffer.data.duplicate(), buffer.binary));
+                        }
                     }
 
                     @Override
-                    public void onStateChange() {}
+                    public void onStateChange() {
+                        if (gen != pcGeneration) return;
+                        Log.i(TAG, "DataChannel state=" + mine.state());
+                        if (mine.state() == DataChannel.State.OPEN) {
+                            p2pConnected = true;
+                            recoverTries = 0;
+                            handler.removeCallbacks(recoveryRunnable);
+                            state = ConnectionState.CONNECTED;
+                            notifyStateChanged();
+                        } else if (mine.state() == DataChannel.State.CLOSED) {
+                            p2pConnected = false;
+                            scheduleRecovery("veri-kanalı-kapandı", 1000);
+                        }
+                    }
 
                     @Override
                     public void onBufferedAmountChange(long previousAmount) {}
@@ -276,19 +336,35 @@ public class WebRtcClient {
 
             @Override
             public void onIceConnectionChange(PeerConnection.IceConnectionState newState) {
+                if (gen != pcGeneration) return;
                 Diag.phase(appContext, "ice-durum: " + newState);
                 if (newState == PeerConnection.IceConnectionState.CONNECTED) {
-                    state = ConnectionState.CONNECTED;
-                    notifyStateChanged();
+                    onTransportConnected();
                 } else if (newState == PeerConnection.IceConnectionState.DISCONNECTED) {
+                    p2pConnected = false;
                     state = ConnectionState.DISCONNECTED;
                     notifyStateChanged();
+                    scheduleRecovery("ice-disconnected", 4000);
                 } else if (newState == PeerConnection.IceConnectionState.FAILED) {
+                    p2pConnected = false;
                     state = ConnectionState.FAILED;
                     notifyStateChanged();
-                    if (listener != null) {
-                        listener.onError("Ortam bağlantısı kurulamadı (ICE FAILED)");
-                    }
+                    scheduleRecovery("ice-failed", 1500);
+                }
+            }
+
+            @Override
+            public void onConnectionChange(PeerConnection.PeerConnectionState newState) {
+                if (gen != pcGeneration) return;
+                Diag.phase(appContext, "bağlantı-durumu: " + newState);
+                if (newState == PeerConnection.PeerConnectionState.CONNECTED) {
+                    onTransportConnected();
+                } else if (newState == PeerConnection.PeerConnectionState.DISCONNECTED) {
+                    p2pConnected = false;
+                    scheduleRecovery("p2p-disconnected", 4000);
+                } else if (newState == PeerConnection.PeerConnectionState.FAILED) {
+                    p2pConnected = false;
+                    scheduleRecovery("p2p-failed", 1500);
                 }
             }
 
@@ -304,9 +380,7 @@ public class WebRtcClient {
 
             @Override
             public void onIceConnectionReceivingChange(boolean receiving) {}
-
             @Override public void onAddTrack(org.webrtc.RtpReceiver receiver, org.webrtc.MediaStream[] streams) {}
-            @Override public void onConnectionChange(PeerConnection.PeerConnectionState newState) {}
             @Override public void onIceCandidatesRemoved(IceCandidate[] candidates) {}
             @Override public void onRemoveStream(MediaStream stream) {}
             @Override public void onRenegotiationNeeded() {}
@@ -326,22 +400,53 @@ public class WebRtcClient {
         }
     }
 
+    private void onTransportConnected() {
+        if (closing) {
+            return;
+        }
+        p2pConnected = true;
+        recoverTries = 0;
+        handler.removeCallbacks(recoveryRunnable);
+        state = ConnectionState.CONNECTED;
+        notifyStateChanged();
+    }
+
     private void createAnswer() {
+        if (peerConnection == null) {
+            return;
+        }
         peerConnection.createAnswer(new SdpObserver() {
             @Override
             public void onCreateSuccess(SessionDescription sessionDescription) {
                 localSdp = sessionDescription.description;
-                Diag.phase(appContext, "cevap-gönderildi");
-                peerConnection.setLocalDescription(this, sessionDescription);
-
-                try {
-                    JSONObject msg = new JSONObject();
-                    msg.put("type", "answer");
-                    msg.put("sdp", sessionDescription.description);
-                    signalClient.sendMessage(msg);
-                } catch (JSONException e) {
-                    Log.e(TAG, "Failed to send answer", e);
+                if (BuildConfig.DEBUG) {
+                    Log.d(TAG, "local answer SDP:\n" + sessionDescription.description);
                 }
+                peerConnection.setLocalDescription(new SdpObserver() {
+                    @Override
+                    public void onSetSuccess() {
+                        Diag.phase(appContext, "cevap-gönderildi");
+                        try {
+                            JSONObject msg = new JSONObject();
+                            msg.put("type", "answer");
+                            msg.put("sdp", sessionDescription.description);
+                            if (signalClient != null) {
+                                signalClient.sendMessage(msg);
+                            }
+                        } catch (JSONException e) {
+                            Log.e(TAG, "Failed to send answer", e);
+                        }
+                        answerSent = true;
+                        for (IceCandidate candidate : localIceCandidates) {
+                            sendLocalIceCandidate(candidate);
+                        }
+                        localIceCandidates.clear();
+                    }
+
+                    @Override public void onCreateSuccess(SessionDescription s) {}
+                    @Override public void onSetFailure(String s) { Log.e(TAG, "Set local desc failed: " + s); }
+                    @Override public void onCreateFailure(String s) {}
+                }, sessionDescription);
             }
 
             @Override public void onSetSuccess() {}
@@ -358,11 +463,18 @@ public class WebRtcClient {
                     SessionDescription.Type.fromCanonicalForm(type),
                     description
             );
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "remote " + type + " SDP:\n" + description);
+            }
             peerConnection.setRemoteDescription(new SdpObserver() {
                 @Override public void onSetSuccess() {
                     if (type.equals("answer")) {
                         drainIceCandidates();
                     } else if (type.equals("offer")) {
+                        // Answerer tarafı da offer uygulandıktan sonra
+                        // masaüstünden gelen adayları boşaltmalı; aksi
+                        // hâlde adaylar sonsuza kadar kuyrukta kalıyordu.
+                        drainIceCandidates();
                         createAnswer();
                     }
                 }
@@ -376,6 +488,9 @@ public class WebRtcClient {
     }
 
     private void sendHello() {
+        if (closing || signalClient == null || !signalClient.isConnected()) {
+            return;
+        }
         try {
             JSONObject hello = new JSONObject();
             hello.put("type", "hello");
@@ -393,7 +508,7 @@ public class WebRtcClient {
     }
 
     /**
-     * Offer 8 sn içinde gelmezse hello'yu en fazla 4 kez yinea gönder.
+     * Offer 8 sn içinde gelmezse hello'yu en fazla 4 kez yinele.
      * (Sinyal/karşı taraf yarışı kaybederse el sıkışma sonsuza takılmaz.)
      */
     private void scheduleHelloRetry() {
@@ -403,12 +518,46 @@ public class WebRtcClient {
             } catch (InterruptedException e) {
                 return;
             }
-            if (!offerReceived && helloTries < MAX_HELLO_TRIES
-                    && signalClient != null && signalClient.isConnected()) {
+            if (!closing && !offerReceived && helloTries < MAX_HELLO_TRIES
+                    && signalClient != null && signalClient.isConnected()
+                    && !isP2pHealthy()) {
                 Log.i(TAG, "Offer gelmedi, hello yineleniyor (" + helloTries + ")");
                 sendHello();
             }
         }).start();
+    }
+
+    /**
+     * Sinyal açıldıktan sonra auth_ok gelmezse join'i yineler. Mobil önce
+     * bağlanıp masaüstü sonra gelirse ilk join kaybolabiliyordu.
+     */
+    private void startJoinWatchdog() {
+        stopJoinWatchdog();
+        joinWatchdog = new Thread(() -> {
+            for (int i = 0; i < MAX_JOIN_TRIES && !closing && !authReceived; i++) {
+                try {
+                    Thread.sleep(JOIN_RETRY_MS);
+                } catch (InterruptedException e) {
+                    return;
+                }
+                if (closing || authReceived || signalClient == null || !signalClient.isConnected()) {
+                    continue;
+                }
+                Log.i(TAG, "auth_ok gelmedi, join yineleniyor (" + (i + 1) + ")");
+                signalClient.sendJoin();
+            }
+            if (!closing && !authReceived && listener != null) {
+                listener.onError("PC'den kimlik yanıtı gelmedi — PC uygulaması açık mı?");
+            }
+        });
+        joinWatchdog.start();
+    }
+
+    private void stopJoinWatchdog() {
+        if (joinWatchdog != null) {
+            joinWatchdog.interrupt();
+            joinWatchdog = null;
+        }
     }
 
     private void handleSignalMessage(JSONObject message) {
@@ -416,15 +565,27 @@ public class WebRtcClient {
             String type = message.getString("type");
             switch (type) {
                 case "auth_ok":
-                    Log.i(TAG, "Kimlik doğrulandı, hello gönderiliyor");
+                    Log.i(TAG, "Kimlik doğrulandı");
                     Diag.phase(appContext, "auth-ok");
+                    authReceived = true;
+                    stopJoinWatchdog();
                     if (listener != null) listener.onDeviceInfo(message);
-                    sendHello();
+                    // P2P zaten sağlıklıysa hello gönderme: masaüstünün yeni
+                    // bir oturum kurmasına ve çalışan görüntüyü kesmesine yol
+                    // açma. Sağlıklı değilse temiz bir PeerConnection kur.
+                    if (!isP2pHealthy()) {
+                        // Ölü bir PeerConnection'a yeni offer uygulanamaz;
+                        // her yeni el sıkışmasında temiz bir tane kur.
+                        resetPeerConnection();
+                        offerReceived = false;
+                        helloTries = 0;
+                        sendHello();
+                    }
                     // Cihaz kartı + çözünürlük bilgisini de iste (yedeklilik).
                     try {
                         JSONObject req = new JSONObject();
                         req.put("type", "get_device_info");
-                        signalClient.sendMessage(req);
+                        if (signalClient != null) signalClient.sendMessage(req);
                     } catch (JSONException ignore) {
                     }
                     break;
@@ -432,6 +593,9 @@ public class WebRtcClient {
                     String reason = message.optString("reason", "şifre hatalı");
                     Log.w(TAG, "Kimlik reddedildi: " + reason);
                     Diag.phase(appContext, "auth-red: " + reason);
+                    authReceived = true;
+                    stopJoinWatchdog();
+                    handler.removeCallbacks(recoveryRunnable);
                     if (signalClient != null) {
                         signalClient.setAuthFailed();
                         signalClient.disconnect();
@@ -455,6 +619,9 @@ public class WebRtcClient {
                     Diag.phase(appContext, "offer-alındı");
                     if (peerConnection != null) {
                         setRemoteDescription(message);
+                        // Answer/ICE bir sebeple tamamlanmazsa oturumu
+                        // sıfırdan kur; kullanıcı kara ekranda kalmasın.
+                        scheduleRecovery("offer-cevap-zaman-aşımı", 12000);
                     }
                     break;
                 case "answer":
@@ -476,9 +643,24 @@ public class WebRtcClient {
                         iceCandidates.add(candidate);
                     }
                     break;
+                default:
+                    break;
             }
         } catch (JSONException e) {
             Log.e(TAG, "Failed to handle signal message", e);
+        }
+    }
+
+    private void sendLocalIceCandidate(IceCandidate candidate) {
+        try {
+            JSONObject msg = new JSONObject();
+            msg.put("type", "ice-candidate");
+            msg.put("candidate", candidate.sdp);
+            msg.put("sdpMid", candidate.sdpMid);
+            msg.put("sdpMLineIndex", candidate.sdpMLineIndex);
+            if (signalClient != null) signalClient.sendMessage(msg);
+        } catch (JSONException e) {
+            Log.e(TAG, "Failed to send ICE candidate", e);
         }
     }
 
@@ -512,7 +694,102 @@ public class WebRtcClient {
         }
     }
 
+    /**
+     * Elle görüntü yenileme: PeerConnection'ı sıfırdan kurup yeni offer ister.
+     * Masaüstü her hello'da taze oturum açar; donan video burada kurtarılır.
+     */
+    public void refreshStream() {
+        if (closing) {
+            return;
+        }
+        Diag.phase(appContext, "elle-yenile");
+        handler.removeCallbacks(recoveryRunnable);
+        recoverTries = 0;
+        offerReceived = false;
+        helloTries = 0;
+        state = ConnectionState.CONNECTING;
+        notifyStateChanged();
+        resetPeerConnection();
+        startReauth();
+    }
+
+    private boolean isP2pHealthy() {
+        return !closing
+                && p2pConnected
+                && peerConnection != null
+                && dataChannel != null
+                && dataChannel.state() == DataChannel.State.OPEN;
+    }
+
+    private void scheduleRecovery(String reason, long delayMs) {
+        if (closing) {
+            return;
+        }
+        Log.i(TAG, "kurtarma planlandı: " + reason + " (" + delayMs + "ms)");
+        handler.removeCallbacks(recoveryRunnable);
+        handler.postDelayed(recoveryRunnable, delayMs);
+    }
+
+    private void resetPeerConnection() {
+        try {
+            if (peerConnection != null) {
+                peerConnection.close();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "eski PeerConnection kapatılamadı: " + e.getMessage());
+        }
+        peerConnection = null;
+        dataChannel = null;
+        p2pConnected = false;
+        answerSent = false;
+        iceCandidates.clear();
+        localIceCandidates.clear();
+        if (factory != null && !closing) {
+            createPeerConnection();
+        }
+    }
+
+    /** ICE/DTLS öldüyse PeerConnection'ı sıfırdan kurup yeni offer ister. */
+    private void recoverPeer() {
+        if (closing || isP2pHealthy()) {
+            return;
+        }
+        if (recoverTries >= MAX_RECOVER_TRIES) {
+            if (listener != null) {
+                listener.onError("Görüntü bağlantısı kurulamadı (birkaç deneme)");
+            }
+            return;
+        }
+        recoverTries++;
+        Log.i(TAG, "PeerConnection yeniden kuruluyor (" + recoverTries + "/" + MAX_RECOVER_TRIES + ")");
+        Diag.phase(appContext, "p2p-kurtarma-" + recoverTries);
+        resetPeerConnection();
+        offerReceived = false;
+        helloTries = 0;
+        // Masaüstü yeniden başladıysa sinyal oturumu hâlâ açık olabilir ama
+        // masaüstü tarafındaki kimlik durumu sıfırlanmıştır. Önce join ile
+        // yeniden doğrula; auth_ok gelince hello kendiliğinden gider.
+        startReauth();
+        handler.postDelayed(recoveryRunnable, RECOVER_DELAY_MS);
+    }
+
+    /** Sinyal oturumu açıkken kimliği tazeler ve join'i yineler. */
+    private void startReauth() {
+        authReceived = false;
+        if (signalClient != null && signalClient.isConnected()) {
+            signalClient.sendJoin();
+            startJoinWatchdog();
+        }
+        // Sinyal kapalıysa SignalClient kendi yeniden bağlanışında join atar;
+        // o sırada onConnected join gözcüsünü de başlatır.
+    }
+
     public void disconnect() {
+        closing = true;
+        authReceived = true;
+        pcGeneration++; // eski PeerConnection callback'lerini geçersiz kıl
+        stopJoinWatchdog();
+        handler.removeCallbacks(recoveryRunnable);
         Diag.phase(appContext, "kapatıldı");
         try {
             if (videoCapturer != null) {
@@ -576,13 +853,6 @@ public class WebRtcClient {
         } catch (Exception e) {
             Log.w(TAG, "Factory bırakılamadı: " + e.getMessage());
         }
-        try {
-            if (eglBase != null) {
-                eglBase.release();
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "EGL bırakılamadı: " + e.getMessage());
-        }
         peerConnection = null;
         dataChannel = null;
         localVideoTrack = null;
@@ -591,10 +861,30 @@ public class WebRtcClient {
         localAudioTrack = null;
         audioSource = null;
         factory = null;
-        eglBase = null;
+        // NOT: eglBase burada BIRAKILMAZ. SurfaceViewRenderer aynı EGL
+        // bağlamını paylaşır; yeniden bağlanmada da aynı kök bağlam kullanılır.
+        // Aktivite kapanırken releaseGlobals() ile bırakılır.
         mediaStarted = false;
+        p2pConnected = false;
         state = ConnectionState.DISCONNECTED;
         notifyStateChanged();
+    }
+
+    /** SurfaceViewRenderer'ın factory ile aynı EGL bağlamını paylaşması için. */
+    public EglBase.Context getEglBaseContext() {
+        return eglBase == null ? null : eglBase.getEglBaseContext();
+    }
+
+    /** Aktivite kapanırken EGL kök bağlamını bırakır (disconnect'ten sonra). */
+    public void releaseGlobals() {
+        try {
+            if (eglBase != null) {
+                eglBase.release();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "EGL bırakılamadı: " + e.getMessage());
+        }
+        eglBase = null;
     }
 
     public ConnectionState getState() {
@@ -614,6 +904,9 @@ public class WebRtcClient {
             DataChannel.Buffer buffer = new DataChannel.Buffer(
                     java.nio.ByteBuffer.wrap(bytes), false);
             dataChannel.send(buffer);
+        } else {
+            Log.d(TAG, "sendControl ignored (channel="
+                    + (dataChannel == null ? "null" : dataChannel.state()) + "): " + json);
         }
     }
 

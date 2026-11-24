@@ -6,7 +6,7 @@ PCHome is a self-hosted remote control system consisting of three components: a 
 
 | | |
 |---|---|
-| **Desktop** | Rust · PipeWire capture · VA-API/NVENC H.264 · uinput injection · egui HUD |
+| **Desktop** | Rust · Wayland portal/PipeWire or X11 capture · VA-API/NVENC/software H.264 · uinput injection · egui HUD |
 | **Mobile** | Java · WebRTC `SurfaceViewRenderer` · touchpad overlay |
 | **Signal** | Rust · tokio · WebSocket relay · Prometheus metrics |
 
@@ -24,7 +24,7 @@ PCHome is a self-hosted remote control system consisting of three components: a 
 
 ## Features
 
-- **Low-latency P2P streaming** — screen video travels over a direct WebRTC peer connection; the relay only handles handshake.
+- **Low-latency P2P streaming** — screen video travels over a direct WebRTC peer connection; the relay only handles handshake. Wayland is captured through the XDG Desktop Portal (PipeWire), and the default 720p30 target keeps software encoding responsive.
 - **Hardware-accelerated encoding** — VA-API or NVENC H.264 on the desktop, MediaCodec on Android, automatic software fallback.
 - **Permanent PC ID + fixed password** — the desktop creates a 6-digit ID and 6-digit password once (`~/.config/PCHome/identity.toml`); the phone connects with ID + password, no rotating PINs.
 - **Recent grid** — the phone keeps the last PCs with a thumbnail square plus ID/IP/MAC underneath; tap to reconnect, long-press to delete.
@@ -140,7 +140,8 @@ Both apps check GitHub Releases automatically (desktop: 20 s after start, then e
 - **Mobile** — an update card appears on the connect screen; "Güncelle" downloads the APK and opens the system installer.
 - Every release also ships a `latest.json` with direct asset URLs, and the signal server reports its version at `GET /version`.
 
-Live signal server: `wss://PCHome.onrender.com/ws` (health: `https://PCHome.onrender.com/health`).
+Point both apps at your own signal server; use the "Signal Server" field in the mobile app and the
+"Ayarlar" panel on the desktop. No deployment address is embedded in the repository.
 
 ### One-liner for local development
 
@@ -166,10 +167,12 @@ Everything is configured through environment variables (a local untracked `.env`
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PCHOME_SIGNAL_URL` | `ws://localhost:8080` | Signal server URL (`wss://…` in production) |
-| `PCHOME_CAPTURE_WIDTH` | `1920` | Capture width in pixels |
-| `PCHOME_CAPTURE_HEIGHT` | `1080` | Capture height in pixels |
-| `PCHOME_BITRATE` | `4000000` | Target H.264 bitrate (bits/s) |
+| `PCHOME_CAPTURE_WIDTH` | `1280` | Encoded stream width (native screen is reported to the phone for touch mapping) |
+| `PCHOME_CAPTURE_HEIGHT` | `720` | Encoded stream height |
+| `PCHOME_FRAME_RATE` | `30` | Capture/encode frame rate |
+| `PCHOME_BITRATE` | `2000000` | Target H.264 bitrate (bits/s) |
 | `PCHOME_METRICS_ADDR` | `0.0.0.0:9091` | Bind address for the metrics endpoint |
+| `PCHOME_CAPTURE` | auto | Capture path: `portal` (30 fps screencast), `kwin` (KDE screenshot loop, no portal dialog), or `x11`. KDE uses the portal automatically once a screencast token has been granted. |
 
 Example:
 
@@ -178,6 +181,25 @@ sudo env PCHOME_SIGNAL_URL=wss://your-signal-host.example.com/ws \
          PCHOME_BITRATE=8000000 \
     ./target/release/PCHome-desktop
 ```
+
+### Wayland screen capture permission
+
+Wayland screen capture uses the XDG Desktop Portal. The first launch asks once which screen(s)
+to share; select **all physical monitors** and enable "restore for future sessions". The restore
+token is stored in `~/.config/PCHome/screencast.token`, so later launches start the stream
+without showing the portal. On an X11 session there is no portal prompt; `x11grab` captures the
+whole X screen automatically.
+
+### Remembered settings (local only, never committed)
+
+- **Desktop**: the signal URL is saved in `~/.config/PCHome/config.toml` and applied live from
+  the "Ayarlar" panel; the permanent PC ID / password / name live in `identity.toml`; phones
+  that successfully authenticated are listed in `devices.json` and shown under "Bağlı Cihaz".
+- **Mobile**: the connect screen keeps the last-used signal server (most-recent-first) and a
+  "Son Girilenler" card per PC, including that PC's own server address. The password is stored
+  only when "Şifreyi hatırla" is checked; all of it lives in the app's private SharedPreferences.
+
+These files live outside the repository (`~/.config/PCHome/` and Android app-private storage).
 
 ## Project Structure
 

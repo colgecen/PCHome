@@ -138,7 +138,9 @@ fn identity_path() -> std::path::PathBuf {
         }
     }
     if let Ok(base) = std::env::var("XDG_CONFIG_HOME") {
-        return std::path::Path::new(&base).join("PCHome").join("identity.toml");
+        return std::path::Path::new(&base)
+            .join("PCHome")
+            .join("identity.toml");
     }
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     std::path::Path::new(&home)
@@ -156,7 +158,11 @@ mod tests {
     static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     fn temp_path(tag: &str) -> String {
-        format!("/tmp/PCHome-identity-test-{}-{}.toml", tag, std::process::id())
+        format!(
+            "/tmp/PCHome-identity-test-{}-{}.toml",
+            tag,
+            std::process::id()
+        )
     }
 
     #[test]

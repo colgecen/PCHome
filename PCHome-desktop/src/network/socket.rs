@@ -19,7 +19,12 @@ pub async fn nat_probe(socket: &UdpSocket, target: SocketAddr) -> Result<Option<
     let mut buf = [0u8; 64];
     socket.send_to(b"PCHOME-NAT-PROBE", target).await?;
 
-    match tokio::time::timeout(std::time::Duration::from_secs(2), socket.recv_from(&mut buf)).await {
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        socket.recv_from(&mut buf),
+    )
+    .await
+    {
         Ok(Ok((len, addr))) => {
             log::debug!("NAT probe response from {}: {} bytes", addr, len);
             Ok(Some(addr))
@@ -35,13 +40,21 @@ pub async fn nat_probe(socket: &UdpSocket, target: SocketAddr) -> Result<Option<
     }
 }
 
-pub async fn stun_bind_request(socket: &UdpSocket, stun_addr: SocketAddr) -> Result<Option<SocketAddr>> {
+pub async fn stun_bind_request(
+    socket: &UdpSocket,
+    stun_addr: SocketAddr,
+) -> Result<Option<SocketAddr>> {
     let mut buf = [0u8; 512];
     let request = build_stun_bind_request();
 
     socket.send_to(&request, stun_addr).await?;
 
-    match tokio::time::timeout(std::time::Duration::from_secs(2), socket.recv_from(&mut buf)).await {
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        socket.recv_from(&mut buf),
+    )
+    .await
+    {
         Ok(Ok((len, _from))) => {
             if let Some(mapped) = parse_stun_bind_response(&buf[..len]) {
                 log::debug!("STUN mapped address: {}", mapped);

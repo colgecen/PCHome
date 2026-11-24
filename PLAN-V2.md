@@ -2,14 +2,11 @@
 
 > Durum: TÜM FAZLAR TAMAMLANDI (her faz Türkçe conventional commit + build/test ile kapatıldı).
 
-## Canlı sunucu adresleri
+## Sunucu adresi
 
-| Ne | Adres |
-|---|---|
-| Sinyal (WebSocket) | `wss://PCHome.onrender.com/ws` |
-| Sağlık | `https://PCHome.onrender.com/health` |
-| Ölçümler | `https://PCHome.onrender.com/metrics` |
-| Sürüm (v2 sunucuda) | `https://PCHome.onrender.com/version` |
+Kişisel dağıtım adresi bu depoda tutulmaz. Kendi sinyal sunucunuzu kurduktan
+sonra masaüstü "Ayarlar" panelinden ve mobil bağlantı ekranından
+`wss://<sunucu-adresiniz>/ws` biçiminde girin.
 
 ## Fazlar ve kabul kriterleri
 

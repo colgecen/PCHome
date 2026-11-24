@@ -12,9 +12,14 @@ import androidx.annotation.Nullable;
 /// visual feedback of where the PC cursor is being moved.
 public class ReticleView extends View {
     private final Paint paint = new Paint();
+    private final Paint borderPaint = new Paint();
     private float x = 0f;
     private float y = 0f;
     private boolean visible = false;
+    private float videoLeft = -1f;
+    private float videoTop = -1f;
+    private float videoRight = -1f;
+    private float videoBottom = -1f;
 
     public ReticleView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
@@ -22,7 +27,20 @@ public class ReticleView extends View {
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(3f);
         paint.setAntiAlias(true);
+        borderPaint.setColor(0x5500F4FF);
+        borderPaint.setStyle(Paint.Style.STROKE);
+        borderPaint.setStrokeWidth(2f);
+        borderPaint.setAntiAlias(true);
         setWillNotDraw(false);
+    }
+
+    /** Video görüntüsünün ekrandaki dikdörtgeni; çerçeve olarak çizilir. */
+    public void setVideoRect(float left, float top, float right, float bottom) {
+        videoLeft = left;
+        videoTop = top;
+        videoRight = right;
+        videoBottom = bottom;
+        invalidate();
     }
 
     public void setPosition(float x, float y) {
@@ -40,6 +58,9 @@ public class ReticleView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+        if (videoRight > videoLeft && videoBottom > videoTop) {
+            canvas.drawRect(videoLeft, videoTop, videoRight, videoBottom, borderPaint);
+        }
         if (!visible) {
             return;
         }

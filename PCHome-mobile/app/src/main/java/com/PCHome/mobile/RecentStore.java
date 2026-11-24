@@ -79,6 +79,7 @@ public class RecentStore {
         }
         if (keep != null) {
             if (entry.pcName.isEmpty()) entry.pcName = keep.pcName;
+            if (entry.server.isEmpty()) entry.server = keep.server;
             if (entry.ip.isEmpty()) entry.ip = keep.ip;
             if (entry.mac.isEmpty()) entry.mac = keep.mac;
             if (entry.resolution.isEmpty()) entry.resolution = keep.resolution;
