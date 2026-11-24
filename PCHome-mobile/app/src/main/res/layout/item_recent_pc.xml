@@ -8,11 +8,10 @@
     android:clickable="true"
     android:focusable="true"
     app:cardBackgroundColor="@color/PCHome_surface"
-    app:cardCornerRadius="20dp"
+    app:cardCornerRadius="16dp"
     app:cardElevation="0dp"
     app:rippleColor="@color/PCHome_surface_hover"
-    app:strokeColor="@color/PCHome_border"
-    app:strokeWidth="1dp">
+    app:strokeWidth="0dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -102,7 +101,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="5dp"
                 android:textColor="@color/PCHome_cyan"
-                android:textSize="11sp" />
+                android:textSize="10.5sp" />
 
             <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/recent_last_seen"

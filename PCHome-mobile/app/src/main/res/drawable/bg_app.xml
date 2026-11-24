@@ -9,22 +9,11 @@
         <shape android:shape="rectangle">
             <gradient
                 android:type="radial"
-                android:centerX="0.92"
-                android:centerY="0.02"
+                android:centerX="0.5"
+                android:centerY="0.0"
                 android:gradientRadius="620dp"
-                android:startColor="@color/PCHome_glow_cyan"
-                android:endColor="#0005070E" />
-        </shape>
-    </item>
-    <item>
-        <shape android:shape="rectangle">
-            <gradient
-                android:type="radial"
-                android:centerX="0.02"
-                android:centerY="0.78"
-                android:gradientRadius="760dp"
-                android:startColor="@color/PCHome_glow_indigo"
-                android:endColor="#0005070E" />
+                android:startColor="#FF141417"
+                android:endColor="#0009090B" />
         </shape>
     </item>
 </layer-list>

@@ -58,14 +58,13 @@
                 android:id="@+id/version_pill"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_glass_pill"
                 android:fontFamily="monospace"
-                android:paddingStart="12dp"
-                android:paddingTop="7dp"
-                android:paddingEnd="12dp"
-                android:paddingBottom="7dp"
-                android:textColor="@color/PCHome_cyan"
-                android:textSize="11sp" />
+                android:paddingStart="6dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="2dp"
+                android:paddingBottom="4dp"
+                android:textColor="@color/PCHome_muted"
+                android:textSize="10sp" />
         </LinearLayout>
 
         <!-- ===================== Hero ===================== -->

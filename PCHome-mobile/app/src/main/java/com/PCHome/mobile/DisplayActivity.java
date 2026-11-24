@@ -52,6 +52,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private TextView infoChip;
     private TextView infoTitle;
     private View connDot;
+    private View emptyGrid;
     private View topOverlay;
     private View controlBar;
     private LinearLayout keyboardContainer;
@@ -123,6 +124,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         infoChip = findViewById(R.id.info_chip);
         infoTitle = findViewById(R.id.info_title);
         connDot = findViewById(R.id.conn_dot);
+        emptyGrid = findViewById(R.id.empty_grid);
         topOverlay = findViewById(R.id.top_overlay);
         controlBar = findViewById(R.id.control_bar);
         keyboardContainer = findViewById(R.id.keyboard_container);
@@ -177,6 +179,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                                 firstFrameRendered = true;
                                 markConnected();
                                 streamStatus.setVisibility(View.GONE);
+                                if (emptyGrid != null) emptyGrid.setVisibility(View.GONE);
                                 Diag.phase(DisplayActivity.this, "ilk-kare");
                                 surfaceView.post(() -> {
                                     if (surfaceView.getWidth() > 0 && surfaceView.getHeight() > 0) {
@@ -370,10 +373,10 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         }
         MaterialButton b = (MaterialButton) v;
         b.setBackgroundTintList(ColorStateList.valueOf(
-                active ? 0xFF22D3EE : 0xFF122033));
-        b.setTextColor(active ? 0xFF041018 : 0xFFE2E8F0);
+                active ? 0xFF2A2A30 : 0xFF1F1F23));
+        b.setTextColor(active ? 0xFFF4F4F5 : 0xFFA1A1AA);
         b.setIconTint(ColorStateList.valueOf(
-                active ? 0xFF041018 : 0xFF94A3B8));
+                active ? 0xFFF4F4F5 : 0xFFA1A1AA));
     }
 
     private void releaseModifiers() {
@@ -719,11 +722,13 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             } else if (state == WebRtcClient.ConnectionState.DISCONNECTED) {
                 saveRecent();
                 if (reticle != null) reticle.setVisible(false);
+                if (emptyGrid != null) emptyGrid.setVisibility(View.VISIBLE);
                 streamStatus.setText(R.string.disconnected);
                 streamStatus.setVisibility(View.VISIBLE);
             } else if (state == WebRtcClient.ConnectionState.FAILED) {
                 saveRecent();
                 if (reticle != null) reticle.setVisible(false);
+                if (emptyGrid != null) emptyGrid.setVisibility(View.VISIBLE);
                 streamStatus.setText(R.string.error);
                 streamStatus.setVisibility(View.VISIBLE);
             }
@@ -813,6 +818,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         fatalShown = false;
         streamStatus.setText(R.string.conn_phase_signal);
         streamStatus.setVisibility(View.VISIBLE);
+        if (emptyGrid != null) emptyGrid.setVisibility(View.VISIBLE);
         if (webRtcClient != null) {
             webRtcClient.disconnect();
             webRtcClient.connect(signalUrl, pcId, password);

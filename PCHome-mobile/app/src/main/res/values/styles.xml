@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- ===================== Tema ===================== -->
+    <!-- ===================== Tema: nötr kömür + tek indigo vurgu ===================== -->
     <style name="Theme.PCHome" parent="Theme.Material3.Dark.NoActionBar">
         <item name="colorPrimary">@color/PCHome_cyan</item>
         <item name="colorOnPrimary">@color/PCHome_ink</item>
@@ -31,38 +31,36 @@
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <item name="materialButtonStyle">@style/Widget.PCHome.Button.Primary</item>
         <item name="textInputStyle">@style/Widget.PCHome.Input</item>
-        <item name="android:windowContentTransitions">true</item>
     </style>
 
     <style name="Theme.PCHome.Fullscreen" parent="Theme.PCHome">
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowContentOverlay">@null</item>
-        <item name="android:windowBackground">@color/black</item>
+        <item name="android:windowBackground">@color/PCHome_background</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 
     <!-- ===================== Tipografi ===================== -->
     <style name="TextAppearance.PCHome.Hero" parent="TextAppearance.Material3.DisplaySmall">
-        <item name="android:textSize">38sp</item>
+        <item name="android:textSize">36sp</item>
         <item name="android:textColor">@color/PCHome_text</item>
         <item name="android:textStyle">bold</item>
         <item name="android:fontFamily">sans-serif</item>
-        <item name="android:letterSpacing">-0.025</item>
+        <item name="android:letterSpacing">-0.02</item>
         <item name="android:lineSpacingMultiplier">0.98</item>
     </style>
 
     <style name="TextAppearance.PCHome.Section" parent="TextAppearance.Material3.TitleMedium">
-        <item name="android:textSize">18sp</item>
+        <item name="android:textSize">17sp</item>
         <item name="android:textColor">@color/PCHome_text</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:letterSpacing">-0.01</item>
+        <item name="android:letterSpacing">0</item>
     </style>
 
     <style name="TextAppearance.PCHome.Label" parent="TextAppearance.Material3.LabelSmall">
         <item name="android:textSize">11sp</item>
         <item name="android:textColor">@color/PCHome_muted</item>
-        <item name="android:letterSpacing">0.12</item>
-        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0</item>
     </style>
 
     <style name="TextAppearance.PCHome.Body" parent="TextAppearance.Material3.BodyMedium">
@@ -78,12 +76,12 @@
 
     <!-- ===================== Düğmeler ===================== -->
     <style name="Widget.PCHome.Button.Primary" parent="Widget.Material3.Button">
-        <item name="backgroundTint">@color/PCHome_cyan</item>
+        <item name="backgroundTint">@color/PCHome_silver</item>
         <item name="android:textColor">@color/PCHome_ink</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:textSize">15sp</item>
-        <item name="cornerRadius">18dp</item>
-        <item name="android:minHeight">56dp</item>
+        <item name="android:textSize">14sp</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="android:minHeight">52dp</item>
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>
         <item name="iconTint">@color/PCHome_ink</item>
@@ -95,76 +93,74 @@
 
     <style name="Widget.PCHome.Button.Soft" parent="Widget.Material3.Button">
         <item name="backgroundTint">@color/PCHome_surface_high</item>
-        <item name="android:textColor">@color/PCHome_text</item>
-        <item name="android:textSize">13sp</item>
-        <item name="cornerRadius">14dp</item>
-        <item name="android:minHeight">44dp</item>
-        <item name="android:insetTop">0dp</item>
-        <item name="android:insetBottom">0dp</item>
-        <item name="strokeColor">@color/PCHome_border</item>
-        <item name="strokeWidth">1dp</item>
-        <item name="iconTint">@color/PCHome_cyan</item>
-        <item name="iconSize">18dp</item>
-        <item name="iconPadding">8dp</item>
-        <item name="elevation">0dp</item>
-    </style>
-
-    <style name="Widget.PCHome.Button.Danger" parent="Widget.Material3.Button">
-        <item name="backgroundTint">@color/PCHome_danger_deep</item>
-        <item name="android:textColor">@color/white</item>
-        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/PCHome_text_primary</item>
         <item name="android:textSize">12sp</item>
-        <item name="cornerRadius">14dp</item>
-        <item name="android:minHeight">44dp</item>
+        <item name="cornerRadius">10dp</item>
+        <item name="android:minHeight">42dp</item>
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>
-        <item name="iconTint">@color/white</item>
-        <item name="iconSize">18dp</item>
+        <item name="strokeWidth">0dp</item>
+        <item name="iconTint">@color/PCHome_muted</item>
+        <item name="iconSize">17dp</item>
         <item name="iconPadding">6dp</item>
         <item name="elevation">0dp</item>
     </style>
 
-    <style name="Widget.PCHome.Button.Key" parent="Widget.Material3.Button.OutlinedButton">
-        <item name="strokeColor">@color/PCHome_border</item>
-        <item name="android:textColor">@color/PCHome_text_primary</item>
-        <item name="android:textSize">11sp</item>
+    <style name="Widget.PCHome.Button.Danger" parent="Widget.Material3.Button">
+        <item name="backgroundTint">#FF2A1518</item>
+        <item name="android:textColor">@color/PCHome_danger</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:letterSpacing">0.04</item>
-        <item name="cornerRadius">12dp</item>
-        <item name="android:minWidth">52dp</item>
-        <item name="android:minHeight">38dp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="cornerRadius">10dp</item>
+        <item name="android:minHeight">42dp</item>
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>
-        <item name="android:paddingStart">12dp</item>
-        <item name="android:paddingEnd">12dp</item>
+        <item name="strokeWidth">0dp</item>
+        <item name="iconTint">@color/PCHome_danger</item>
+        <item name="iconSize">17dp</item>
+        <item name="iconPadding">6dp</item>
+        <item name="elevation">0dp</item>
+    </style>
+
+    <style name="Widget.PCHome.Button.Key" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/PCHome_surface</item>
+        <item name="android:textColor">@color/PCHome_muted</item>
+        <item name="android:textSize">11sp</item>
+        <item name="cornerRadius">9dp</item>
+        <item name="android:minWidth">48dp</item>
+        <item name="android:minHeight">34dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="strokeWidth">0dp</item>
         <item name="iconTint">@color/PCHome_muted</item>
-        <item name="iconSize">16dp</item>
-        <item name="iconPadding">4dp</item>
+        <item name="iconSize">14dp</item>
+        <item name="iconPadding">3dp</item>
+        <item name="elevation">0dp</item>
     </style>
 
     <style name="Widget.PCHome.Button.Text" parent="Widget.Material3.Button.TextButton">
         <item name="android:textColor">@color/PCHome_cyan</item>
         <item name="android:textSize">12sp</item>
         <item name="android:textStyle">bold</item>
-        <item name="cornerRadius">12dp</item>
-        <item name="android:minHeight">40dp</item>
+        <item name="cornerRadius">10dp</item>
+        <item name="android:minHeight">38dp</item>
         <item name="iconTint">@color/PCHome_cyan</item>
         <item name="iconSize">16dp</item>
     </style>
 
     <!-- ===================== Girdiler ===================== -->
     <style name="Widget.PCHome.Input" parent="Widget.Material3.TextInputLayout.FilledBox">
-        <item name="boxBackgroundColor">@color/PCHome_panel</item>
-        <item name="boxCornerRadiusTopStart">16dp</item>
-        <item name="boxCornerRadiusTopEnd">16dp</item>
-        <item name="boxCornerRadiusBottomStart">16dp</item>
-        <item name="boxCornerRadiusBottomEnd">16dp</item>
+        <item name="boxBackgroundColor">@color/PCHome_surface_high</item>
+        <item name="boxCornerRadiusTopStart">12dp</item>
+        <item name="boxCornerRadiusTopEnd">12dp</item>
+        <item name="boxCornerRadiusBottomStart">12dp</item>
+        <item name="boxCornerRadiusBottomEnd">12dp</item>
         <item name="boxStrokeWidth">0dp</item>
         <item name="boxStrokeWidthFocused">1dp</item>
         <item name="boxStrokeColor">@color/PCHome_cyan</item>
         <item name="hintTextColor">@color/PCHome_muted</item>
         <item name="android:textColorHint">@color/PCHome_muted</item>
-        <item name="startIconTint">@color/PCHome_cyan</item>
+        <item name="startIconTint">@color/PCHome_muted</item>
         <item name="endIconTint">@color/PCHome_muted</item>
         <item name="helperTextTextColor">@color/PCHome_dim</item>
         <item name="errorTextColor">@color/PCHome_danger</item>
@@ -175,20 +171,18 @@
     <!-- ===================== Kartlar / çipler ===================== -->
     <style name="Widget.PCHome.Card" parent="Widget.Material3.CardView.Elevated">
         <item name="cardBackgroundColor">@color/PCHome_surface</item>
-        <item name="cardCornerRadius">24dp</item>
+        <item name="cardCornerRadius">16dp</item>
         <item name="cardElevation">0dp</item>
-        <item name="strokeColor">@color/PCHome_border</item>
-        <item name="strokeWidth">1dp</item>
+        <item name="strokeWidth">0dp</item>
     </style>
 
     <style name="Widget.PCHome.Chip" parent="Widget.Material3.Chip.Assist">
-        <item name="chipBackgroundColor">@color/PCHome_glass</item>
-        <item name="chipStrokeColor">@color/PCHome_glass_border</item>
-        <item name="chipStrokeWidth">1dp</item>
-        <item name="chipCornerRadius">100dp</item>
-        <item name="android:textColor">@color/PCHome_text</item>
-        <item name="android:textSize">12sp</item>
-        <item name="chipMinHeight">30dp</item>
+        <item name="chipBackgroundColor">@color/PCHome_surface_high</item>
+        <item name="chipStrokeWidth">0dp</item>
+        <item name="chipCornerRadius">8dp</item>
+        <item name="android:textColor">@color/PCHome_muted</item>
+        <item name="android:textSize">11sp</item>
+        <item name="chipMinHeight">28dp</item>
         <item name="android:clickable">false</item>
         <item name="android:checkable">false</item>
     </style>

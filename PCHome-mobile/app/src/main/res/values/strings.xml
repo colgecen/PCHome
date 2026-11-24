@@ -62,15 +62,15 @@
 
     <!-- Uzak masaüstü HUD -->
     <string name="hud_remote">Uzak masaüstü</string>
-    <string name="mode_direct">DOKUNMA</string>
-    <string name="mode_trackpad">TRACKPAD</string>
+    <string name="mode_direct">Dokunma</string>
+    <string name="mode_trackpad">Trackpad</string>
     <string name="keyboard">Klavye</string>
     <string name="rotate">Döndür</string>
     <string name="key_esc">ESC</string>
     <string name="key_ctrl">CTRL</string>
     <string name="key_shift">SHIFT</string>
     <string name="key_alt">ALT</string>
-    <string name="mouse_left">SOL</string>
-    <string name="mouse_right">SAĞ</string>
+    <string name="mouse_left">Sol</string>
+    <string name="mouse_right">Sağ</string>
     <string name="stream_border_desc">Uzak masaüstü görüntüsü</string>
 </resources>

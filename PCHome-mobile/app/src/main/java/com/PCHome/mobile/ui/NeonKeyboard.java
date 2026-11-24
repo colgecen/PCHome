@@ -42,7 +42,7 @@ public class NeonKeyboard {
                 btn.setText(label);
                 btn.setAllCaps(true);
                 btn.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-                btn.setTextColor(special ? 0xFF67E8F9 : 0xFFF1F5F9);
+                btn.setTextColor(special ? 0xFFA1A1AA : 0xFFE4E4E7);
                 btn.setTextSize(label.length() > 1 ? 10f : 14f);
                 btn.setGravity(Gravity.CENTER);
                 btn.setMinWidth(0);
@@ -74,11 +74,10 @@ public class NeonKeyboard {
     /** Koyu cam tuş + neon ripple; harfler beyaz, özel tuşlar camgöbeği. */
     private RippleDrawable keyBackground(float density, boolean special) {
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(special ? 0xFF122033 : 0xFF0B1422);
+        bg.setColor(special ? 0xFF1F1F23 : 0xFF18181B);
         bg.setCornerRadius(9 * density);
-        bg.setStroke(Math.round(1 * density), 0xFF1E2A3E);
         return new RippleDrawable(
-                ColorStateList.valueOf(0x5522D3EE), bg, null);
+                ColorStateList.valueOf(0x1FFFFFFF), bg, null);
     }
 
     private int linuxCodeForLabel(String label) {

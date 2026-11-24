@@ -64,8 +64,7 @@ public class PinActivity extends AppCompatActivity {
         updateStateText.setText(getString(R.string.update_idle));
         heroPulse = findViewById(R.id.hero_pulse);
         MaterialTextView versionFooter = findViewById(R.id.version_footer);
-        versionFooter.setText("PCHome v" + BuildConfig.VERSION_NAME
-                + " • WebRTC • uçtan uca");
+        versionFooter.setText("WebRTC • uçtan uca");
         MaterialTextView versionPill = findViewById(R.id.version_pill);
         versionPill.setText(getString(R.string.version_pill, BuildConfig.VERSION_NAME));
         prefs = new Prefs(this);

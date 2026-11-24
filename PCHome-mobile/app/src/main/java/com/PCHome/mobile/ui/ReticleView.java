@@ -32,11 +32,11 @@ public class ReticleView extends View {
     public ReticleView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
         density = getResources().getDisplayMetrics().density;
-        borderPaint.setColor(0x7722D3EE);
+        borderPaint.setColor(0x24FFFFFF);
         borderPaint.setStyle(Paint.Style.STROKE);
         borderPaint.setStrokeWidth(1.1f * density);
         borderPaint.setAntiAlias(true);
-        glowPaint.setColor(0x2222D3EE);
+        glowPaint.setColor(0x08FFFFFF);
         glowPaint.setStyle(Paint.Style.STROKE);
         glowPaint.setStrokeWidth(5f * density);
         glowPaint.setAntiAlias(true);

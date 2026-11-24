@@ -153,6 +153,11 @@ fn fmt_clock(epoch: u32) -> String {
         .unwrap_or_else(|| "—".to_string())
 }
 
+fn host_of(url: &str) -> String {
+    let s = url.split("://").nth(1).unwrap_or(url);
+    s.split('/').next().unwrap_or(s).to_string()
+}
+
 fn fmt_id(id: &str) -> String {
     let clean: String = id.chars().filter(|c| c.is_ascii_digit()).collect();
     if clean.len() == 6 {
@@ -342,29 +347,33 @@ impl DesktopGui {
                     .fill(theme::sidebar())
                     .inner_margin(egui::Margin {
                         left: 20.0,
-                        right: 18.0,
+                        right: 2.0,
                         top: 18.0,
                         bottom: 14.0,
                     }),
             )
             .show(ctx, |ui| {
-                let r = ui.max_rect();
-                ui.painter().rect_filled(
-                    egui::Rect::from_min_max(
-                        egui::pos2(r.right() + 17.0, r.top() - 18.0),
-                        egui::pos2(r.right() + 18.0, r.bottom() + 14.0),
-                    ),
-                    0.0,
-                    theme::border(),
-                );
+                let hovered = ui.rect_contains_pointer(ui.max_rect());
+                let handle = if hovered {
+                    Color32::from_gray(205)
+                } else {
+                    Color32::TRANSPARENT
+                };
                 ui.scope(|ui| {
-                    let w = &mut ui.style_mut().visuals.widgets;
-                    w.inactive.bg_fill = Color32::from_gray(150);
-                    w.hovered.bg_fill = Color32::from_gray(190);
-                    w.active.bg_fill = Color32::from_gray(220);
+                    let v = &mut ui.style_mut().visuals;
+                    v.extreme_bg_color = Color32::TRANSPARENT;
+                    v.faint_bg_color = Color32::TRANSPARENT;
+                    v.widgets.noninteractive.bg_fill = Color32::TRANSPARENT;
+                    v.widgets.inactive.bg_fill = handle;
+                    v.widgets.hovered.bg_fill = Color32::from_gray(235);
+                    v.widgets.active.bg_fill = Color32::from_gray(245);
                     egui::ScrollArea::vertical()
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
+                            // İçeriği scrollbar'dan uzak tut; scrollbar panelin
+                            // en sağ kenarına yapışık kalsın.
+                            let content_w = (ui.available_width() - 16.0).max(120.0);
+                            ui.set_width(content_w);
                             self.sidebar_identity(ctx, ui);
                             theme::divider(ui);
                             theme::section_label(ui, "CİHAZ");
@@ -372,8 +381,7 @@ impl DesktopGui {
                             self.sidebar_device(ui);
                             theme::divider(ui);
                             self.sidebar_peer(ui);
-                            theme::divider(ui);
-                            self.sidebar_server(ui);
+                            self.sidebar_footer(ui);
                         });
                 });
             });
@@ -484,6 +492,7 @@ impl DesktopGui {
                         .to_string(),
                 ),
             ),
+            ("Sunucu", host_of(&self.signal_url)),
             ("Kip", dash(self.state.mode.lock().unwrap().clone())),
         ];
         for (k, v) in rows {
@@ -558,29 +567,10 @@ impl DesktopGui {
         }
     }
 
-    fn sidebar_server(&mut self, ui: &mut egui::Ui) {
+    fn sidebar_footer(&mut self, ui: &mut egui::Ui) {
+        theme::divider(ui);
         let upd = self.state.update_status.lock().unwrap().clone();
         let has_update = upd.contains("yeni sürüm") || upd.contains("kuruldu");
-        theme::section_label(ui, "SUNUCU");
-        ui.add_space(4.0);
-        ui.horizontal(|ui| {
-            ui.label(
-                RichText::new(&self.signal_url)
-                    .font(theme::mono_font(9.0))
-                    .color(theme::text2()),
-            );
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if theme::icon_button(ui, theme::I_SETTINGS, "Adresi düzenle", theme::muted())
-                    .clicked()
-                {
-                    self.new_pc_name = self.state.pc_name.lock().unwrap().clone();
-                    self.new_password.clear();
-                    self.settings_msg.clear();
-                    self.show_settings = true;
-                }
-            });
-        });
-        ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.label(
                 RichText::new(format!("v{}", crate::updater::current_version()))
@@ -705,6 +695,18 @@ impl DesktopGui {
             egui::Rounding::same(10.0),
             egui::Stroke::new(1.0_f32, theme::border()),
         );
+        // Boş sahne delik gibi durmasın: çok hafif nokta ızgarası.
+        let dot = Color32::from_rgba_unmultiplied(255, 255, 255, 5);
+        let step = 28.0;
+        let mut y = area.top() + 13.0;
+        while y < area.bottom() {
+            let mut x = area.left() + 13.0;
+            while x < area.right() {
+                ui.painter().circle_filled(egui::pos2(x, y), 1.0, dot);
+                x += step;
+            }
+            y += step;
+        }
 
         let frame = self.state.preview_jpeg.lock().unwrap().clone();
         let seq = self.state.preview_seq.load(Ordering::SeqCst);
@@ -1076,16 +1078,13 @@ impl DesktopGui {
                     }));
                 }
                 ui.add_space(16.0);
-                ui.horizontal(|ui| {
-                    if theme::ghost_button_auto(ui, "Vazgeç").clicked() {
-                        close = true;
-                    }
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if theme::neon_button_auto(ui, "Kaydet").clicked() {
-                            save = true;
-                        }
-                    });
-                });
+                if theme::neon_button(ui, "Kaydet").clicked() {
+                    save = true;
+                }
+                ui.add_space(6.0);
+                if theme::ghost_button(ui, "Vazgeç").clicked() {
+                    close = true;
+                }
             });
         if let Some(r) = resp {
             self.settings_rect = Some(r.response.rect);
@@ -1167,7 +1166,7 @@ impl DesktopGui {
                                 .color(theme::text2()),
                         );
                         ui.add_space(12.0);
-                        if theme::neon_button_auto(ui, "Kontrol et").clicked() {
+                        if theme::neon_button(ui, "Kontrol et").clicked() {
                             self.start_check();
                         }
                     }
@@ -1203,8 +1202,7 @@ impl DesktopGui {
                                 });
                         }
                         ui.add_space(12.0);
-                        if theme::neon_button_auto(ui, &format!("Güncelle ({})", info.version))
-                            .clicked()
+                        if theme::neon_button(ui, &format!("Güncelle ({})", info.version)).clicked()
                         {
                             self.start_install();
                         }
@@ -1241,14 +1239,14 @@ impl DesktopGui {
                                 .color(theme::danger()),
                         );
                         ui.add_space(12.0);
-                        if theme::ghost_button_auto(ui, "Tekrar dene").clicked() {
+                        if theme::ghost_button(ui, "Tekrar dene").clicked() {
                             self.update_modal = UpdateModalState::Idle;
                         }
                     }
                 }
                 if !locked {
                     ui.add_space(12.0);
-                    if theme::ghost_button_auto(ui, "Kapat").clicked() {
+                    if theme::ghost_button(ui, "Kapat").clicked() {
                         close = true;
                     }
                 }
