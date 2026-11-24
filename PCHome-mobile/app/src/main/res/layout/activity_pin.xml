@@ -254,8 +254,8 @@
                     android:text="@string/remember_password"
                     android:textColor="@color/PCHome_muted"
                     android:textSize="13sp"
-                    app:thumbTint="@color/PCHome_text"
-                    app:trackTint="@color/PCHome_border_bright" />
+                    app:thumbTint="@color/switch_thumb_remember"
+                    app:trackTint="@color/switch_track_remember" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/connect_button"
