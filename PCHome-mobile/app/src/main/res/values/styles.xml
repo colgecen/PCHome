@@ -27,7 +27,7 @@
         <item name="android:windowNoTitle">true</item>
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
-        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:fontFamily">@font/inter</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <item name="materialButtonStyle">@style/Widget.PCHome.Button.Primary</item>
         <item name="textInputStyle">@style/Widget.PCHome.Input</item>
@@ -45,12 +45,13 @@
         <item name="android:textSize">36sp</item>
         <item name="android:textColor">@color/PCHome_text</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:fontFamily">@font/inter</item>
         <item name="android:letterSpacing">-0.02</item>
         <item name="android:lineSpacingMultiplier">0.98</item>
     </style>
 
     <style name="TextAppearance.PCHome.Section" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:fontFamily">@font/inter</item>
         <item name="android:textSize">17sp</item>
         <item name="android:textColor">@color/PCHome_text</item>
         <item name="android:textStyle">bold</item>
@@ -58,18 +59,21 @@
     </style>
 
     <style name="TextAppearance.PCHome.Label" parent="TextAppearance.Material3.LabelSmall">
+        <item name="android:fontFamily">@font/inter</item>
         <item name="android:textSize">11sp</item>
         <item name="android:textColor">@color/PCHome_muted</item>
         <item name="android:letterSpacing">0</item>
     </style>
 
     <style name="TextAppearance.PCHome.Body" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:fontFamily">@font/inter</item>
         <item name="android:textSize">14sp</item>
         <item name="android:textColor">@color/PCHome_text_primary</item>
         <item name="android:lineSpacingMultiplier">1.15</item>
     </style>
 
     <style name="TextAppearance.PCHome.Meta" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:fontFamily">@font/inter</item>
         <item name="android:textSize">12sp</item>
         <item name="android:textColor">@color/PCHome_muted</item>
     </style>
@@ -79,6 +83,7 @@
         <item name="backgroundTint">@color/PCHome_silver</item>
         <item name="android:textColor">@color/PCHome_ink</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:fontFamily">@font/inter</item>
         <item name="android:textSize">14sp</item>
         <item name="cornerRadius">12dp</item>
         <item name="android:minHeight">52dp</item>
@@ -94,6 +99,7 @@
     <style name="Widget.PCHome.Button.Soft" parent="Widget.Material3.Button">
         <item name="backgroundTint">@color/PCHome_surface_high</item>
         <item name="android:textColor">@color/PCHome_text_primary</item>
+        <item name="android:fontFamily">@font/inter</item>
         <item name="android:textSize">12sp</item>
         <item name="cornerRadius">10dp</item>
         <item name="android:minHeight">42dp</item>
@@ -110,6 +116,7 @@
         <item name="backgroundTint">#FF2A1518</item>
         <item name="android:textColor">@color/PCHome_danger</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:fontFamily">@font/inter</item>
         <item name="android:textSize">12sp</item>
         <item name="cornerRadius">10dp</item>
         <item name="android:minHeight">42dp</item>
@@ -125,6 +132,7 @@
     <style name="Widget.PCHome.Button.Key" parent="Widget.Material3.Button">
         <item name="backgroundTint">@color/PCHome_surface</item>
         <item name="android:textColor">@color/PCHome_muted</item>
+        <item name="android:fontFamily">@font/inter</item>
         <item name="android:textSize">11sp</item>
         <item name="cornerRadius">9dp</item>
         <item name="android:minWidth">48dp</item>
@@ -140,6 +148,7 @@
 
     <style name="Widget.PCHome.Button.Text" parent="Widget.Material3.Button.TextButton">
         <item name="android:textColor">@color/PCHome_cyan</item>
+        <item name="android:fontFamily">@font/inter</item>
         <item name="android:textSize">12sp</item>
         <item name="android:textStyle">bold</item>
         <item name="cornerRadius">10dp</item>
@@ -156,7 +165,7 @@
         <item name="boxCornerRadiusBottomStart">12dp</item>
         <item name="boxCornerRadiusBottomEnd">12dp</item>
         <item name="boxStrokeWidth">0dp</item>
-        <item name="boxStrokeWidthFocused">1dp</item>
+        <item name="boxStrokeWidthFocused">0dp</item>
         <item name="boxStrokeColor">@color/PCHome_cyan</item>
         <item name="hintTextColor">@color/PCHome_muted</item>
         <item name="android:textColorHint">@color/PCHome_muted</item>
@@ -182,6 +191,7 @@
         <item name="chipCornerRadius">8dp</item>
         <item name="android:textColor">@color/PCHome_muted</item>
         <item name="android:textSize">11sp</item>
+        <item name="android:fontFamily">@font/inter</item>
         <item name="chipMinHeight">28dp</item>
         <item name="android:clickable">false</item>
         <item name="android:checkable">false</item>

@@ -10,8 +10,10 @@
     <string name="accessibility_service_description">PCHome accessibility service for remote input control</string>
     <string name="pin_hint">PIN shown on the desktop</string>
 
-    <string name="connect_card_title">Bağlantı bilgileri</string>
+    <string name="connect_card_title">Bağlantı</string>
     <string name="signal_server_hint">Sinyal sunucusu</string>
+    <string name="connect_card_subtitle">PC’ye bağlanmak için bilgilerini gir.</string>
+    <string name="server_label">Sunucu</string>
     <string name="signal_server_help">PC uygulamasındaki adresle aynı olmalı</string>
     <string name="pc_id_hint">PC ID</string>
     <string name="password_hint">Şifre</string>
