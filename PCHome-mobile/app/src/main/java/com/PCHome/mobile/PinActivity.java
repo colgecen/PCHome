@@ -20,7 +20,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.airbnb.lottie.LottieAnimationView;
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.materialswitch.MaterialSwitch;
+import androidx.appcompat.widget.SwitchCompat;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
 
@@ -36,7 +36,7 @@ public class PinActivity extends AppCompatActivity {
     private AutoCompleteTextView serverEdit;
     private TextInputEditText pcIdEdit;
     private TextInputEditText passwordEdit;
-    private MaterialSwitch rememberCheck;
+    private SwitchCompat rememberCheck;
     private MaterialTextView updateStateText;
     private RecyclerView recentGrid;
     private MaterialTextView recentEmpty;

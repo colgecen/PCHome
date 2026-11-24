@@ -142,28 +142,32 @@
                     android:text="@string/server_label"
                     android:textAppearance="@style/TextAppearance.PCHome.Label" />
 
-                <com.google.android.material.textfield.TextInputLayout
+                <FrameLayout
                     android:id="@+id/server_layout"
-                    style="@style/Widget.PCHome.Input"
                     android:layout_width="match_parent"
                     android:layout_height="64dp"
                     android:layout_marginTop="6dp"
-                    app:hintEnabled="false">
+                    android:background="@drawable/bg_input_field"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp">
 
                     <AutoCompleteTextView
                         android:id="@+id/server"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:fontFamily="@font/inter_regular"
+                        android:background="@null"
+                        android:fontFamily="@font/inter_bold"
                         android:gravity="center_vertical"
                         android:hint="@string/signal_url_hint"
                         android:imeOptions="actionNext"
                         android:inputType="textUri"
                         android:maxLines="1"
+                        android:paddingStart="0dp"
+                        android:paddingEnd="0dp"
                         android:textColor="@color/PCHome_text"
                         android:textColorHint="@color/PCHome_dim"
-                        android:textSize="15sp" />
-                </com.google.android.material.textfield.TextInputLayout>
+                        android:textSize="17sp" />
+                </FrameLayout>
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -248,7 +252,7 @@
                     </LinearLayout>
                 </LinearLayout>
 
-                <com.google.android.material.materialswitch.MaterialSwitch
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/remember_check"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
