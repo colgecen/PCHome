@@ -54,9 +54,18 @@ fn main() -> Result<()> {
     let _instance_lock = match config::acquire_instance_lock() {
         Some(lock) => lock,
         None => {
-            log::warn!("PCHome zaten çalışıyor; ikinci örnek açılmadı");
+            log::warn!("PCHome zaten çalışıyor; mevcut pencere öne getiriliyor");
+            #[cfg(unix)]
+            if let Some(pid) = config::instance_pid() {
+                unsafe {
+                    libc::kill(pid as i32, libc::SIGUSR1);
+                }
+            }
             let _ = std::process::Command::new("notify-send")
-                .args(["PCHome", "PCHome zaten çalışıyor."])
+                .args([
+                    "PCHome",
+                    "PCHome zaten çalışıyor — mevcut pencere öne getiriliyor.",
+                ])
                 .spawn();
             return Ok(());
         }

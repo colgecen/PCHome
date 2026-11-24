@@ -212,6 +212,7 @@ fn load_dotenv(path: &str) {
 /// Aynı anda ikinci bir PCHome örneğinin açılmasını engeller. Eski/orphan
 /// yakalama süreçlerinin üst üste binip CPU'yu doldurması burada önlenir.
 pub fn acquire_instance_lock() -> Option<std::fs::File> {
+    use std::io::Write;
     use std::os::unix::io::AsRawFd;
     let dir = user_config_dir();
     let _ = std::fs::create_dir_all(&dir);
@@ -225,10 +226,23 @@ pub fn acquire_instance_lock() -> Option<std::fs::File> {
         .ok()?;
     let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
     if rc == 0 {
+        // İkinci örnek bu PID'e SIGUSR1 gönderip mevcut pencereyi öne
+        // getirebilsin.
+        let mut f = &file;
+        let _ = f.set_len(0);
+        let _ = writeln!(f, "{}", std::process::id());
+        let _ = f.flush();
         Some(file)
     } else {
         None
     }
+}
+
+/// Çalışan örneğin PID'i (kilit dosyasına yazılır).
+pub fn instance_pid() -> Option<u32> {
+    let path = user_config_dir().join("pchome.lock");
+    let text = std::fs::read_to_string(path).ok()?;
+    text.trim().parse().ok()
 }
 
 #[cfg(test)]

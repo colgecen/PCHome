@@ -3,7 +3,7 @@ members = ["."]
 
 [package]
 name = "PCHome-desktop"
-version = "0.6.2"
+version = "0.7.0"
 edition = "2021"
 
 [features]
@@ -54,6 +54,7 @@ image = { version = "0.25", optional = true, default-features = false, features 
 x11rb = { version = "0.13", optional = true, features = ["allow-unsafe-code"] }
 # ffmpeg process control for HW encode pipeline
 which = "6"
+signal-hook = "0.3"
 
 [dev-dependencies]
 tokio-test = "0.4"

@@ -70,6 +70,7 @@ public class PinActivity extends AppCompatActivity {
         versionPill.setText(getString(R.string.version_pill, BuildConfig.VERSION_NAME));
         prefs = new Prefs(this);
         recentStore = new RecentStore(this);
+        rememberCheck.setChecked(prefs.getRememberPassword());
         playEntrance();
 
         // Sunucu adresi gömülü GELMEZ (anonim): kullanıcı eliyle yazar.
@@ -297,6 +298,7 @@ public class PinActivity extends AppCompatActivity {
     private void openConnection(String server, String pcId, String password, boolean remember) {
         server = SignalClient.normalizeServer(server);
         prefs.addServer(server);
+        prefs.setRememberPassword(remember);
 
         // Kartı hemen başa taşı (cihaz bilgisi + görüntü kapanışta dolar).
         RecentPc entry = recentStore.find(pcId);

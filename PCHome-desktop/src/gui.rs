@@ -5,16 +5,25 @@ use crate::updater::UpdateInfo;
 use eframe::egui;
 use egui::{Align2, Color32, FontId, RichText};
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// Masaüstü GUI giriş noktası (ana iş parçacığında winit döngüsünü bloklar).
 pub fn run(state: SharedState) {
+    let focus_request = Arc::new(AtomicBool::new(false));
+    #[cfg(unix)]
+    {
+        use signal_hook::consts::SIGUSR1;
+        if let Err(e) = signal_hook::flag::register(SIGUSR1, Arc::clone(&focus_request)) {
+            log::warn!("SIGUSR1 dinleyicisi kurulamadı: {}", e);
+        }
+    }
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1180.0, 880.0])
-            .with_min_inner_size([1020.0, 720.0])
+            .with_inner_size([1200.0, 800.0])
+            .with_min_inner_size([1000.0, 680.0])
             .with_icon(app_icon()),
         ..Default::default()
     };
@@ -63,14 +72,16 @@ pub fn run(state: SharedState) {
                 settings_rect: None,
                 update_rect: None,
                 was_peer_connected: false,
+                events_open: false,
+                focus_request,
             }))
         }),
     );
 }
 
-/// Paketlenmiş PCHome simgesi (pencere/görev çubuğu).
+/// Kullanıcının verdiği PCHome simgesi (yuvarlak içinde telefon).
 fn app_icon() -> egui::IconData {
-    const ICON_PNG: &[u8] = include_bytes!("../../assets/desktop-icon.png");
+    const ICON_PNG: &[u8] = include_bytes!("../../assets/icon.png");
     let img = image::load_from_memory(ICON_PNG).expect("paketli simge geçerli bir PNG olmalı");
     let img = img.resize_exact(128, 128, image::imageops::FilterType::Lanczos3);
     let rgba = img.to_rgba8();
@@ -104,6 +115,8 @@ struct DesktopGui {
     settings_rect: Option<egui::Rect>,
     update_rect: Option<egui::Rect>,
     was_peer_connected: bool,
+    events_open: bool,
+    focus_request: Arc<AtomicBool>,
 }
 
 enum UpdateModalState {
@@ -139,6 +152,27 @@ fn fmt_clock(epoch: u32) -> String {
         .unwrap_or_else(|| "—".to_string())
 }
 
+fn fmt_id(id: &str) -> String {
+    let clean: String = id.chars().filter(|c| c.is_ascii_digit()).collect();
+    if clean.len() == 6 {
+        format!("{} {}", &clean[..3], &clean[3..])
+    } else {
+        clean
+    }
+}
+
+fn status_of(status: &str) -> (&'static str, Color32) {
+    if status.contains("BAĞLI") {
+        ("Bağlı", theme::success())
+    } else if status.contains("DENEN") || status.contains("DEĞİŞTİ") {
+        ("Bağlanıyor", theme::warning())
+    } else if status.contains("BAŞARISIZ") || status.contains("YOK") {
+        ("Bağlantı yok", theme::danger())
+    } else {
+        ("Hazırlanıyor", theme::muted())
+    }
+}
+
 fn event_color(line: &str) -> egui::Color32 {
     let l = line.to_lowercase();
     if l.contains("yanlış") || l.contains("hata") || l.contains("kilit") || l.contains("başarısız")
@@ -156,27 +190,74 @@ fn event_color(line: &str) -> egui::Color32 {
     }
 }
 
+fn sidebar_row(ui: &mut egui::Ui, label: &str, value: &str) {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(label).size(10.5).color(theme::muted()));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(
+                RichText::new(value)
+                    .font(theme::mono_font(10.0))
+                    .color(theme::text2()),
+            );
+        });
+    });
+    ui.add_space(4.0);
+    let (rect, _) =
+        ui.allocate_exact_size(egui::vec2(ui.available_width(), 1.0), egui::Sense::hover());
+    ui.painter().rect_filled(rect, 0.0, theme::border());
+    ui.add_space(4.0);
+}
+
+fn status_sep(ui: &mut egui::Ui) {
+    ui.label(RichText::new("·").size(10.0).color(theme::muted()));
+}
+
+fn text_link(ui: &mut egui::Ui, label: &str) -> egui::Response {
+    let font = FontId::proportional(10.0);
+    let galley = ui.fonts(|f| f.layout_no_wrap(label.to_owned(), font.clone(), theme::muted()));
+    let (rect, resp) =
+        ui.allocate_exact_size(galley.size() + egui::vec2(6.0, 4.0), egui::Sense::click());
+    ui.painter().text(
+        rect.center(),
+        Align2::CENTER_CENTER,
+        label,
+        font,
+        if resp.hovered() {
+            theme::accent()
+        } else {
+            theme::muted()
+        },
+    );
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+fn dash(s: String) -> String {
+    if s.trim().is_empty() {
+        "—".to_string()
+    } else {
+        s
+    }
+}
+
+fn small_metric(ui: &mut egui::Ui, label: &str, value: &str) {
+    ui.label(RichText::new(label).size(8.5).color(theme::muted()));
+    ui.label(
+        RichText::new(value)
+            .font(theme::mono_font(10.5))
+            .color(theme::text2()),
+    );
+}
+
 impl DesktopGui {
     fn top_bar(&mut self, ctx: &egui::Context) {
         let status = self.state.status.lock().unwrap().clone();
-        let (status_label, status_color) = if status.contains("BAĞLI") {
-            ("SİNYAL BAĞLI", theme::success())
-        } else if status.contains("DENEN") || status.contains("DEĞİŞTİ") {
-            ("YENİDEN BAĞLANIYOR", theme::warning())
-        } else if status.contains("BAŞARISIZ") || status.contains("YOK") {
-            ("SİNYAL YOK", theme::danger())
-        } else {
-            ("HAZIRLANIYOR", theme::muted())
-        };
-        let ping = self.state.ping_ms.load(Ordering::SeqCst);
-        let fps = self.state.fps.load(Ordering::SeqCst);
-
+        let (label, color) = status_of(&status);
         egui::TopBottomPanel::top("topbar")
-            .exact_height(74.0)
+            .exact_height(52.0)
             .frame(
                 egui::Frame::none()
-                    .fill(theme::bg_deep())
-                    .inner_margin(egui::Margin::symmetric(18.0, 0.0)),
+                    .fill(theme::bg())
+                    .inner_margin(egui::Margin::symmetric(20.0, 0.0)),
             )
             .show(ctx, |ui| {
                 let r = ui.max_rect();
@@ -189,39 +270,16 @@ impl DesktopGui {
                     theme::border(),
                 );
                 ui.horizontal_centered(|ui| {
-                    theme::logo(ui, 40.0);
-                    ui.add_space(12.0);
-                    ui.vertical(|ui| {
-                        ui.label(RichText::new("PCHome").size(20.0).color(theme::text()));
-                        let pc_name = self.state.pc_name.lock().unwrap().clone();
-                        let res = self.state.resolution.lock().unwrap().clone();
-                        let subtitle = if pc_name.is_empty() {
-                            format!("UZAK MASAÜSTÜ • v{}", crate::updater::current_version())
-                        } else {
-                            format!(
-                                "{} • {} • v{}",
-                                pc_name,
-                                res,
-                                crate::updater::current_version()
-                            )
-                        };
-                        let ip = self.state.local_ip.lock().unwrap().clone();
-                        let capture = self.state.capture_status.lock().unwrap().clone();
-                        ui.label(RichText::new(subtitle).size(9.0).color(theme::dim()))
-                            .on_hover_text(format!("{} • {}", ip, capture));
-                    });
-                    ui.add_space(20.0);
-                    theme::status_pill(ui, status_label, status_color);
+                    ui.label(RichText::new("PCHome").size(15.0).color(theme::text()));
+                    ui.add_space(5.0);
+                    ui.label(RichText::new("DESKTOP").size(8.5).color(theme::muted()));
+                    ui.add_space(16.0);
+                    theme::dot(ui, color, 6.0);
+                    ui.label(RichText::new(label).size(11.0).color(theme::text2()));
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if theme::filled_icon_button(
-                            ui,
-                            theme::I_POWER,
-                            "Uygulamayı kapat",
-                            theme::hex("#E11D48"),
-                            Color32::WHITE,
-                        )
-                        .clicked()
+                        if theme::icon_button(ui, theme::I_POWER, "Kapat", theme::danger())
+                            .clicked()
                         {
                             if self.update_modal.busy() {
                                 self.state
@@ -230,8 +288,7 @@ impl DesktopGui {
                                 self.state.terminate.store(true, Ordering::SeqCst);
                             }
                         }
-                        ui.add_space(2.0);
-                        if theme::icon_button(ui, theme::I_SETTINGS, "Ayarlar", theme::text())
+                        if theme::icon_button(ui, theme::I_SETTINGS, "Ayarlar", theme::muted())
                             .clicked()
                         {
                             self.new_pc_name = self.state.pc_name.lock().unwrap().clone();
@@ -243,7 +300,7 @@ impl DesktopGui {
                             ui,
                             theme::I_REFRESH,
                             "Ekran yakalamayı yenile",
-                            theme::primary(),
+                            theme::muted(),
                         )
                         .clicked()
                         {
@@ -251,292 +308,260 @@ impl DesktopGui {
                             self.state
                                 .push_event("ekran yakalama yenileniyor…".to_string());
                         }
-                        ui.add_space(8.0);
-                        theme::metric_pill(ui, "FPS", &format!("{}", fps));
-                        theme::metric_pill(ui, "PING", &format!("{} ms", ping));
+                        ui.add_space(10.0);
+                        ui.label(
+                            RichText::new(format!("v{}", crate::updater::current_version()))
+                                .font(theme::mono_font(9.5))
+                                .color(theme::muted()),
+                        );
                     });
                 });
             });
     }
 
     fn side_panel(&mut self, ctx: &egui::Context) {
-        let side_w = (ctx.screen_rect().width() * 0.30).clamp(380.0, 440.0);
         egui::SidePanel::left("side")
             .resizable(false)
-            .exact_width(side_w)
+            .exact_width(318.0)
             .frame(
                 egui::Frame::none()
-                    .fill(theme::bg_deep())
-                    .inner_margin(egui::Margin::symmetric(18.0, 16.0)),
+                    .fill(theme::sidebar())
+                    .inner_margin(egui::Margin {
+                        left: 20.0,
+                        right: 18.0,
+                        top: 18.0,
+                        bottom: 14.0,
+                    }),
             )
             .show(ctx, |ui| {
-                // Sunucu kartı her zaman görünür kalsın: üstteki kimlik ve
-                // cihaz kartları gerekirse kendi içinde kaydırılır.
-                let server_block = 210.0;
-                let scroll_h = (ui.available_height() - server_block).max(220.0);
+                let r = ui.max_rect();
+                ui.painter().rect_filled(
+                    egui::Rect::from_min_max(
+                        egui::pos2(r.right() + 17.0, r.top() - 18.0),
+                        egui::pos2(r.right() + 18.0, r.bottom() + 14.0),
+                    ),
+                    0.0,
+                    theme::border(),
+                );
                 egui::ScrollArea::vertical()
-                    .max_height(scroll_h)
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
-                        theme::section_label(ui, "BAĞLANTI");
-                        ui.add_space(8.0);
-                        self.card_identity(ctx, ui);
-                        ui.add_space(12.0);
+                        self.sidebar_identity(ctx, ui);
+                        theme::divider(ui);
                         theme::section_label(ui, "CİHAZ");
-                        ui.add_space(8.0);
-                        self.card_peer(ui);
+                        ui.add_space(6.0);
+                        self.sidebar_device(ui);
+                        theme::divider(ui);
+                        self.sidebar_peer(ui);
+                        theme::divider(ui);
+                        self.sidebar_server(ui);
                     });
-                ui.add_space(6.0);
-                theme::section_label(ui, "SUNUCU");
-                ui.add_space(4.0);
-                self.card_server(ui);
             });
     }
 
-    fn card_identity(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
-        theme::card_frame().show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            ui.horizontal(|ui| {
-                theme::icon_text(ui, theme::I_DESKTOP, 16.0, theme::primary());
-                ui.label(
-                    RichText::new("PC KİMLİĞİ")
-                        .size(12.5)
-                        .color(theme::text())
-                        .strong(),
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if theme::icon_button(ui, theme::I_COPY, "ID + şifreyi kopyala", theme::muted())
-                        .clicked()
-                    {
-                        let id = self.state.pc_id.lock().unwrap().clone();
-                        let pw = self.state.password.lock().unwrap().clone();
-                        ctx.copy_text(format!("ID: {}  Şifre: {}", id, pw));
-                        self.state.push_event("ID ve şifre kopyalandı".to_string());
-                    }
-                });
+    fn sidebar_identity(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+        theme::section_label(ui, "PC KİMLİĞİ");
+        ui.add_space(3.0);
+        let id = self.state.pc_id.lock().unwrap().clone();
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(fmt_id(&id))
+                    .font(theme::mono_bold_font(36.0))
+                    .color(theme::text()),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if theme::icon_button(ui, theme::I_COPY, "ID + şifreyi kopyala", theme::muted())
+                    .clicked()
+                {
+                    let pw = self.state.password.lock().unwrap().clone();
+                    ctx.copy_text(format!("ID: {}  Şifre: {}", id, pw));
+                    self.state.push_event("ID ve şifre kopyalandı".to_string());
+                }
             });
+        });
+        ui.label(
+            RichText::new("Telefondaki PC ID alanına gir")
+                .size(10.0)
+                .color(theme::muted()),
+        );
+        ui.add_space(14.0);
 
-            let id = self.state.pc_id.lock().unwrap().clone();
+        theme::section_label(ui, "ŞİFRE");
+        ui.add_space(2.0);
+        ui.horizontal(|ui| {
+            let shown = if self.show_password {
+                self.state.password.lock().unwrap().clone()
+            } else {
+                "••••••".to_string()
+            };
             ui.label(
-                RichText::new(id)
-                    .font(theme::mono_bold_font(44.0))
-                    .color(theme::primary()),
+                RichText::new(shown)
+                    .font(theme::mono_font(17.0))
+                    .color(theme::text2()),
             );
-            ui.label(
-                RichText::new("Telefondaki PC ID alanına gir")
-                    .size(11.0)
-                    .color(theme::muted()),
-            );
-            ui.add_space(12.0);
-
-            ui.horizontal(|ui| {
-                theme::icon_text(ui, theme::I_LOCK, 13.0, theme::dim());
-                ui.label(
-                    RichText::new("ŞİFRE")
-                        .size(10.0)
-                        .color(theme::dim())
-                        .strong(),
-                );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if theme::icon_button(ui, theme::I_REFRESH, "Şifreyi yenile", theme::muted())
+                    .clicked()
+                {
+                    self.refresh_password();
+                }
+                if theme::icon_button(ui, theme::I_COPY, "ID + şifreyi kopyala", theme::muted())
+                    .clicked()
+                {
+                    let pw = self.state.password.lock().unwrap().clone();
+                    ctx.copy_text(format!("ID: {}  Şifre: {}", id, pw));
+                    self.state.push_event("ID ve şifre kopyalandı".to_string());
+                }
+                let eye = if self.show_password {
+                    theme::I_EYE_OFF
+                } else {
+                    theme::I_EYE
+                };
+                if theme::icon_button(ui, eye, "Göster / gizle", theme::muted()).clicked() {
+                    self.show_password = !self.show_password;
+                }
             });
-            egui::Frame::none()
-                .fill(theme::bg_panel())
-                .stroke(egui::Stroke::new(1.0_f32, theme::border()))
-                .rounding(egui::Rounding::same(12.0))
-                .inner_margin(egui::Margin::symmetric(12.0, 8.0))
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        let shown = if self.show_password {
-                            self.state.password.lock().unwrap().clone()
-                        } else {
-                            "••••••".to_string()
-                        };
-                        ui.label(
-                            RichText::new(shown)
-                                .font(theme::mono_font(26.0))
-                                .color(theme::text()),
-                        );
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if theme::icon_button(
-                                ui,
-                                theme::I_REFRESH,
-                                "Şifreyi yenile",
-                                theme::warning(),
-                            )
-                            .clicked()
-                            {
-                                self.refresh_password();
-                            }
-                            if theme::icon_button(
-                                ui,
-                                theme::I_COPY,
-                                "ID + şifreyi kopyala",
-                                theme::muted(),
-                            )
-                            .clicked()
-                            {
-                                let id = self.state.pc_id.lock().unwrap().clone();
-                                let pw = self.state.password.lock().unwrap().clone();
-                                ctx.copy_text(format!("ID: {}  Şifre: {}", id, pw));
-                                self.state.push_event("ID ve şifre kopyalandı".to_string());
-                            }
-                            let eye = if self.show_password {
-                                theme::I_EYE_OFF
-                            } else {
-                                theme::I_EYE
-                            };
-                            if theme::icon_button(ui, eye, "Göster / gizle", theme::primary())
-                                .clicked()
-                            {
-                                self.show_password = !self.show_password;
-                            }
-                        });
-                    });
-                });
-            ui.add_space(8.0);
-            ui.label(
-                RichText::new("6 haneli sabit şifre • değiştirmek için yenile")
-                    .size(10.0)
-                    .color(theme::dim()),
-            );
+        });
+        ui.label(
+            RichText::new("6 haneli sabit şifre")
+                .size(9.5)
+                .color(theme::muted()),
+        );
+        if !self.settings_msg.is_empty() {
+            ui.add_space(4.0);
+            let ok = self.settings_msg.contains("güncellendi")
+                || self.settings_msg.contains("kaydedildi");
+            ui.label(RichText::new(&self.settings_msg).size(10.0).color(if ok {
+                theme::success()
+            } else {
+                theme::danger()
+            }));
+        }
+    }
 
-            if !self.settings_msg.is_empty() {
-                let ok = self.settings_msg.contains("güncellendi")
-                    || self.settings_msg.contains("kaydedildi");
-                ui.add_space(4.0);
-                ui.label(RichText::new(&self.settings_msg).size(11.0).color(if ok {
+    fn sidebar_device(&mut self, ui: &mut egui::Ui) {
+        let rows = [
+            ("Ad", dash(self.state.pc_name.lock().unwrap().clone())),
+            (
+                "Yerel IP",
+                dash(self.state.local_ip.lock().unwrap().clone()),
+            ),
+            (
+                "Çözünürlük",
+                dash(self.state.resolution.lock().unwrap().clone()),
+            ),
+            (
+                "Yakalama",
+                dash(self.state.capture_status.lock().unwrap().clone()),
+            ),
+            ("Kip", dash(self.state.mode.lock().unwrap().clone())),
+        ];
+        for (k, v) in rows {
+            sidebar_row(ui, k, &v);
+        }
+    }
+
+    fn sidebar_peer(&mut self, ui: &mut egui::Ui) {
+        theme::section_label(ui, "BAĞLI CİHAZ");
+        ui.add_space(5.0);
+        let connected = self.state.peer_connected.load(Ordering::SeqCst);
+        let peer_name = self.state.peer_name.lock().unwrap().clone();
+        let seen = self.state.seen_devices.lock().unwrap().clone();
+        ui.horizontal(|ui| {
+            theme::dot(
+                ui,
+                if connected {
                     theme::success()
                 } else {
-                    theme::danger()
-                }));
-            }
+                    theme::muted()
+                },
+                6.0,
+            );
+            ui.label(
+                RichText::new(if connected { "Bağlı" } else { "Bekleniyor" })
+                    .size(11.5)
+                    .color(theme::text2()),
+            );
         });
-    }
-
-    fn card_device(&mut self, ui: &mut egui::Ui) {
-        theme::card_frame().show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            let uinput = self.state.uinput_active.load(Ordering::SeqCst);
-            ui.horizontal(|ui| {
-                theme::icon_text(ui, theme::I_SENSORS, 17.0, theme::primary());
-                ui.label(
-                    RichText::new("CİHAZ DURUMU")
-                        .size(12.5)
-                        .color(theme::text())
-                        .strong(),
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    theme::status_pill(
-                        ui,
-                        if uinput {
-                            "GİRİŞ AKTİF"
-                        } else {
-                            "GİRİŞ KAPALI"
-                        },
-                        if uinput {
-                            theme::success()
-                        } else {
-                            theme::danger()
-                        },
-                    );
-                });
-            });
-            ui.add_space(6.0);
-            let rows = [
-                ("Ad", self.state.pc_name.lock().unwrap().clone()),
-                ("Yerel IP", self.state.local_ip.lock().unwrap().clone()),
-                ("Çözünürlük", self.state.resolution.lock().unwrap().clone()),
-                ("Ekran", self.state.capture_status.lock().unwrap().clone()),
-                ("Kip", self.state.mode.lock().unwrap().clone()),
-            ];
-            for (k, v) in rows {
+        if connected {
+            if !peer_name.is_empty() {
+                ui.label(RichText::new(peer_name).size(13.0).color(theme::text()));
+            }
+            let since = self.state.peer_since.load(Ordering::SeqCst);
+            let last = self.state.peer_last_auth.load(Ordering::SeqCst);
+            ui.label(
+                RichText::new(format!(
+                    "{}'den beri  •  son doğrulama {}",
+                    fmt_clock(since),
+                    fmt_clock(last)
+                ))
+                .size(9.5)
+                .color(theme::muted()),
+            );
+        } else {
+            ui.label(
+                RichText::new("Henüz bağlı cihaz yok")
+                    .size(11.0)
+                    .color(theme::text2()),
+            );
+            ui.label(
+                RichText::new("Telefondan bu ID ve şifreyle bağlan.")
+                    .size(9.5)
+                    .color(theme::muted()),
+            );
+        }
+        if !seen.is_empty() {
+            ui.add_space(8.0);
+            theme::section_label(ui, "SON CİHAZLAR");
+            for device in seen.iter().take(2) {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(k).color(theme::muted()).size(11.0));
+                    ui.label(RichText::new(&device.name).size(10.0).color(theme::text2()));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
-                            RichText::new(v)
-                                .font(theme::mono_font(11.5))
-                                .color(theme::text()),
+                            RichText::new(crate::device::format_seen(device.last_seen))
+                                .font(theme::mono_font(9.0))
+                                .color(theme::muted()),
                         );
                     });
                 });
             }
-        });
+        }
     }
 
-    fn card_server(&mut self, ui: &mut egui::Ui) {
+    fn sidebar_server(&mut self, ui: &mut egui::Ui) {
         let upd = self.state.update_status.lock().unwrap().clone();
         let has_update = upd.contains("yeni sürüm") || upd.contains("kuruldu");
-        theme::card_frame().show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            ui.horizontal(|ui| {
-                theme::icon_text(ui, theme::I_WIFI, 16.0, theme::primary());
-                ui.label(
-                    RichText::new("SİNYAL / GÜNCELLEME")
-                        .size(11.5)
-                        .color(theme::text())
-                        .strong(),
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    theme::dot(
-                        ui,
-                        if has_update {
-                            theme::success()
-                        } else {
-                            theme::dim()
-                        },
-                        5.0,
-                    );
-                    ui.label(
-                        RichText::new(format!("v{}", crate::updater::current_version()))
-                            .font(theme::mono_font(10.0))
-                            .color(if has_update {
-                                theme::success()
-                            } else {
-                                theme::dim()
-                            }),
-                    );
-                });
-            });
-            ui.add_space(6.0);
-            egui::Frame::none()
-                .fill(theme::bg_panel())
-                .stroke(egui::Stroke::new(1.0_f32, theme::border()))
-                .rounding(egui::Rounding::same(10.0))
-                .inner_margin(egui::Margin::symmetric(10.0, 8.0))
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        theme::dot(ui, theme::success(), 6.0);
-                        ui.label(
-                            RichText::new(&self.signal_url)
-                                .font(theme::mono_font(10.0))
-                                .color(theme::text()),
-                        );
-                    });
-                });
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                if theme::icon_button_auto(
-                    ui,
-                    theme::I_SETTINGS,
-                    "Düzenle",
-                    theme::alpha(Color32::WHITE, 6),
-                    theme::text(),
-                )
-                .on_hover_text("Sinyal adresini ve kimlik bilgilerini düzenle")
-                .clicked()
+        theme::section_label(ui, "SUNUCU");
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(&self.signal_url)
+                    .font(theme::mono_font(9.0))
+                    .color(theme::text2()),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if theme::icon_button(ui, theme::I_SETTINGS, "Adresi düzenle", theme::muted())
+                    .clicked()
                 {
                     self.new_pc_name = self.state.pc_name.lock().unwrap().clone();
                     self.new_password.clear();
                     self.settings_msg.clear();
                     self.show_settings = true;
                 }
-                let resp = theme::icon_button_auto(
-                    ui,
-                    theme::I_UPDATE,
-                    "Güncelle",
-                    theme::alpha(Color32::WHITE, 6),
-                    theme::text(),
-                );
+            });
+        });
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(format!("v{}", crate::updater::current_version()))
+                    .font(theme::mono_font(9.0))
+                    .color(theme::muted()),
+            );
+            if has_update {
+                theme::dot(ui, theme::success(), 5.0);
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let resp = text_link(ui, "Güncelle");
                 if resp.on_hover_text(upd).clicked() {
                     self.update_modal = UpdateModalState::Idle;
                 }
@@ -544,301 +569,89 @@ impl DesktopGui {
         });
     }
 
-    fn card_peer(&mut self, ui: &mut egui::Ui) {
-        theme::card_frame().show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            let connected = self.state.peer_connected.load(Ordering::SeqCst);
-            let peer_name = self.state.peer_name.lock().unwrap().clone();
-            let seen = self.state.seen_devices.lock().unwrap().clone();
-            ui.horizontal(|ui| {
-                theme::icon_text(ui, theme::I_PHONE, 16.0, theme::primary());
-                ui.label(
-                    RichText::new("BAĞLI CİHAZ")
-                        .size(12.5)
-                        .color(theme::text())
-                        .strong(),
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    theme::status_pill(
-                        ui,
-                        if connected { "BAĞLI" } else { "BEKLENİYOR" },
-                        if connected {
-                            theme::success()
-                        } else {
-                            theme::muted()
-                        },
-                    );
-                });
-            });
-            ui.add_space(6.0);
-            if connected {
-                let since = self.state.peer_since.load(Ordering::SeqCst);
-                let last = self.state.peer_last_auth.load(Ordering::SeqCst);
-                let fails = self.state.peer_fails.load(Ordering::SeqCst);
-                if !peer_name.is_empty() {
-                    ui.label(RichText::new(peer_name).size(16.0).color(theme::text()));
-                }
-                ui.label(
-                    RichText::new(format!(
-                        "{}'den beri • son doğrulama {} • {} hata",
-                        fmt_clock(since),
-                        fmt_clock(last),
-                        fails
-                    ))
-                    .size(10.5)
-                    .color(theme::muted()),
-                );
-            } else {
-                ui.label(
-                    RichText::new("Henüz bağlı cihaz yok")
-                        .size(13.0)
-                        .color(theme::text()),
-                );
-                ui.label(
-                    RichText::new("Telefondan bu ID ve şifreyle bağlan.")
-                        .size(10.5)
-                        .color(theme::dim()),
-                );
-                let fails = self.state.peer_fails.load(Ordering::SeqCst);
-                if fails > 0 {
-                    ui.label(
-                        RichText::new(format!("son denemeler: {} yanlış şifre", fails))
-                            .size(10.5)
-                            .color(theme::danger()),
-                    );
-                }
-            }
-            if !seen.is_empty() {
-                theme::divider(ui);
-                theme::section_label(ui, "SON CİHAZLAR");
-                for device in seen.iter().take(2) {
-                    ui.horizontal(|ui| {
-                        theme::icon_text(ui, theme::I_PHONE, 13.0, theme::dim());
-                        ui.label(RichText::new(&device.name).size(11.0).color(theme::text()));
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.label(
-                                RichText::new(crate::device::format_seen(device.last_seen))
-                                    .size(10.0)
-                                    .color(theme::dim()),
-                            );
-                        });
-                    });
-                }
-            }
-        });
-    }
-
-    fn card_signal(&mut self, ui: &mut egui::Ui) {
-        theme::card_frame().show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            ui.horizontal(|ui| {
-                theme::icon_text(ui, theme::I_WIFI, 16.0, theme::primary());
-                ui.label(
-                    RichText::new("SİNYAL SUNUCUSU")
-                        .size(12.5)
-                        .color(theme::text())
-                        .strong(),
-                );
-            });
-            ui.add_space(6.0);
-            egui::Frame::none()
-                .fill(theme::bg_panel())
-                .stroke(egui::Stroke::new(1.0_f32, theme::border()))
-                .rounding(egui::Rounding::same(10.0))
-                .inner_margin(egui::Margin::symmetric(10.0, 8.0))
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        theme::dot(ui, theme::success(), 6.0);
-                        ui.label(
-                            RichText::new(&self.signal_url)
-                                .font(theme::mono_font(10.5))
-                                .color(theme::text()),
-                        );
-                    });
-                });
-            ui.add_space(8.0);
-            if theme::icon_button_auto(
-                ui,
-                theme::I_SETTINGS,
-                "Adresi düzenle",
-                theme::alpha(Color32::WHITE, 6),
-                theme::text(),
-            )
-            .clicked()
-            {
-                self.new_pc_name = self.state.pc_name.lock().unwrap().clone();
-                self.new_password.clear();
-                self.settings_msg.clear();
-                self.show_settings = true;
-            }
-        });
-    }
-
-    fn card_update(&mut self, ui: &mut egui::Ui) {
-        theme::card_frame().show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            ui.horizontal(|ui| {
-                theme::icon_text(ui, theme::I_UPDATE, 16.0, theme::primary());
-                ui.label(
-                    RichText::new("GÜNCELLEME")
-                        .size(12.5)
-                        .color(theme::text())
-                        .strong(),
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(
-                        RichText::new(format!("v{}", crate::updater::current_version()))
-                            .font(theme::mono_font(10.5))
-                            .color(theme::dim()),
-                    );
-                });
-            });
-            let upd = self.state.update_status.lock().unwrap().clone();
-            let has_update = upd.contains("yeni sürüm") || upd.contains("kuruldu");
-            ui.label(RichText::new(upd).size(11.0).color(if has_update {
-                theme::success()
-            } else {
-                theme::muted()
-            }));
-            ui.add_space(8.0);
-            if theme::icon_button_auto(
-                ui,
-                theme::I_UPDATE,
-                "Güncellemeleri kontrol et",
-                theme::alpha(Color32::WHITE, 6),
-                theme::text(),
-            )
-            .clicked()
-            {
-                self.update_modal = UpdateModalState::Idle;
-            }
-        });
-    }
-
-    fn metric_card(&self, ui: &mut egui::Ui, icon: &str, label: &str, value: &str, color: Color32) {
-        egui::Frame::none()
-            .fill(theme::card())
-            .stroke(egui::Stroke::new(1.0_f32, theme::border()))
-            .rounding(egui::Rounding::same(16.0))
-            .inner_margin(egui::Margin::same(14.0))
-            .show(ui, |ui| {
-                ui.set_min_width(ui.available_width());
-                ui.set_min_height(52.0);
-                ui.horizontal(|ui| {
-                    let (r, _) =
-                        ui.allocate_exact_size(egui::vec2(34.0, 34.0), egui::Sense::hover());
-                    ui.painter()
-                        .circle_filled(r.center(), 17.0, theme::alpha(color, 24));
-                    ui.painter().text(
-                        r.center(),
-                        Align2::CENTER_CENTER,
-                        icon,
-                        theme::icon_font(18.0),
-                        color,
-                    );
-                    ui.add_space(4.0);
-                    ui.vertical(|ui| {
-                        ui.label(RichText::new(label).size(9.5).color(theme::dim()).strong());
-                        ui.label(
-                            RichText::new(value)
-                                .font(theme::mono_font(18.0))
-                                .color(color),
-                        );
-                    });
-                });
-            });
-    }
-
     fn central(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::none()
-                    .fill(theme::bg_deep())
-                    .inner_margin(egui::Margin::symmetric(18.0, 16.0)),
+                    .fill(theme::bg())
+                    .inner_margin(egui::Margin {
+                        left: 20.0,
+                        right: 20.0,
+                        top: 14.0,
+                        bottom: 14.0,
+                    }),
             )
             .show(ctx, |ui| {
-                theme::paint_background(ui, ui.max_rect().expand2(egui::vec2(18.0, 16.0)));
                 let avail = ui.available_size();
-                let events_h = 150.0;
-                let metrics_h = 84.0;
-                let preview_h = (avail.y - events_h - metrics_h - 54.0).max(280.0);
+                let header_h = 16.0;
+                let status_h = 30.0;
+                let drawer_h = if self.events_open { 186.0 } else { 30.0 };
+                let stage_h =
+                    (avail.y - header_h - 6.0 - status_h - 6.0 - drawer_h - 6.0).max(200.0);
 
                 ui.allocate_ui_with_layout(
-                    egui::vec2(avail.x, preview_h),
-                    egui::Layout::top_down(egui::Align::Min),
+                    egui::vec2(avail.x, header_h),
+                    egui::Layout::left_to_right(egui::Align::Center),
                     |ui| {
-                        self.preview_card(ctx, ui, preview_h);
+                        let t = ctx.input(|i| i.time);
+                        let pulse = ((t * 2.4).sin() * 0.5 + 0.5) as f32;
+                        let connected = self.state.peer_connected.load(Ordering::SeqCst);
+                        theme::dot(
+                            ui,
+                            if connected {
+                                theme::success()
+                            } else {
+                                theme::alpha(theme::muted(), 140)
+                            },
+                            5.0,
+                        );
+                        ui.add_space(2.0);
+                        ui.label(
+                            RichText::new("CANLI ÖNİZLEME")
+                                .size(9.5)
+                                .color(theme::muted())
+                                .strong(),
+                        );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let res = self.state.resolution.lock().unwrap().clone();
+                            ui.label(
+                                RichText::new(res)
+                                    .font(theme::mono_font(9.5))
+                                    .color(theme::muted()),
+                            );
+                            let _ = pulse;
+                        });
                     },
                 );
-                ui.add_space(12.0);
-                let ping = self.state.ping_ms.load(Ordering::SeqCst);
-                let fps = self.state.fps.load(Ordering::SeqCst);
-                let uinput = self.state.uinput_active.load(Ordering::SeqCst);
-                ui.columns(3, |cols| {
-                    self.metric_card(
-                        &mut cols[0],
-                        theme::I_BOLT,
-                        "GECİKME",
-                        &format!("{} ms", ping),
-                        theme::primary(),
-                    );
-                    self.metric_card(
-                        &mut cols[1],
-                        theme::I_MONITOR,
-                        "KARE HIZI",
-                        &format!("{} FPS", fps),
-                        theme::success(),
-                    );
-                    self.metric_card(
-                        &mut cols[2],
-                        theme::I_MOUSE,
-                        "GİRİŞ",
-                        if uinput { "AKTİF" } else { "KAPALI" },
+                ui.add_space(6.0);
+                ui.allocate_ui_with_layout(
+                    egui::vec2(avail.x, stage_h),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        self.preview_area(ctx, ui);
+                    },
+                );
+                ui.add_space(4.0);
+                ui.allocate_ui_with_layout(
+                    egui::vec2(avail.x, status_h),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        let ping = self.state.ping_ms.load(Ordering::SeqCst);
+                        let fps = self.state.fps.load(Ordering::SeqCst);
+                        let uinput = self.state.uinput_active.load(Ordering::SeqCst);
+                        small_metric(ui, "GECİKME", &format!("{} ms", ping));
+                        status_sep(ui);
+                        small_metric(ui, "FPS", &format!("{}", fps));
+                        status_sep(ui);
+                        small_metric(ui, "GİRİŞ", if uinput { "AKTİF" } else { "KAPALI" });
                         if uinput {
-                            theme::success()
-                        } else {
-                            theme::danger()
-                        },
-                    );
-                });
-                ui.add_space(12.0);
-                self.events_card(ui, events_h);
-            });
-    }
-
-    fn preview_card(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, height: f32) {
-        theme::card_frame().show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            ui.set_min_height((height - 36.0).max(140.0));
-            ui.horizontal(|ui| {
-                let t = ctx.input(|i| i.time);
-                let pulse = ((t * 2.4).sin() * 0.5 + 0.5) as f32;
-                let c = Color32::from_rgb(
-                    (34.0 + 26.0 * pulse) as u8,
-                    (211.0 - 14.0 * pulse) as u8,
-                    238,
+                            theme::dot(ui, theme::success(), 5.0);
+                        }
+                    },
                 );
-                theme::dot(ui, c, 7.0);
-                ui.label(
-                    RichText::new("CANLI ÖNİZLEME")
-                        .size(10.5)
-                        .color(theme::muted())
-                        .strong(),
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    theme::metric_pill(
-                        ui,
-                        "FPS",
-                        &format!("{}", self.state.fps.load(Ordering::SeqCst)),
-                    );
-                    let res = self.state.resolution.lock().unwrap().clone();
-                    theme::metric_pill(ui, "ÇÖZÜNÜRLÜK", &res);
-                });
+                ui.add_space(4.0);
+                self.events_drawer(ui, drawer_h);
             });
-            ui.add_space(8.0);
-            theme::divider(ui);
-            self.preview_area(ctx, ui);
-        });
     }
 
     fn clicker_available(&mut self) -> bool {
@@ -856,16 +669,16 @@ impl DesktopGui {
         let area_h = ui.available_height().max(160.0);
         let area = egui::Rect::from_min_size(ui.cursor().min, egui::vec2(area_w, area_h));
         ui.painter()
-            .rect_filled(area, egui::Rounding::same(14.0), theme::hex("#03050A"));
+            .rect_filled(area, egui::Rounding::same(10.0), theme::stage());
         ui.painter().rect_stroke(
             area,
-            egui::Rounding::same(14.0),
+            egui::Rounding::same(10.0),
             egui::Stroke::new(1.0_f32, theme::border()),
         );
 
         let frame = self.state.preview_jpeg.lock().unwrap().clone();
         let seq = self.state.preview_seq.load(Ordering::SeqCst);
-        if let Some((bytes, fw, fh)) = frame {
+        if let Some((bytes, _fw, _fh)) = frame {
             if seq != self.preview_seq {
                 if let Ok(img) = image::load_from_memory(&bytes) {
                     let rgba = img.to_rgba8();
@@ -895,12 +708,7 @@ impl DesktopGui {
                     tex.id(),
                     fit,
                     egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                    egui::Color32::WHITE,
-                );
-                ui.painter().rect_stroke(
-                    fit,
-                    egui::Rounding::same(10.0),
-                    egui::Stroke::new(1.0_f32, theme::alpha(theme::primary(), 55)),
+                    Color32::WHITE,
                 );
                 if let Some((cx, cy)) = *self.state.preview_cursor.lock().unwrap() {
                     let p =
@@ -915,45 +723,33 @@ impl DesktopGui {
                     ui.painter().add(egui::Shape::convex_polygon(
                         arrow,
                         Color32::WHITE,
-                        egui::Stroke::new(1.0_f32, egui::Color32::BLACK),
+                        egui::Stroke::new(1.0_f32, Color32::BLACK),
                     ));
                 }
                 if self.state.peer_connected.load(Ordering::SeqCst) {
                     let since = self.state.peer_since.load(Ordering::SeqCst);
-                    let bar_w = (fit.width() - 24.0).min(470.0).max(220.0);
                     let bar = egui::Rect::from_min_size(
-                        fit.left_top() + egui::vec2(12.0, 12.0),
-                        egui::vec2(bar_w, 30.0),
+                        fit.left_top() + egui::vec2(10.0, 10.0),
+                        egui::vec2(150.0, 24.0),
                     );
                     ui.painter().rect_filled(
                         bar,
-                        egui::Rounding::same(100.0),
-                        egui::Color32::from_black_alpha(190),
-                    );
-                    ui.painter().rect_stroke(
-                        bar,
-                        egui::Rounding::same(100.0),
-                        egui::Stroke::new(1.0_f32, theme::alpha(theme::success(), 110)),
+                        egui::Rounding::same(6.0),
+                        egui::Color32::from_black_alpha(180),
                     );
                     ui.painter().circle_filled(
-                        bar.left_center() + egui::vec2(14.0, 0.0),
-                        4.0,
+                        bar.left_center() + egui::vec2(11.0, 0.0),
+                        3.5,
                         theme::success(),
                     );
                     ui.painter().text(
-                        bar.left_center() + egui::vec2(26.0, 0.0),
+                        bar.left_center() + egui::vec2(22.0, 0.0),
                         egui::Align2::LEFT_CENTER,
-                        format!(
-                            "BAĞLANDI  •  {}'den beri  •  {} fps  •  {} ms",
-                            fmt_clock(since),
-                            self.state.fps.load(Ordering::SeqCst),
-                            self.state.ping_ms.load(Ordering::SeqCst),
-                        ),
-                        egui::FontId::proportional(11.5),
-                        theme::success(),
+                        format!("Bağlandı  {}", fmt_clock(since)),
+                        egui::FontId::proportional(9.5),
+                        theme::text2(),
                     );
                 }
-                let _ = (fw, fh);
                 self.preview_click(ctx, ui, area, fit);
             } else {
                 self.waiting_screen(ui, area);
@@ -967,61 +763,63 @@ impl DesktopGui {
         let alive = self.state.preview_alive.load(Ordering::SeqCst);
         let peer_since = self.state.peer_since.load(Ordering::SeqCst);
         let peer_connected = self.state.peer_connected.load(Ordering::SeqCst);
-        let (icon, color, title, msg) = if peer_since > 0 && !peer_connected {
+        let (title, msg, accent) = if peer_since > 0 && !peer_connected {
             (
-                theme::I_INFO,
-                theme::danger(),
                 "Bağlantı kesildi",
                 "Cihaz ayrıldı — yeniden bekleniyor…",
+                theme::danger(),
             )
         } else if peer_since == 0 {
             (
-                theme::I_MONITOR,
-                theme::alpha(theme::primary(), 150),
                 "Telefondan bağlanın",
                 "PCHome mobil uygulamasında bu ID ve şifreyi girin.",
+                theme::muted(),
             )
         } else if alive {
             (
-                theme::I_MONITOR,
-                theme::primary(),
                 "İlk kare bekleniyor…",
                 "Ekran akışı hazırlanıyor.",
+                theme::muted(),
             )
         } else {
             (
-                theme::I_MONITOR,
-                theme::alpha(theme::primary(), 150),
                 "Telefondan bağlanın",
                 "PCHome mobil uygulamasında bu ID ve şifreyi girin.",
+                theme::muted(),
             )
         };
         let t = ui.input(|i| i.time);
-        let pulse = ((t * 2.0).sin() * 0.5 + 0.5) as f32;
-        ui.painter().circle_stroke(
-            area.center(),
-            54.0 + pulse * 7.0,
-            egui::Stroke::new(1.0_f32, theme::alpha(color, 38)),
+        let center = area.center() - egui::vec2(0.0, 26.0);
+        for i in 1..=3 {
+            let r = 20.0 + i as f32 * 14.0;
+            ui.painter()
+                .circle_stroke(center, r, egui::Stroke::new(1.0_f32, theme::border()));
+        }
+        let angle = t as f32 * 0.9;
+        let end = center + egui::vec2(angle.cos() * 62.0, angle.sin() * 62.0);
+        ui.painter().line_segment(
+            [center, end],
+            egui::Stroke::new(1.0_f32, theme::alpha(accent, 80)),
         );
+        ui.painter().circle_filled(end, 2.0, accent);
+        ui.painter().circle_filled(center, 2.0, theme::muted());
+
         ui.painter().text(
-            area.center() - egui::vec2(0.0, 28.0),
-            Align2::CENTER_CENTER,
-            icon,
-            theme::icon_font(64.0),
-            color,
-        );
-        ui.painter().text(
-            area.center() + egui::vec2(0.0, 34.0),
+            area.center() + egui::vec2(0.0, 42.0),
             Align2::CENTER_CENTER,
             title,
-            FontId::proportional(21.0),
-            theme::text(),
+            FontId::proportional(13.5),
+            if title == "Bağlantı kesildi" {
+                theme::danger()
+            } else {
+                theme::text()
+            },
         );
         ui.painter().text(
             area.center() + egui::vec2(0.0, 60.0),
             Align2::CENTER_CENTER,
             msg,
-            FontId::proportional(13.0),
+            FontId::proportional(10.5),
             theme::muted(),
         );
         ui.allocate_rect(area, egui::Sense::hover());
@@ -1091,79 +889,92 @@ impl DesktopGui {
         }
     }
 
-    fn events_card(&mut self, ui: &mut egui::Ui, height: f32) {
-        egui::Frame::none()
-            .fill(theme::card())
-            .stroke(egui::Stroke::new(1.0_f32, theme::border()))
-            .rounding(egui::Rounding::same(16.0))
-            .inner_margin(egui::Margin::same(16.0))
-            .show(ui, |ui| {
-                ui.set_min_width(ui.available_width());
-                ui.set_min_height((height - 32.0).max(80.0));
-                ui.horizontal(|ui| {
-                    theme::icon_text(ui, theme::I_TERMINAL, 15.0, theme::primary());
-                    ui.label(
-                        RichText::new("OLAY AKIŞI")
-                            .size(10.5)
-                            .color(theme::muted())
-                            .strong(),
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if theme::icon_button_auto(
-                            ui,
-                            theme::I_TRASH,
-                            "Temizle",
-                            theme::alpha(Color32::WHITE, 6),
-                            theme::muted(),
-                        )
-                        .clicked()
-                        {
-                            self.state.clear_events();
-                        }
-                    });
-                });
-                ui.add_space(6.0);
-                theme::divider(ui);
-                let lines: Vec<String> = self
-                    .state
-                    .events
-                    .lock()
-                    .unwrap()
-                    .iter()
-                    .rev()
-                    .take(80)
-                    .cloned()
-                    .collect();
-                egui::ScrollArea::vertical()
-                    .max_height((height - 86.0).max(44.0))
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        if lines.is_empty() {
-                            ui.label(
-                                RichText::new(
-                                    "Henüz olay yok — telefon bağlanınca burada görünür.",
+    fn events_drawer(&mut self, ui: &mut egui::Ui, height: f32) {
+        let (rect, resp) =
+            ui.allocate_exact_size(egui::vec2(ui.available_width(), 28.0), egui::Sense::click());
+        ui.painter().rect_filled(
+            egui::Rect::from_min_max(
+                egui::pos2(rect.left(), rect.top()),
+                egui::pos2(rect.right(), rect.top() + 1.0),
+            ),
+            0.0,
+            theme::border(),
+        );
+        ui.painter().text(
+            egui::pos2(rect.left(), rect.center().y),
+            Align2::LEFT_CENTER,
+            "OLAYLAR",
+            FontId::proportional(9.0),
+            theme::muted(),
+        );
+        let count = self.state.events.lock().unwrap().len();
+        if resp.hovered() {
+            ui.painter()
+                .rect_filled(rect, egui::Rounding::same(4.0), theme::hover());
+        }
+        ui.painter().text(
+            egui::pos2(rect.right() - 16.0, rect.center().y),
+            Align2::RIGHT_CENTER,
+            count.to_string(),
+            FontId::proportional(9.5),
+            theme::muted(),
+        );
+        ui.painter().text(
+            egui::pos2(rect.right(), rect.center().y),
+            Align2::RIGHT_CENTER,
+            if self.events_open {
+                theme::I_CARET_DOWN
+            } else {
+                theme::I_CARET_RIGHT
+            },
+            theme::icon_font(13.0),
+            theme::muted(),
+        );
+        let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+        if resp.clicked() {
+            self.events_open = !self.events_open;
+        }
+
+        if self.events_open {
+            ui.add_space(4.0);
+            let lines: Vec<String> = self
+                .state
+                .events
+                .lock()
+                .unwrap()
+                .iter()
+                .rev()
+                .take(80)
+                .cloned()
+                .collect();
+            egui::ScrollArea::vertical()
+                .max_height((height - 38.0).max(40.0))
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    if lines.is_empty() {
+                        ui.label(
+                            RichText::new("Henüz olay yok.")
+                                .size(10.0)
+                                .color(theme::muted()),
+                        );
+                    }
+                    for line in lines {
+                        let color = event_color(&line);
+                        ui.horizontal_wrapped(|ui| {
+                            ui.spacing_mut().item_spacing.x = 6.0;
+                            theme::dot(ui, color, 4.0);
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(line)
+                                        .font(theme::mono_font(9.5))
+                                        .color(theme::text2()),
                                 )
-                                .size(11.0)
-                                .color(theme::dim()),
+                                .wrap(),
                             );
-                        }
-                        for line in lines {
-                            let color = event_color(&line);
-                            ui.horizontal_wrapped(|ui| {
-                                ui.spacing_mut().item_spacing.x = 7.0;
-                                theme::dot(ui, color, 4.0);
-                                ui.add(
-                                    egui::Label::new(
-                                        RichText::new(line)
-                                            .font(theme::mono_font(10.5))
-                                            .color(color),
-                                    )
-                                    .wrap(),
-                                );
-                            });
-                        }
-                    });
-            });
+                        });
+                    }
+                });
+        }
     }
 
     fn settings_window(&mut self, ctx: &egui::Context) {
@@ -1182,13 +993,12 @@ impl DesktopGui {
             .title_bar(false)
             .resizable(false)
             .collapsible(false)
-            .frame(theme::window_frame())
+            .frame(theme::panel_frame())
             .anchor(Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .show(ctx, |ui| {
-                ui.set_width(420.0);
+                ui.set_width(380.0);
                 ui.horizontal(|ui| {
-                    theme::icon_text(ui, theme::I_SETTINGS, 20.0, theme::primary());
-                    ui.label(RichText::new("Ayarlar").size(20.0).color(theme::text()));
+                    ui.label(RichText::new("Ayarlar").size(16.0).color(theme::text()));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if theme::icon_button(ui, theme::I_CLOSE, "Kapat", theme::muted()).clicked()
                         {
@@ -1198,10 +1008,10 @@ impl DesktopGui {
                 });
                 ui.label(
                     RichText::new("Bağlantı ve kimlik bilgileri")
-                        .size(11.0)
+                        .size(10.0)
                         .color(theme::muted()),
                 );
-                ui.add_space(16.0);
+                ui.add_space(14.0);
                 theme::field(
                     ui,
                     "SİNYAL SUNUCUSU",
@@ -1209,9 +1019,9 @@ impl DesktopGui {
                     "wss://sunucu-adresi/ws",
                     true,
                 );
-                ui.add_space(10.0);
+                ui.add_space(8.0);
                 theme::field(ui, "PC ADI", &mut pc_name, "SistemBey", false);
-                ui.add_space(10.0);
+                ui.add_space(8.0);
                 theme::field(
                     ui,
                     "YENİ ŞİFRE",
@@ -1223,7 +1033,7 @@ impl DesktopGui {
                     ui.add_space(6.0);
                     let ok = self.settings_msg.contains("güncellendi")
                         || self.settings_msg.contains("kaydedildi");
-                    ui.label(RichText::new(&self.settings_msg).size(11.0).color(if ok {
+                    ui.label(RichText::new(&self.settings_msg).size(10.0).color(if ok {
                         theme::success()
                     } else {
                         theme::danger()
@@ -1235,15 +1045,7 @@ impl DesktopGui {
                         close = true;
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if theme::icon_button_auto(
-                            ui,
-                            theme::I_CHECK,
-                            "Kaydet",
-                            theme::primary(),
-                            theme::hex("#041018"),
-                        )
-                        .clicked()
-                        {
+                        if theme::neon_button_auto(ui, "Kaydet").clicked() {
                             save = true;
                         }
                     });
@@ -1299,13 +1101,12 @@ impl DesktopGui {
             .title_bar(false)
             .resizable(false)
             .collapsible(false)
-            .frame(theme::window_frame())
+            .frame(theme::panel_frame())
             .anchor(Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .show(ctx, |ui| {
-                ui.set_width(430.0);
+                ui.set_width(390.0);
                 ui.horizontal(|ui| {
-                    theme::icon_text(ui, theme::I_UPDATE, 20.0, theme::primary());
-                    ui.label(RichText::new("Güncelleme").size(20.0).color(theme::text()));
+                    ui.label(RichText::new("Güncelleme").size(16.0).color(theme::text()));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if !locked
                             && theme::icon_button(ui, theme::I_CLOSE, "Kapat", theme::muted())
@@ -1317,51 +1118,43 @@ impl DesktopGui {
                 });
                 ui.label(
                     RichText::new("GitHub üzerindeki en son sürüm")
-                        .size(11.0)
+                        .size(10.0)
                         .color(theme::muted()),
                 );
-                ui.add_space(14.0);
+                ui.add_space(12.0);
                 match &self.update_modal {
                     UpdateModalState::Closed => {}
                     UpdateModalState::Idle => {
                         ui.label(
                             RichText::new("En son sürüm denetlenecek.")
                                 .size(12.0)
-                                .color(theme::text()),
+                                .color(theme::text2()),
                         );
                         ui.add_space(12.0);
-                        if theme::icon_button_auto(
-                            ui,
-                            theme::I_UPDATE,
-                            "Kontrol et",
-                            theme::primary(),
-                            theme::hex("#041018"),
-                        )
-                        .clicked()
-                        {
+                        if theme::neon_button_auto(ui, "Kontrol et").clicked() {
                             self.start_check();
                         }
                     }
                     UpdateModalState::Checking => {
                         ui.horizontal(|ui| {
-                            ui.add(egui::Spinner::new().color(theme::primary()));
+                            ui.add(egui::Spinner::new().color(theme::accent()));
                             ui.label(
                                 RichText::new("Denetleniyor…")
-                                    .size(12.0)
-                                    .color(theme::muted()),
+                                    .size(11.0)
+                                    .color(theme::text2()),
                             );
                         });
                     }
                     UpdateModalState::Available { info, size } => {
                         ui.label(
                             RichText::new(format!("Yeni sürüm: {}", info.version))
-                                .size(17.0)
-                                .color(theme::success())
+                                .size(15.0)
+                                .color(theme::text())
                                 .strong(),
                         );
                         ui.label(
                             RichText::new(format!("İndirme boyutu: {}", size))
-                                .size(10.5)
+                                .size(10.0)
                                 .color(theme::muted()),
                         );
                         if !info.notes.trim().is_empty() {
@@ -1370,66 +1163,49 @@ impl DesktopGui {
                             egui::ScrollArea::vertical()
                                 .max_height(140.0)
                                 .show(ui, |ui| {
-                                    ui.label(RichText::new(notes).size(11.0).color(theme::muted()));
+                                    ui.label(RichText::new(notes).size(10.0).color(theme::muted()));
                                 });
                         }
                         ui.add_space(12.0);
-                        if theme::icon_button_auto(
-                            ui,
-                            theme::I_UPDATE,
-                            &format!("Şimdi güncelle ({})", info.version),
-                            theme::primary(),
-                            theme::hex("#041018"),
-                        )
-                        .clicked()
+                        if theme::neon_button_auto(ui, &format!("Güncelle ({})", info.version))
+                            .clicked()
                         {
                             self.start_install();
                         }
                     }
                     UpdateModalState::UpToDate => {
                         ui.horizontal(|ui| {
-                            theme::icon_text(ui, theme::I_CHECK, 18.0, theme::success());
+                            theme::dot(ui, theme::success(), 5.0);
                             ui.label(
                                 RichText::new(format!(
                                     "Zaten güncel (v{})",
                                     crate::updater::current_version()
                                 ))
-                                .size(13.0)
-                                .color(theme::success())
-                                .strong(),
+                                .size(12.0)
+                                .color(theme::text2()),
                             );
                         });
                     }
                     UpdateModalState::Busy { phase } => {
                         ui.horizontal(|ui| {
-                            ui.add(egui::Spinner::new().color(theme::primary()));
-                            ui.label(RichText::new(phase).size(12.0).color(theme::text()));
+                            ui.add(egui::Spinner::new().color(theme::accent()));
+                            ui.label(RichText::new(phase).size(11.0).color(theme::text2()));
                         });
                         ui.add_space(6.0);
                         ui.label(
                             RichText::new("Kurulum bitmeden bu ekrandan çıkma!")
-                                .size(11.0)
-                                .color(theme::danger())
-                                .strong(),
+                                .size(10.0)
+                                .color(theme::danger()),
                         );
                     }
                     UpdateModalState::Failed { msg } => {
                         ui.label(
                             RichText::new(format!("Hata: {}", msg))
-                                .size(12.0)
-                                .color(theme::danger())
-                                .strong(),
+                                .size(11.0)
+                                .color(theme::danger()),
                         );
                         ui.add_space(12.0);
-                        if theme::icon_button_auto(
-                            ui,
-                            theme::I_REFRESH,
-                            "Tekrar dene",
-                            theme::alpha(Color32::WHITE, 6),
-                            theme::text(),
-                        )
-                        .clicked()
-                        {
+                        if theme::ghost_button_auto(ui, "Tekrar dene").clicked() {
                             self.update_modal = UpdateModalState::Idle;
                         }
                     }
@@ -1573,9 +1349,7 @@ impl eframe::App for DesktopGui {
         }
         theme::apply(ctx);
         let peer = self.state.peer_connected.load(Ordering::SeqCst);
-        if peer && !self.was_peer_connected {
-            // Telefon bağlanınca masaüstü penceresini öne getir; kullanıcı
-            // kimlik/şifre ve canlı önizlemeyi anında görsün.
+        if (peer && !self.was_peer_connected) || self.focus_request.swap(false, Ordering::SeqCst) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
             ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(

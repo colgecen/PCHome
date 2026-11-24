@@ -85,9 +85,10 @@ public class RecentStore {
             if (entry.resolution.isEmpty()) entry.resolution = keep.resolution;
             if (entry.thumbnail.isEmpty()) entry.thumbnail = keep.thumbnail;
             if (entry.lastSeen == 0) entry.lastSeen = keep.lastSeen;
-            if (!entry.rememberPassword && keep.rememberPassword) {
-                entry.password = keep.password;
-                entry.rememberPassword = true;
+            // "Şifreyi hatırla" kapalıysa kayıtlı şifreyi zorla geri getirme;
+            // kullanıcı bilinçli olarak kapatmış olabilir.
+            if (!entry.rememberPassword) {
+                entry.password = "";
             }
             items.remove(keep);
         }

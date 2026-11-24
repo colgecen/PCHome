@@ -23,6 +23,7 @@ public class Prefs {
     private static final String KEY_PINS = "pins";
     private static final String KEY_LAST_SERVER = "last_server";
     private static final String KEY_LAST_UPDATE_CHECK = "last_update_check";
+    private static final String KEY_REMEMBER_PASSWORD = "remember_password";
     private static final int MAX_RECENT = 8;
 
     private final SharedPreferences sp;
@@ -63,6 +64,14 @@ public class Prefs {
 
     public int getLastServerIndex() {
         return sp.getInt(KEY_LAST_SERVER, 0);
+    }
+
+    public boolean getRememberPassword() {
+        return sp.getBoolean(KEY_REMEMBER_PASSWORD, true);
+    }
+
+    public void setRememberPassword(boolean remember) {
+        sp.edit().putBoolean(KEY_REMEMBER_PASSWORD, remember).apply();
     }
 
     public long getLastUpdateCheck() {

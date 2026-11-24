@@ -81,22 +81,16 @@
                 app:lottie_rawRes="@raw/pulse"
                 app:lottie_speed="0.85" />
 
-            <FrameLayout
-                android:layout_width="88dp"
-                android:layout_height="88dp"
+            <ImageView
+                android:layout_width="92dp"
+                android:layout_height="92dp"
                 android:layout_gravity="center"
-                android:background="@drawable/bg_logo_tile"
+                android:background="@drawable/bg_icon_tile"
+                android:clipToOutline="true"
+                android:contentDescription="@string/app_name"
                 android:elevation="10dp"
-                android:outlineProvider="background">
-
-                <ImageView
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_gravity="center"
-                    android:contentDescription="@string/app_name"
-                    android:src="@drawable/ic_monitor_mark"
-                    app:tint="@color/white" />
-            </FrameLayout>
+                android:scaleType="centerCrop"
+                android:src="@mipmap/ic_launcher" />
         </FrameLayout>
 
         <com.google.android.material.textview.MaterialTextView
