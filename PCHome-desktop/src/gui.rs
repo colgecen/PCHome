@@ -367,6 +367,10 @@ impl DesktopGui {
                     v.widgets.inactive.bg_fill = handle;
                     v.widgets.hovered.bg_fill = Color32::from_gray(235);
                     v.widgets.active.bg_fill = Color32::from_gray(245);
+                    // Sol panel scrollbar'ı köşesiz (radius yok).
+                    v.widgets.inactive.rounding = egui::Rounding::same(0.0);
+                    v.widgets.hovered.rounding = egui::Rounding::same(0.0);
+                    v.widgets.active.rounding = egui::Rounding::same(0.0);
                     let vis = if hovered {
                         egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded
                     } else {
