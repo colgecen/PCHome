@@ -223,8 +223,13 @@ public class SignalClient {
             @Override
             public void onFailure(@NonNull WebSocket ws, @NonNull Throwable t, Response response) {
                 connected = false;
-                String detail = "Sinyal (" + hostOf(serverUrl) + "): "
-                        + String.valueOf(t.getMessage());
+                String reason = t.getMessage();
+                if (reason == null || reason.trim().isEmpty()) {
+                    // Render/Cloudflare bazen nedensiz kapatır; "null" yerine
+                    // anlaşılır bir tür adı göster.
+                    reason = t.getClass().getSimpleName();
+                }
+                String detail = "Sinyal (" + hostOf(serverUrl) + "): " + reason;
                 Log.e(TAG, "WebSocket hatası: " + detail, t);
                 if (listener != null) listener.onError(detail);
                 if (!manualClose && !authFailed) {

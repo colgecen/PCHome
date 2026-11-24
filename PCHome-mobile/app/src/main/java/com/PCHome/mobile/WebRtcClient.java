@@ -170,18 +170,26 @@ public class WebRtcClient {
                     Diag.phase(appContext, "medya-hazır");
                 }
                 startJoinWatchdog();
+                // Kısa sinyal kesintisi sırasında arayüz "hata" göstermiş
+                // olabilir; görüntü hâlâ akıyorsa durumu düzelt.
+                if (isP2pHealthy() && state != ConnectionState.CONNECTED) {
+                    state = ConnectionState.CONNECTED;
+                    notifyStateChanged();
+                }
             }
 
             @Override
             public void onDisconnected() {
                 Diag.phase(appContext, "sinyal-kapandı");
+                // P2P sağlıklıysa sinyal kopması görüntüyü etkilemez. Bu
+                // durumda medya durumunu DISCONNECTED yapmak, çalışan yayın
+                // için ekranda kalıcı "bağlantı kesildi" yazısı bırakıyordu.
+                if (isP2pHealthy()) {
+                    return;
+                }
                 state = ConnectionState.DISCONNECTED;
                 notifyStateChanged();
-                // P2P sağlıklıysa sinyal kopması görüntüyü etkilemez; yalnız
-                // P2P de öldüyse kurtarma planla.
-                if (!isP2pHealthy()) {
-                    scheduleRecovery("sinyal-koptu", 3000);
-                }
+                scheduleRecovery("sinyal-koptu", 3000);
             }
 
             @Override
@@ -192,12 +200,16 @@ public class WebRtcClient {
             @Override
             public void onError(String error) {
                 Diag.phase(appContext, "sinyal-hata: " + error);
+                // Sinyal yalnızca yeni oturum kurmak için gerekli; P2P
+                // sağlıklıyken kopması görüntüyü bozmaz. Bu yüzden kalıcı
+                // hata durumuna geçme, SignalClient kendi yeniden dener.
+                if (isP2pHealthy()) {
+                    return;
+                }
                 state = ConnectionState.FAILED;
                 notifyStateChanged();
                 if (listener != null) listener.onError(error);
-                if (!isP2pHealthy()) {
-                    scheduleRecovery("sinyal-hata", 5000);
-                }
+                scheduleRecovery("sinyal-hata", 5000);
             }
         }, phoneName, phoneOs, BuildConfig.VERSION_NAME);
         signalClient.connect();

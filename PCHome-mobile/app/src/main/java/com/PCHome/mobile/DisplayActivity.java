@@ -619,6 +619,10 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                 if (!firstFrameRendered) {
                     streamStatus.setText(R.string.conn_phase_video);
                     streamStatus.setVisibility(View.VISIBLE);
+                } else {
+                    // Kısa bir kopma sırasında gösterilen hata metni,
+                    // bağlantı geri gelince ekranda kalmasın.
+                    streamStatus.setVisibility(View.GONE);
                 }
             } else if (state == WebRtcClient.ConnectionState.DISCONNECTED) {
                 saveRecent();
