@@ -11,11 +11,16 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.airbnb.lottie.LottieAnimationView;
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.checkbox.MaterialCheckBox;
+import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
 
@@ -31,10 +36,11 @@ public class PinActivity extends AppCompatActivity {
     private AutoCompleteTextView serverEdit;
     private TextInputEditText pcIdEdit;
     private TextInputEditText passwordEdit;
-    private MaterialCheckBox rememberCheck;
+    private MaterialSwitch rememberCheck;
     private MaterialTextView updateStateText;
     private RecyclerView recentGrid;
     private MaterialTextView recentEmpty;
+    private LottieAnimationView heroPulse;
     private Prefs prefs;
     private RecentStore recentStore;
     private RecentAdapter recentAdapter;
@@ -42,9 +48,11 @@ public class PinActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         Diag.init(this);
         setContentView(R.layout.activity_pin);
         showPendingCrash();
+        applyWindowInsets();
 
         serverEdit = findViewById(R.id.server);
         pcIdEdit = findViewById(R.id.pc_id_input);
@@ -54,10 +62,15 @@ public class PinActivity extends AppCompatActivity {
         recentEmpty = findViewById(R.id.recent_empty);
         updateStateText = findViewById(R.id.update_state_text);
         updateStateText.setText(getString(R.string.update_idle));
+        heroPulse = findViewById(R.id.hero_pulse);
         MaterialTextView versionFooter = findViewById(R.id.version_footer);
-        versionFooter.setText("PCHome v" + BuildConfig.VERSION_NAME);
+        versionFooter.setText("PCHome v" + BuildConfig.VERSION_NAME
+                + " • WebRTC • uçtan uca");
+        MaterialTextView versionPill = findViewById(R.id.version_pill);
+        versionPill.setText(getString(R.string.version_pill, BuildConfig.VERSION_NAME));
         prefs = new Prefs(this);
         recentStore = new RecentStore(this);
+        playEntrance();
 
         // Sunucu adresi gömülü GELMEZ (anonim): kullanıcı eliyle yazar.
         // Daha önce yazılan adresler aşağıda öneri olarak çıkar.
@@ -97,8 +110,10 @@ public class PinActivity extends AppCompatActivity {
             return false;
         });
 
-        // Son Girilenler ızgarası (2 sütun kare kart).
-        recentGrid.setLayoutManager(new GridLayoutManager(this, 2));
+        // Son bağlantılar: yatay, kaydırılabilir kart şeridi.
+        recentGrid.setLayoutManager(new LinearLayoutManager(
+                this, LinearLayoutManager.HORIZONTAL, false));
+        recentGrid.setItemAnimator(null);
         recentAdapter = new RecentAdapter(new RecentAdapter.Listener() {
             @Override
             public void onOpen(RecentPc pc) {
@@ -134,7 +149,54 @@ public class PinActivity extends AppCompatActivity {
         recentGrid.setAdapter(recentAdapter);
 
         MaterialButton connectButton = findViewById(R.id.connect_button);
-        connectButton.setOnClickListener(v -> attemptConnect());
+        connectButton.setOnClickListener(v -> {
+            tick();
+            attemptConnect();
+        });
+    }
+
+    /** Edge-to-edge: durum çubuğu/klavye altında kalan içeriği kaydır. */
+    private void applyWindowInsets() {
+        final View scroll = findViewById(R.id.pin_scroll);
+        ViewCompat.setOnApplyWindowInsetsListener(scroll, (v, insets) -> {
+            Insets bars = insets.getInsets(
+                    WindowInsetsCompat.Type.systemBars()
+                            | WindowInsetsCompat.Type.displayCutout()
+                            | WindowInsetsCompat.Type.ime());
+            v.setPadding(0, bars.top, 0, bars.bottom);
+            return insets;
+        });
+    }
+
+    /** Açılışta içeriği yumuşakça yukarı kaydırarak göster. */
+    private void playEntrance() {
+        View content = findViewById(R.id.pin_content);
+        float dy = 18f * getResources().getDisplayMetrics().density;
+        content.setAlpha(0f);
+        content.setTranslationY(dy);
+        content.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(420L)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                .start();
+    }
+
+    /** 25 ms'lik dokunsal geri bildirim. */
+    private void tick() {
+        try {
+            android.os.Vibrator vib =
+                    (android.os.Vibrator) getSystemService(VIBRATOR_SERVICE);
+            if (vib != null && vib.hasVibrator()) {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    vib.vibrate(android.os.VibrationEffect.createOneShot(
+                            25, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                } else {
+                    vib.vibrate(25);
+                }
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     /**
@@ -159,7 +221,7 @@ public class PinActivity extends AppCompatActivity {
         tv.setTextIsSelectable(true);
         tv.setPadding(24, 24, 24, 24);
         scroll.addView(tv);
-        new androidx.appcompat.app.AlertDialog.Builder(this)
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
                 .setTitle("Önceki çalışta çökme oldu")
                 .setMessage("Bu rapor bağlantı sorununun sebebini gösterir:")
                 .setView(scroll)
@@ -199,8 +261,19 @@ public class PinActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onPause() {
+        if (heroPulse != null) {
+            heroPulse.pauseAnimation();
+        }
+        super.onPause();
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
+        if (heroPulse != null) {
+            heroPulse.playAnimation();
+        }
         refreshRecent();
         // Güncelleme denetimi (Faz 5'te UpdateChecker bağlanır).
         checkForUpdate();
@@ -210,6 +283,15 @@ public class PinActivity extends AppCompatActivity {
         List<RecentPc> items = recentStore.list();
         recentAdapter.setItems(items);
         recentEmpty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+        // Form boşsa en son cihazı doldur: tek dokunuşla "Bağlan" yetsin.
+        if (!items.isEmpty() && pcIdEdit.getText().length() == 0) {
+            RecentPc latest = items.get(0);
+            pcIdEdit.setText(latest.pcId);
+            if (latest.rememberPassword && latest.password.length() == 6) {
+                passwordEdit.setText(latest.password);
+                rememberCheck.setChecked(true);
+            }
+        }
     }
 
     private void openConnection(String server, String pcId, String password, boolean remember) {
@@ -282,14 +364,14 @@ public class PinActivity extends AppCompatActivity {
         MaterialButton action = body.findViewById(R.id.update_dialog_action);
         MaterialButton close = body.findViewById(R.id.update_dialog_close);
 
-        title.setText(R.string.update_open);
+        title.setText(R.string.update_title);
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(body)
                 .setCancelable(true)
                 .create();
 
         Runnable showIdle = () -> {
-            text.setText(R.string.update_idle);
+            text.setText(R.string.update_idle_dialog);
             notesScroll.setVisibility(View.GONE);
             progress.setVisibility(View.GONE);
             action.setVisibility(View.VISIBLE);

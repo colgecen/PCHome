@@ -1,7 +1,9 @@
 package com.PCHome.mobile.ui;
 
-import android.graphics.Color;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -27,7 +29,8 @@ public class NeonKeyboard {
 
     public void build(LinearLayout container, OnKeyListener listener) {
         container.removeAllViews();
-        int rowHeight = (int) (48 * container.getResources().getDisplayMetrics().density);
+        float density = container.getResources().getDisplayMetrics().density;
+        int rowHeight = (int) (40 * density);
         for (String[] row : ROWS) {
             LinearLayout rowLayout = new LinearLayout(container.getContext());
             rowLayout.setOrientation(LinearLayout.HORIZONTAL);
@@ -35,20 +38,22 @@ public class NeonKeyboard {
             for (String label : row) {
                 int code = linuxCodeForLabel(label);
                 Button btn = new Button(container.getContext());
+                boolean special = label.length() > 1 && !"SPACE".equals(label);
                 btn.setText(label);
                 btn.setAllCaps(true);
-                btn.setTypeface(Typeface.MONOSPACE);
-                btn.setTextColor(Color.BLACK);
-                btn.setTextSize(label.length() > 1 ? 12f : 16f);
+                btn.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+                btn.setTextColor(special ? 0xFF67E8F9 : 0xFFF1F5F9);
+                btn.setTextSize(label.length() > 1 ? 10f : 14f);
                 btn.setGravity(Gravity.CENTER);
                 btn.setMinWidth(0);
                 btn.setMinimumWidth(0);
                 btn.setMinHeight(0);
                 btn.setMinimumHeight(0);
                 btn.setPadding(0, 0, 0, 0);
-                btn.setBackgroundColor(0xFF00E5FF);
+                btn.setBackground(keyBackground(density, special));
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, rowHeight, 1f);
-                lp.setMargins(2, 2, 2, 2);
+                int gap = Math.round(2.5f * density);
+                lp.setMargins(gap, gap, gap, gap);
                 btn.setLayoutParams(lp);
                 btn.setOnTouchListener((v, event) -> {
                     int action = event.getActionMasked();
@@ -64,6 +69,16 @@ public class NeonKeyboard {
             }
             container.addView(rowLayout);
         }
+    }
+
+    /** Koyu cam tuş + neon ripple; harfler beyaz, özel tuşlar camgöbeği. */
+    private RippleDrawable keyBackground(float density, boolean special) {
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(special ? 0xFF122033 : 0xFF0B1422);
+        bg.setCornerRadius(9 * density);
+        bg.setStroke(Math.round(1 * density), 0xFF1E2A3E);
+        return new RippleDrawable(
+                ColorStateList.valueOf(0x5522D3EE), bg, null);
     }
 
     private int linuxCodeForLabel(String label) {

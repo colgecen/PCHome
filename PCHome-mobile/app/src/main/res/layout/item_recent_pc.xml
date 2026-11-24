@@ -1,92 +1,118 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
+    android:layout_width="280dp"
     android:layout_height="wrap_content"
-    android:layout_margin="6dp"
-    app:cardCornerRadius="14dp"
-    app:cardElevation="4dp"
-    app:strokeWidth="1dp"
-    app:strokeColor="@color/PCHome_border">
+    android:layout_marginEnd="12dp"
+    android:layout_marginBottom="4dp"
+    android:clickable="true"
+    android:focusable="true"
+    app:cardBackgroundColor="@color/PCHome_surface"
+    app:cardCornerRadius="20dp"
+    app:cardElevation="0dp"
+    app:rippleColor="@color/PCHome_surface_hover"
+    app:strokeColor="@color/PCHome_border"
+    app:strokeWidth="1dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- Kare kutucuk: PC'nin son görüntüsü + sil düğmesi -->
         <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="150dp"
-            android:background="@color/PCHome_background">
+            android:layout_height="146dp"
+            android:background="@color/PCHome_background_deep">
 
             <ImageView
                 android:id="@+id/recent_thumb"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:scaleType="centerCrop"
-                android:contentDescription="@string/recent_thumb_desc" />
+                android:contentDescription="@string/recent_thumb_desc"
+                android:scaleType="centerCrop" />
 
-            <com.google.android.material.button.MaterialButton
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_thumb_scrim" />
+
+            <ImageView
                 android:id="@+id/recent_delete"
-                style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
                 android:layout_gravity="top|end"
-                android:layout_margin="6dp"
-                android:insetLeft="0dp"
-                android:insetRight="0dp"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
+                android:layout_margin="10dp"
+                android:background="@drawable/bg_icon_button"
+                android:clickable="true"
                 android:contentDescription="@string/recent_delete_desc"
-                app:icon="@android:drawable/ic_menu_delete"
-                app:iconSize="18dp"
-                app:iconTint="@color/PCHome_danger"
-                app:backgroundTint="@color/black" />
+                android:focusable="true"
+                android:padding="8dp"
+                android:src="@drawable/ic_trash"
+                app:tint="@color/white" />
         </FrameLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="10dp">
+            android:paddingStart="14dp"
+            android:paddingTop="12dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="14dp">
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/recent_title"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textAppearance="?attr/textAppearanceTitleSmall"
-                android:textColor="@color/PCHome_cyan"
-                android:singleLine="true"
-                android:ellipsize="end" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/recent_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:singleLine="true"
+                    android:textColor="@color/PCHome_text"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginStart="6dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_chevron"
+                    app:tint="@color/PCHome_dim" />
+            </LinearLayout>
 
             <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/recent_subtitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="@color/PCHome_text"
-                android:fontFamily="monospace"
-                android:textSize="11sp"
-                android:layout_marginTop="2dp" />
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textColor="@color/PCHome_muted"
+                android:textSize="11sp" />
 
             <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/recent_password"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:layout_marginTop="5dp"
                 android:textColor="@color/PCHome_cyan"
-                android:fontFamily="monospace"
-                android:textSize="13sp"
-                android:layout_marginTop="2dp" />
+                android:textSize="11sp" />
 
             <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/recent_last_seen"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:textColor="@color/PCHome_muted"
-                android:layout_marginTop="4dp" />
+                android:layout_marginTop="5dp"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textColor="@color/PCHome_dim"
+                android:textSize="10sp" />
         </LinearLayout>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

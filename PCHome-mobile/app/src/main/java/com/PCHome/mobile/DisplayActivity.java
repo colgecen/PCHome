@@ -1,6 +1,8 @@
 package com.PCHome.mobile;
 
+import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -18,10 +20,16 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.PCHome.mobile.control.KeyCodeMap;
 import com.PCHome.mobile.ui.NeonKeyboard;
 import com.PCHome.mobile.ui.ReticleView;
+import com.google.android.material.button.MaterialButton;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -42,6 +50,10 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private ReticleView reticle;
     private TextView streamStatus;
     private TextView infoChip;
+    private TextView infoTitle;
+    private View connDot;
+    private View topOverlay;
+    private View controlBar;
     private LinearLayout keyboardContainer;
     private WebRtcClient webRtcClient;
     private RecentStore recentStore;
@@ -71,6 +83,8 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
 
     private int pcWidth = 1920;
     private int pcHeight = 1080;
+    /** Klavye açıkken control_bar büyür; video alanı bu taban yüksekliği kullanır. */
+    private int dockBaseHeight = 0;
     private int mode = MODE_DIRECT;
     private float virtX = pcWidth / 2f;
     private float virtY = pcHeight / 2f;
@@ -100,13 +114,30 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         }
         Diag.phase(this, "ekran-açıldı");
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        enterImmersive();
         setContentView(R.layout.activity_display);
 
         surfaceView = findViewById(R.id.surface_view);
         reticle = findViewById(R.id.reticle);
         streamStatus = findViewById(R.id.stream_status);
         infoChip = findViewById(R.id.info_chip);
+        infoTitle = findViewById(R.id.info_title);
+        connDot = findViewById(R.id.conn_dot);
+        topOverlay = findViewById(R.id.top_overlay);
+        controlBar = findViewById(R.id.control_bar);
         keyboardContainer = findViewById(R.id.keyboard_container);
+
+        applyHudInsets();
+        ((TextView) findViewById(R.id.hud_version))
+                .setText("v" + BuildConfig.VERSION_NAME);
+
+        // Video alanı; üst/alt HUD yükseklikleri değişince (döndürme,
+        // klavye, inset) yeniden hesaplanmalı.
+        View parent = (View) surfaceView.getParent();
+        parent.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyAspectLayout());
+        topOverlay.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyAspectLayout());
+        controlBar.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> applyAspectLayout());
+        surfaceView.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> updateReticleRect());
 
 
         uiHandler = new Handler(getMainLooper());
@@ -129,7 +160,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         if (password == null) password = "";
         pcId = pcId.replaceAll("[^0-9]", "");
         password = password.replaceAll("[^0-9]", "");
-        infoChip.setText("PC " + pcId + " • v" + BuildConfig.VERSION_NAME);
+        infoChip.setText("PC " + pcId);
         streamStatus.setText(R.string.conn_phase_signal);
         streamStatus.setVisibility(View.VISIBLE);
         recentStore = new RecentStore(this);
@@ -186,8 +217,48 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     public void onConfigurationChanged(android.content.res.Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         if (surfaceView != null) {
+            // Yeni ölçüler oturduktan SONRA hesapla; aksi hâlde eski
+            // portre boyutlarıyla hesaplanan video şeridi ekranda kalıyordu.
             surfaceView.post(this::applyAspectLayout);
+            surfaceView.postDelayed(this::applyAspectLayout, 120L);
         }
+    }
+
+    /** Tam ekran, immersive; durum/navigasyon çubukları kaydırmayla gelir. */
+    private void enterImmersive() {
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(Color.TRANSPARENT);
+        WindowInsetsControllerCompat controller =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        controller.hide(WindowInsetsCompat.Type.systemBars());
+        controller.setSystemBarsBehavior(
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+    }
+
+    /** HUD'u çentik/durum çubuğu güvenli alanına yerleştir. */
+    private void applyHudInsets() {
+        View root = findViewById(android.R.id.content);
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            Insets cut = insets.getInsets(WindowInsetsCompat.Type.displayCutout());
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            topOverlay.setPadding(16 + cut.left, 12 + bars.top, 16 + cut.right, 16);
+            controlBar.setPadding(10 + cut.left, 9, 10 + cut.right, 9 + bars.bottom);
+            v.post(this::applyAspectLayout);
+            return insets;
+        });
+    }
+
+    /** Gerçek video dikdörtgenini (letterbox dahil) reticle'a bildir. */
+    private void updateReticleRect() {
+        if (surfaceView == null || reticle == null) {
+            return;
+        }
+        reticle.setVideoRect(
+                surfaceView.getLeft(),
+                surfaceView.getTop(),
+                surfaceView.getLeft() + surfaceView.getWidth(),
+                surfaceView.getTop() + surfaceView.getHeight());
     }
 
     private void setupHud() {
@@ -204,8 +275,12 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         btnMode.setOnClickListener(v -> {
             mode = (mode == MODE_DIRECT) ? MODE_TRACKPAD : MODE_DIRECT;
             boolean direct = mode == MODE_DIRECT;
-            btnMode.setText(direct ? "DOĞRUDAN" : "TOUCHPAD");
-            infoChip.setText("PC " + pcId + " • " + (direct ? "DOĞRUDAN" : "TOUCHPAD"));
+            btnMode.setText(direct ? R.string.mode_direct : R.string.mode_trackpad);
+            if (btnMode instanceof MaterialButton) {
+                ((MaterialButton) btnMode).setIconResource(
+                        direct ? R.drawable.ic_touch : R.drawable.ic_mouse);
+            }
+            refreshInfoChip();
             tick();
         });
         btnLeft.setOnClickListener(v -> {
@@ -248,7 +323,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         btnKeyboard.setOnClickListener(v -> {
             boolean show = keyboardContainer.getVisibility() != View.VISIBLE;
             keyboardContainer.setVisibility(show ? View.VISIBLE : View.GONE);
-            btnKeyboard.setText(show ? "GİZLE" : "ABC");
+            btnKeyboard.setText(show ? "GİZLE" : getString(R.string.keyboard));
         });
     }
 
@@ -288,10 +363,17 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         tick();
     }
 
+    /** Yapışkan değiştiriciyi neon vurguyla işaretle (arka planı bozmadan). */
     private void tint(View v, boolean active) {
-        if (v != null) {
-            v.setBackgroundColor(active ? 0xFFFF2A55 : 0xFF00F4FF);
+        if (!(v instanceof MaterialButton)) {
+            return;
         }
+        MaterialButton b = (MaterialButton) v;
+        b.setBackgroundTintList(ColorStateList.valueOf(
+                active ? 0xFF22D3EE : 0xFF122033));
+        b.setTextColor(active ? 0xFF041018 : 0xFFE2E8F0);
+        b.setIconTint(ColorStateList.valueOf(
+                active ? 0xFF041018 : 0xFF94A3B8));
     }
 
     private void releaseModifiers() {
@@ -312,23 +394,16 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         });
     }
 
+    /** Yatay ↔ dikey geçişi; 180° ters çevirme yapmaz. */
     private void rotateScreen() {
-        int[] orientations = {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2
-                        ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE : 0,
-                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE,
-                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
-                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT,
-        };
-        Integer current = getRequestedOrientation();
-        int idx = 0;
-        for (int i = 0; i < orientations.length; i++) {
-            if (orientations[i] == current) {
-                idx = i;
-                break;
-            }
-        }
-        setRequestedOrientation(orientations[(idx + 1) % orientations.length]);
+        int current = getRequestedOrientation();
+        boolean portrait = current == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                || current == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT
+                || current == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT;
+        setRequestedOrientation(portrait
+                ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        tick();
     }
 
     private void processTouch(MotionEvent e) {
@@ -390,17 +465,32 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         return new float[]{px, py};
     }
 
-    /** VideoSurfaceView'ı ekranın ortasında doğru 16:9 oranında tutar. */
+    /**
+     * VideoSurfaceView'ı üst/alt HUD arasında, doğru 16:9 oranında ortalar.
+     * Her çağrıda güncel ebeveyn/HUD ölçüleriyle yeniden hesaplanır; böylece
+     * döndürme ve klavye açılıp kapanması eski (klipsli) yerleşimi bırakmaz.
+     */
     private void applyAspectLayout() {
         if (surfaceView == null || !(surfaceView.getParent() instanceof FrameLayout)) {
             return;
         }
         FrameLayout parent = (FrameLayout) surfaceView.getParent();
-        int availW = parent.getWidth();
-        int availH = parent.getHeight();
-        View bar = findViewById(R.id.control_bar);
-        int bottomInset = bar != null ? bar.getHeight() : 0;
-        availH -= bottomInset;
+        int parentW = parent.getWidth();
+        int parentH = parent.getHeight();
+        int topInset = topOverlay != null ? topOverlay.getHeight() : 0;
+        int bottomInset = 0;
+        if (controlBar != null) {
+            // Klavye açılınca dock yukarı büyür; videoyu sıfıra indirmek
+            // yerine klavye videonun altını geçici olarak örtsün.
+            if (keyboardContainer == null
+                    || keyboardContainer.getVisibility() != View.VISIBLE
+                    || dockBaseHeight == 0) {
+                dockBaseHeight = controlBar.getHeight();
+            }
+            bottomInset = dockBaseHeight;
+        }
+        int availW = parentW;
+        int availH = parentH - topInset - bottomInset;
         if (availW <= 0 || availH <= 0) {
             return;
         }
@@ -411,15 +501,9 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             height = availH;
             width = (int) (availH * videoAspect);
         }
-        // Yalnız boyut değiştiyse yeniden düzenle; her karede layout
-        // isteği oluşturmayalım.
-        if (surfaceView.getWidth() == width && surfaceView.getHeight() == height) {
-            return;
-        }
-        int left = (availW - width) / 2;
-        int top = (availH - height) / 2;
-        FrameLayout.LayoutParams lp =
-                new FrameLayout.LayoutParams(width, height);
+        int left = (parentW - width) / 2;
+        int top = topInset + (availH - height) / 2;
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(width, height);
         lp.gravity = android.view.Gravity.TOP | android.view.Gravity.CENTER_HORIZONTAL;
         lp.topMargin = top;
         surfaceView.setLayoutParams(lp);
@@ -611,6 +695,14 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     @Override
     public void onStateChanged(WebRtcClient.ConnectionState state) {
         runOnUiThread(() -> {
+            if (connDot != null) {
+                int color = state == WebRtcClient.ConnectionState.CONNECTED
+                        ? 0xFF34D399
+                        : state == WebRtcClient.ConnectionState.CONNECTING
+                                ? 0xFFFBBF24 : 0xFFFB7185;
+                ViewCompat.setBackgroundTintList(connDot,
+                        ColorStateList.valueOf(color));
+            }
             if (state == WebRtcClient.ConnectionState.CONNECTED) {
                 markConnected();
                 // İlk kare gelene kadar durumu görünür tut; siyah ekranda
@@ -753,15 +845,20 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         pcHeight = height;
         deviceRes = width + "x" + height;
         persistDeviceFields();
-        runOnUiThread(this::refreshInfoChip);
+        runOnUiThread(() -> {
+            refreshInfoChip();
+            applyAspectLayout();
+        });
     }
 
     /** Üst bilgi çipi: isim • çözünürlük • kip. */
     private void refreshInfoChip() {
         String name = deviceName.isEmpty() ? ("PC " + pcId) : deviceName;
-        String res = deviceRes.isEmpty() ? "" : (" • " + deviceRes);
-        String kip = mode == MODE_DIRECT ? "DOĞRUDAN" : "TOUCHPAD";
-        infoChip.setText(name + res + " • " + kip + " • v" + BuildConfig.VERSION_NAME);
+        infoTitle.setText(name);
+        String res = deviceRes.isEmpty() ? "Hazırlanıyor…" : deviceRes;
+        String kip = getString(mode == MODE_DIRECT
+                ? R.string.mode_direct : R.string.mode_trackpad);
+        infoChip.setText(res + " • " + kip);
     }
 
     /** Tuşlara hafif dokunsal geri bildirim (25ms). */

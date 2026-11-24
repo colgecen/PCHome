@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.RectF;
 import android.util.AttributeSet;
 import android.view.View;
 
@@ -17,6 +18,9 @@ public class ReticleView extends View {
     private final Paint cursorFill = new Paint();
     private final Paint cursorOutline = new Paint();
     private final Path cursorPath = new Path();
+    private final RectF videoRect = new RectF();
+    private final float density;
+    private final Paint glowPaint = new Paint();
     private float x = 0f;
     private float y = 0f;
     private boolean visible = false;
@@ -27,16 +31,21 @@ public class ReticleView extends View {
 
     public ReticleView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
-        borderPaint.setColor(0x5500F4FF);
+        density = getResources().getDisplayMetrics().density;
+        borderPaint.setColor(0x7722D3EE);
         borderPaint.setStyle(Paint.Style.STROKE);
-        borderPaint.setStrokeWidth(2f);
+        borderPaint.setStrokeWidth(1.1f * density);
         borderPaint.setAntiAlias(true);
+        glowPaint.setColor(0x2222D3EE);
+        glowPaint.setStyle(Paint.Style.STROKE);
+        glowPaint.setStrokeWidth(5f * density);
+        glowPaint.setAntiAlias(true);
         cursorFill.setColor(0xFFFFFFFF);
         cursorFill.setStyle(Paint.Style.FILL);
         cursorFill.setAntiAlias(true);
-        cursorOutline.setColor(0xFF090C10);
+        cursorOutline.setColor(0xFF05070E);
         cursorOutline.setStyle(Paint.Style.STROKE);
-        cursorOutline.setStrokeWidth(2.5f);
+        cursorOutline.setStrokeWidth(1.3f * density);
         cursorOutline.setAntiAlias(true);
         setWillNotDraw(false);
     }
@@ -66,13 +75,16 @@ public class ReticleView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         if (videoRight > videoLeft && videoBottom > videoTop) {
-            canvas.drawRect(videoLeft, videoTop, videoRight, videoBottom, borderPaint);
+            videoRect.set(videoLeft, videoTop, videoRight, videoBottom);
+            float r = 12f * density;
+            canvas.drawRoundRect(videoRect, r, r, glowPaint);
+            canvas.drawRoundRect(videoRect, r, r, borderPaint);
         }
         if (!visible) {
             return;
         }
         // Standart beyaz fare oku; ucu (x,y) PC imleç konumudur.
-        final float s = 26f;
+        final float s = 18f * density;
         cursorPath.reset();
         cursorPath.moveTo(x, y);
         cursorPath.lineTo(x, y + s);

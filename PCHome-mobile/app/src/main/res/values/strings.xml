@@ -1,42 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">PCHome</string>
+    <string name="app_tagline">Uzak masaüstü</string>
+    <string name="app_wordmark">PCHome</string>
+    <string name="hero_title">Masaüstün.\nCebinde.</string>
+    <string name="hero_subtitle">Gecikmesiz görüntü, gerçek fare ve klavye kontrolü. Tek dokunuşla bağlan.</string>
+    <string name="version_pill">v%1$s</string>
+
     <string name="accessibility_service_description">PCHome accessibility service for remote input control</string>
     <string name="pin_hint">PIN shown on the desktop</string>
-    <string name="pc_id_hint">PC ID (6 hane)</string>
-    <string name="password_hint">Şifre (6 hane)</string>
-    <string name="remember_password">Şifreyi hatırla</string>
-    <string name="connect_card_title">🔌 Yeni Bağlantı</string>
-    <string name="recent_hint">aç: dokun • sil: çöp kutusu</string>
-    <string name="recent_title">Son Girilenler</string>
-    <string name="recent_empty">Henüz bağlantı yok — yukarıdan ilk bağlantını kur.</string>
-    <string name="recent_thumb_desc">PC son görüntüsü</string>
-    <string name="recent_delete_desc">Kaydı sil</string>
-    <string name="update_now">Güncelle</string>
-    <string name="update_section_title">⬆ Güncelleme</string>
-    <string name="update_open">Güncellemeleri kontrol et</string>
-    <string name="update_close">Kapat</string>
-    <string name="update_check_now">Kontrol et</string>
-    <string name="update_checking">Denetleniyor…</string>
-    <string name="update_uptodate">✓ Zaten güncel (v%1$s)</string>
-    <string name="update_available">⬆ Yeni sürüm VAR: %1$s (%2$s)</string>
-    <string name="update_idle">GitHub üzerindeki en son sürüm denetlenecek.</string>
-    <string name="update_busy">İndiriliyor/kuruluyor — bu ekrandan çıkma!</string>
-    <string name="update_retry">Tekrar dene</string>
-    <string name="update_failed">Denetlenemedi: %1$s</string>
-    <string name="signal_server_hint">Signal server (wss://host/ws)</string>
+
+    <string name="connect_card_title">Bağlantı bilgileri</string>
+    <string name="signal_server_hint">Sinyal sunucusu</string>
     <string name="signal_server_help">PC uygulamasındaki adresle aynı olmalı</string>
-    <string name="idle">Idle</string>
-    <string name="connect">Connect</string>
-    <string name="disconnect">Disconnect</string>
-    <string name="refresh">⟳ YENİLE</string>
+    <string name="pc_id_hint">PC ID</string>
+    <string name="password_hint">Şifre</string>
+    <string name="remember_password">Şifreyi hatırla</string>
+    <string name="connect">Bağlan</string>
+    <string name="disconnect">Kes</string>
+    <string name="refresh">Yenile</string>
     <string name="refreshing_stream">Görüntü yenileniyor…</string>
-    <string name="connecting">Connecting...</string>
-    <string name="connected">Connected</string>
-    <string name="disconnected">Disconnected</string>
-    <string name="error">Error</string>
-    <string name="touchpad_hint">Use this area as a touchpad</string>
-    <string name="waiting_for_stream">Waiting for stream...</string>
+    <string name="connecting">Bağlanıyor…</string>
+    <string name="connected">Bağlı</string>
+    <string name="disconnected">Bağlantı kesildi</string>
+    <string name="error">Hata</string>
+    <string name="touchpad_hint">Bu alanı touchpad olarak kullan</string>
+    <string name="waiting_for_stream">Sinyal bekleniyor…</string>
     <string name="conn_phase_signal">Sinyale bağlanılıyor…</string>
     <string name="conn_phase_verified">PC doğrulandı, görüntü bekleniyor…</string>
     <string name="conn_phase_video">Bağlandı, ilk kare bekleniyor…</string>
@@ -45,4 +34,43 @@
     <string name="signal_url_hint">wss://your-service.onrender.com/ws</string>
     <string name="screen_capture_notification">PCHome Screen Capture</string>
     <string name="screen_capture_notification_channel">Screen Capture</string>
+
+    <!-- Son bağlantılar -->
+    <string name="recent_title">Son bağlantılar</string>
+    <string name="recent_hint">Karta dokun → bağlan</string>
+    <string name="recent_empty">Henüz kayıtlı bir bilgisayar yok.\nİlk bağlantını yukarıdan kur.</string>
+    <string name="recent_thumb_desc">PC son görüntüsü</string>
+    <string name="recent_delete_desc">Kaydı sil</string>
+    <string name="recent_password_saved">şifre kayıtlı</string>
+    <string name="recent_password_missing">şifre sorulacak</string>
+
+    <!-- Güncelleme -->
+    <string name="update_section_title">Güncellemeler</string>
+    <string name="update_idle">En son sürümü denetle</string>
+    <string name="update_open">Kontrol et</string>
+    <string name="update_check_now">Kontrol et</string>
+    <string name="update_checking">Denetleniyor…</string>
+    <string name="update_uptodate">Güncel • v%1$s</string>
+    <string name="update_available">Yeni sürüm %1$s (%2$s)</string>
+    <string name="update_idle_dialog">GitHub üzerindeki en son sürüm denetlenecek.</string>
+    <string name="update_busy">İndiriliyor — bu ekrandan çıkma</string>
+    <string name="update_retry">Tekrar dene</string>
+    <string name="update_failed">Denetlenemedi: %1$s</string>
+    <string name="update_now">Güncelle</string>
+    <string name="update_close">Kapat</string>
+    <string name="update_title">PCHome güncellemesi</string>
+
+    <!-- Uzak masaüstü HUD -->
+    <string name="hud_remote">Uzak masaüstü</string>
+    <string name="mode_direct">DOKUNMA</string>
+    <string name="mode_trackpad">TRACKPAD</string>
+    <string name="keyboard">Klavye</string>
+    <string name="rotate">Döndür</string>
+    <string name="key_esc">ESC</string>
+    <string name="key_ctrl">CTRL</string>
+    <string name="key_shift">SHIFT</string>
+    <string name="key_alt">ALT</string>
+    <string name="mouse_left">SOL</string>
+    <string name="mouse_right">SAĞ</string>
+    <string name="stream_border_desc">Uzak masaüstü görüntüsü</string>
 </resources>
