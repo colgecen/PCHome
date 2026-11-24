@@ -1149,13 +1149,16 @@ impl DesktopGui {
                         }
                         for line in lines {
                             let color = event_color(&line);
-                            ui.horizontal(|ui| {
+                            ui.horizontal_wrapped(|ui| {
                                 ui.spacing_mut().item_spacing.x = 7.0;
                                 theme::dot(ui, color, 4.0);
-                                ui.label(
-                                    RichText::new(line)
-                                        .font(theme::mono_font(10.5))
-                                        .color(color),
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new(line)
+                                            .font(theme::mono_font(10.5))
+                                            .color(color),
+                                    )
+                                    .wrap(),
                                 );
                             });
                         }
