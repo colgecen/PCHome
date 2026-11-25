@@ -36,3 +36,7 @@ Cargo.lock.orig
 *.key
 *.crt
 .env
+
+# PCHome yerel kimlik ve ayarları (asla commitlenmesin)
+identity.toml
+config.toml
