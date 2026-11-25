@@ -258,6 +258,15 @@ fn dash(s: String) -> String {
     }
 }
 
+/// Enjeksiyon kipini telefondaki adıyla göster. Boşsa mobilin varsayılanı
+/// olan doğrudan dokunma kipini yaz; böylece satır hiçbir zaman boş kalmaz.
+fn mode_label(mode: &str) -> &'static str {
+    match mode {
+        "EV_REL" => "Trackpad",
+        _ => "Dokunma",
+    }
+}
+
 fn small_metric(ui: &mut egui::Ui, label: &str, value: &str) {
     ui.label(RichText::new(label).size(8.5).color(theme::muted()));
     ui.label(
@@ -503,7 +512,10 @@ impl DesktopGui {
                 ),
             ),
             ("Sunucu", host_of(&self.signal_url)),
-            ("Kip", dash(self.state.mode.lock().unwrap().clone())),
+            (
+                "Kip",
+                mode_label(&self.state.mode.lock().unwrap()).to_string(),
+            ),
         ];
         for (k, v) in rows {
             sidebar_row(ui, k, &v);

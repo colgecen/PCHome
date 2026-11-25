@@ -284,6 +284,8 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                         direct ? R.drawable.ic_touch : R.drawable.ic_mouse);
             }
             refreshInfoChip();
+            // Masaüstü "Kip" satırı ilk hareketi beklemeden güncellensin.
+            sendMode();
             tick();
         });
         btnLeft.setOnClickListener(v -> {
@@ -649,6 +651,13 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         uiHandler.post(() -> reticle.setVisible(false));
     }
 
+    private void sendMode() {
+        send(new ControlMessage()
+                .type("mode")
+                .put("mode", mode == MODE_DIRECT ? "direct" : "trackpad")
+                .toJson());
+    }
+
     private void sendMoveAbs(int x, int y) {
         send(new ControlMessage().type("move_abs").put("x", x).put("y", y).toJson());
     }
@@ -708,6 +717,8 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             }
             if (state == WebRtcClient.ConnectionState.CONNECTED) {
                 markConnected();
+                // Kanal açılır açılmaz seçili kipi masaüstüne bildir.
+                sendMode();
                 // İlk kare gelene kadar durumu görünür tut; siyah ekranda
                 // kullanıcı ne olduğunu anlasın. İlk kareden sonra çipi
                 // yeniden gösterme (aksi hâlde "ilk kare" yazısı ekranda kalıyor).

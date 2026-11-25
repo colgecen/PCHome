@@ -83,6 +83,19 @@ impl ControlHandler {
     pub async fn handle(&self, msg: &Value) {
         let typ = msg.get("type").and_then(|v| v.as_str()).unwrap_or("");
         match typ {
+            // Telefon kip değiştirdiğinde (hareket beklemeden) GUI'yi
+            // güncelle; aksi hâlde "Kip" satırı ilk dokunuşa kadar boş kalır.
+            "mode" => {
+                let mode = match msg.get("mode").and_then(|v| v.as_str()) {
+                    Some("direct") => "EV_ABS",
+                    Some("trackpad") => "EV_REL",
+                    other => {
+                        log::debug!("unknown control mode: {:?}", other);
+                        return;
+                    }
+                };
+                *self.state.mode.lock().unwrap() = mode.to_string();
+            }
             "move_abs" => {
                 let x = msg.get("x").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
                 let y = msg.get("y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
