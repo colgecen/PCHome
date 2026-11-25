@@ -79,6 +79,7 @@
     <string name="zoom">Yakınlaştır</string>
     <string name="zoom_in">Büyüt</string>
     <string name="zoom_out">Küçült</string>
+    <string name="zoom_hint">Büyüt veya küçült</string>
     <string name="zoom_reset">Sığdır</string>
     <string name="hide_menu">Menüyü gizle</string>
     <string name="show_menu">Menüyü göster</string>

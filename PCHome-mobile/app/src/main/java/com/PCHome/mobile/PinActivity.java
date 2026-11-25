@@ -2,12 +2,16 @@ package com.PCHome.mobile;
 
 import android.content.Intent;
 import android.content.res.ColorStateList;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
+import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.Toast;
@@ -35,8 +39,7 @@ import java.util.List;
  * bilgilerle doğrudan bağlanılır (uzun basınca silinir).
  */
 public class PinActivity extends AppCompatActivity {
-    private AutoCompleteTextView serverEdit;
-    private TextInputEditText pcIdEdit;
+    private AutoCompleteTextView serverEdit;    private TextInputEditText pcIdEdit;
     private TextInputEditText passwordEdit;
     private SwitchCompat rememberCheck;
     private MaterialTextView updateStateText;
@@ -192,6 +195,26 @@ public class PinActivity extends AppCompatActivity {
             public void afterTextChanged(Editable s) {
             }
         });
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (ev.getActionMasked() == MotionEvent.ACTION_DOWN) {
+            View focused = getCurrentFocus();
+            if (focused instanceof EditText) {
+                Rect rect = new Rect();
+                focused.getGlobalVisibleRect(rect);
+                if (!rect.contains((int) ev.getRawX(), (int) ev.getRawY())) {
+                    focused.clearFocus();
+                    InputMethodManager imm =
+                            (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                    if (imm != null) {
+                        imm.hideSoftInputFromWindow(focused.getWindowToken(), 0);
+                    }
+                }
+            }
+        }
+        return super.dispatchTouchEvent(ev);
     }
 
     private void selectHand(boolean left) {        prefs.setLeftHanded(left);

@@ -146,9 +146,9 @@ public class NeonKeyboard {
                         mod("SHIFT", KeyCodeMap.KEY_LEFTSHIFT, 1.35f),
                         letter("Z"), letter("X"), letter("C"), letter("V"),
                         letter("B"), letter("N"), letter("M"),
-                        key("DEL", KeyCodeMap.KEY_BACKSPACE, 1.35f)),
+                        pageKey("?123", 1, 1.35f)),
                 new RowDef(
-                        pageKey("?123", 1, 1.2f),
+                        key("DEL", KeyCodeMap.KEY_BACKSPACE, 1.2f),
                         capsKey(),
                         key("BOŞLUK", KeyCodeMap.KEY_SPACE, 3.4f),
                         key(".", KeyCodeMap.KEY_DOT, 1f),

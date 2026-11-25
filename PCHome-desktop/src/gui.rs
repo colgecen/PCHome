@@ -369,10 +369,13 @@ impl DesktopGui {
                     theme::border(),
                 );
                 ui.horizontal_centered(|ui| {
-                    ui.label(RichText::new("PCHome").size(15.0).color(theme::text()));
-                    ui.add_space(5.0);
-                    ui.label(RichText::new("DESKTOP").size(8.5).color(theme::muted()));
-                    ui.add_space(16.0);
+                    ui.label(
+                        RichText::new("PCHome")
+                            .size(18.0)
+                            .strong()
+                            .color(theme::text()),
+                    );
+                    ui.add_space(14.0);
                     theme::dot(ui, color, 6.0);
                     ui.label(RichText::new(label).size(11.0).color(theme::text2()));
 

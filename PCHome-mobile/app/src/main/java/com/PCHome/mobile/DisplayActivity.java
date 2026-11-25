@@ -47,7 +47,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     /** İki parmak ve sağ şerit için: 1 dp ≈ 20 yüksek çözünürlüklü birim. */
     private static final float SCROLL_UNITS_PER_DP = 20f;
     /** Trackpad'de imleç ile parmak arasındaki görsel boşluk (dp). */
-    private static final float TRACKPAD_GAP_DP = 80f;
+    private static final float TRACKPAD_GAP_DP = 160f;
     private static final float MOVE_THRESHOLD = 12f;
     private static final long LONG_PRESS_MS = 500;
     private static final long DOUBLE_TAP_MS = 300;
@@ -69,6 +69,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private Button btnKeyboard;
     private MaterialButton btnWheel;
     private MaterialButton btnZoom;
+    private TextView zoomHint;
     private boolean menuHidden;
     private boolean zoomMode;
     private float zoomScale = 1f;
@@ -76,6 +77,12 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private float zoomPanY;
     private float zoomLastTouchX;
     private float zoomLastTouchY;
+    private float zoomFocusLastX;
+    private float zoomFocusLastY;
+    private boolean zoomFocusValid;
+    private float lastFingerX;
+    private float lastFingerY;
+    private boolean hasLastFinger;
     private ScaleGestureDetector scaleDetector;
     private float twoFingerScrollCarryX;
     private float twoFingerScrollCarryY;
@@ -111,7 +118,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private int pcHeight = 1080;
     /** Klavye açıkken control_bar büyür; video alanı bu taban yüksekliği kullanır. */
     private int dockBaseHeight = 0;
-    private int mode = MODE_DIRECT;
+    private int mode = MODE_TRACKPAD;
     private boolean leftHanded;
     private float virtX = pcWidth / 2f;
     private float virtY = pcHeight / 2f;
@@ -157,6 +164,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         scrollRail = findViewById(R.id.scroll_rail);
         btnHideMenu = findViewById(R.id.btn_hide_menu);
         btnZoom = findViewById(R.id.btn_zoom);
+        zoomHint = findViewById(R.id.zoom_hint);
 
         applyHudInsets();
 
@@ -303,6 +311,14 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         btnWheel = findViewById(R.id.btn_wheel);
         Button btnRotate = findViewById(R.id.btn_rotate);
 
+        // Varsayılan kip trackpad.
+        btnMode.setText(mode == MODE_DIRECT ? R.string.mode_direct : R.string.mode_trackpad);
+        if (btnMode instanceof MaterialButton) {
+            ((MaterialButton) btnMode).setIconResource(
+                    mode == MODE_DIRECT ? R.drawable.ic_touch : R.drawable.ic_mouse);
+        }
+        refreshInfoChip();
+
         btnMode.setOnClickListener(v -> {
             mode = (mode == MODE_DIRECT) ? MODE_TRACKPAD : MODE_DIRECT;
             boolean direct = mode == MODE_DIRECT;
@@ -355,7 +371,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                         if (!zoomMode) {
                             return false;
                         }
-                        zoomScale = clamp(zoomScale * detector.getScaleFactor(), 1f, 3f);
+                        zoomScale = clamp(zoomScale * detector.getScaleFactor(), 0.5f, 3f);
                         applyAspectLayout();
                         return true;
                     }
@@ -436,24 +452,30 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
 
     private void toggleZoomMode() {
         zoomMode = !zoomMode;
-        if (zoomMode && zoomScale <= 1.01f) {
-            // 1x'te yatay boşluk yok; zoom moduna girince hemen pan alanı aç.
-            zoomScale = 1.5f;
-        }
         btnZoom.setText(zoomMode ? "KAPAT" : "ZOOM");
         btnZoom.setIconTint(ColorStateList.valueOf(
                 zoomMode ? 0xFFF4F4F5 : 0xFFA1A1AA));
         btnZoom.setTextColor(zoomMode ? 0xFFF4F4F5 : 0xFFA1A1AA);
         if (zoomMode) {
             hideTopInfoNow();
+            if (zoomHint != null) {
+                zoomHint.setVisibility(View.VISIBLE);
+            }
             if (scrollRail.getVisibility() == View.VISIBLE) {
                 scrollRail.setVisibility(View.GONE);
                 setWheelActive(false);
             }
             reticle.setVisible(false);
+            zoomFocusValid = false;
         } else {
+            if (zoomHint != null) {
+                zoomHint.setVisibility(View.GONE);
+            }
             reticle.setVisible(true);
-            if (surfaceView != null && surfaceView.getWidth() > 0 && surfaceView.getHeight() > 0) {
+            if (hasLastFinger && surfaceView != null) {
+                updateReticle(lastFingerX, lastFingerY);
+            } else if (surfaceView != null && surfaceView.getWidth() > 0
+                    && surfaceView.getHeight() > 0) {
                 float[] r = videoRect(surfaceView.getWidth(), surfaceView.getHeight());
                 updateReticle(r[0] + virtX / pcWidth * r[2],
                         r[1] + virtY / pcHeight * r[3]);
@@ -471,7 +493,13 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         btnZoom.setText("ZOOM");
         btnZoom.setIconTint(ColorStateList.valueOf(0xFFA1A1AA));
         btnZoom.setTextColor(ColorStateList.valueOf(0xFFA1A1AA));
+        if (zoomHint != null) {
+            zoomHint.setVisibility(View.GONE);
+        }
         reticle.setVisible(true);
+        if (hasLastFinger) {
+            updateReticle(lastFingerX, lastFingerY);
+        }
         showTopInfoNow();
         applyAspectLayout();
         Toast.makeText(this, R.string.zoom_reset, Toast.LENGTH_SHORT).show();
@@ -607,34 +635,52 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             return;
         }
         int action = event.getActionMasked();
-        if (action == MotionEvent.ACTION_DOWN
-                || action == MotionEvent.ACTION_POINTER_DOWN
-                || action == MotionEvent.ACTION_POINTER_UP) {
-            zoomLastTouchX = event.getRawX();
-            zoomLastTouchY = event.getRawY();
-        }
         scaleDetector.onTouchEvent(event);
-        if (event.getPointerCount() == 1 && !scaleDetector.isInProgress()) {
-            float x = event.getRawX();
-            float y = event.getRawY();
-            switch (action) {
-                case MotionEvent.ACTION_DOWN:
-                    zoomLastTouchX = x;
-                    zoomLastTouchY = y;
-                    break;
-                case MotionEvent.ACTION_MOVE:
-                    zoomPanX += x - zoomLastTouchX;
-                    zoomPanY += y - zoomLastTouchY;
-                    zoomLastTouchX = x;
-                    zoomLastTouchY = y;
-                    applyAspectLayout();
-                    break;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    break;
-                default:
-                    break;
+
+        int count = event.getPointerCount();
+        if (count >= 2) {
+            float fx = (event.getRawX(0) + event.getRawX(1)) / 2f;
+            float fy = (event.getRawY(0) + event.getRawY(1)) / 2f;
+            if (!zoomFocusValid
+                    || action == MotionEvent.ACTION_POINTER_DOWN
+                    || action == MotionEvent.ACTION_DOWN) {
+                zoomFocusLastX = fx;
+                zoomFocusLastY = fy;
+                zoomFocusValid = true;
+            } else if (action == MotionEvent.ACTION_MOVE) {
+                zoomPanX += fx - zoomFocusLastX;
+                zoomPanY += fy - zoomFocusLastY;
+                zoomFocusLastX = fx;
+                zoomFocusLastY = fy;
+                applyAspectLayout();
             }
+            return;
+        }
+
+        zoomFocusValid = false;
+        float x = event.getRawX();
+        float y = event.getRawY();
+        switch (action) {
+            case MotionEvent.ACTION_DOWN:
+                zoomLastTouchX = x;
+                zoomLastTouchY = y;
+                break;
+            case MotionEvent.ACTION_POINTER_UP:
+                zoomLastTouchX = x;
+                zoomLastTouchY = y;
+                break;
+            case MotionEvent.ACTION_MOVE:
+                zoomPanX += x - zoomLastTouchX;
+                zoomPanY += y - zoomLastTouchY;
+                zoomLastTouchX = x;
+                zoomLastTouchY = y;
+                applyAspectLayout();
+                break;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                break;
+            default:
+                break;
         }
     }
 
@@ -803,6 +849,9 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                 + " pc=" + pcWidth + "x" + pcHeight
                 + " -> " + pcX + "," + pcY);
         updateReticle(x, y);
+        lastFingerX = x;
+        lastFingerY = y;
+        hasLastFinger = true;
         switch (action) {
             case MotionEvent.ACTION_DOWN:
                 downX = x;
@@ -916,11 +965,15 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         float targetY = clamp(mapped[1], 0, pcHeight - 1);
         virtX = targetX;
         virtY = targetY;
+        lastFingerX = x;
+        lastFingerY = y;
+        hasLastFinger = true;
         sendMoveAbs(Math.round(targetX), Math.round(targetY));
         if (announceMode) {
             sendMode(); // Kip satırı trackpad kalsın.
         }
-        updateReticle(r[0] + virtX / pcWidth * r[2], r[1] + virtY / pcHeight * r[3]);
+        // Telefonda görünen beyaz ok parmağın altında kalır.
+        updateReticle(x, y);
     }
 
     private void updateReticle(float x, float y) {

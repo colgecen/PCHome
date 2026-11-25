@@ -91,18 +91,33 @@
 
         <ImageButton
             android:id="@+id/btn_hide_menu"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:background="@drawable/bg_icon_button"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/hide_menu"
             android:padding="8dp"
             android:src="@drawable/ic_eye_off"
             android:tint="@color/PCHome_muted" />
     </LinearLayout>
 
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/zoom_hint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="18dp"
+        android:background="@drawable/bg_glass_pill"
+        android:paddingStart="14dp"
+        android:paddingTop="7dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="7dp"
+        android:text="@string/zoom_hint"
+        android:textColor="@color/PCHome_text_primary"
+        android:textSize="11sp"
+        android:visibility="gone" />
+
     <com.google.android.material.chip.Chip
-        android:id="@+id/stream_status"
-        style="@style/Widget.PCHome.Chip"
+        android:id="@+id/stream_status"        style="@style/Widget.PCHome.Chip"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|center_horizontal"
