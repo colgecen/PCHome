@@ -2,8 +2,7 @@
 <resources>
     <string name="app_name">PCHome</string>
     <string name="app_tagline">Uzak masaüstü</string>
-    <string name="hero_title">PCHome: Masaüstün\nCebinde.</string>
-    <string name="hand_left">SOL EL</string>
+    <string name="hero_title">PCHome: Masaüstün\nCebinde.</string>    <string name="hand_left">SOL EL</string>
     <string name="hand_right">SAĞ EL</string>
     <string name="hero_subtitle">Gecikmesiz görüntü, gerçek fare ve klavye kontrolü. Tek dokunuşla bağlan.</string>
 

@@ -1160,12 +1160,12 @@ impl DesktopGui {
                 ui.add_space(8.0);
                 theme::field(ui, "PC ADI", &mut pc_name, "SistemBey", false);
                 ui.add_space(8.0);
-                theme::field(
+                theme::digits_field(
                     ui,
                     "YENİ ŞİFRE",
                     &mut new_password,
                     "6 hane • boş bırak = değişmesin",
-                    true,
+                    6,
                 );
                 if !self.settings_msg.is_empty() {
                     ui.add_space(6.0);

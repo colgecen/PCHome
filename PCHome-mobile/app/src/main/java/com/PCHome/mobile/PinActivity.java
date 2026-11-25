@@ -3,6 +3,8 @@ package com.PCHome.mobile;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
@@ -42,6 +44,7 @@ public class PinActivity extends AppCompatActivity {
     private MaterialTextView recentEmpty;
     private MaterialButton handLeft;
     private MaterialButton handRight;
+    private boolean formattingId;
     private Prefs prefs;
     private RecentStore recentStore;
     private RecentAdapter recentAdapter;
@@ -70,6 +73,7 @@ public class PinActivity extends AppCompatActivity {
         rememberCheck.setChecked(prefs.getRememberPassword());
         handLeft = findViewById(R.id.hand_left);
         handRight = findViewById(R.id.hand_right);
+        setupPcIdFormatter();
         updateHandednessUi(prefs.isLeftHanded());
         handLeft.setOnClickListener(v -> selectHand(true));
         handRight.setOnClickListener(v -> selectHand(false));
@@ -158,8 +162,39 @@ public class PinActivity extends AppCompatActivity {
         });
     }
 
-    private void selectHand(boolean left) {
-        prefs.setLeftHanded(left);
+    private void setupPcIdFormatter() {
+        pcIdEdit.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (formattingId) {
+                    return;
+                }
+                String digits = s.toString().replaceAll("[^0-9]", "");
+                if (digits.length() > 6) {
+                    digits = digits.substring(0, 6);
+                }
+                String formatted = digits.length() > 3
+                        ? digits.substring(0, 3) + " " + digits.substring(3)
+                        : digits;
+                if (!formatted.equals(s.toString())) {
+                    formattingId = true;
+                    pcIdEdit.setText(formatted);
+                    pcIdEdit.setSelection(formatted.length());
+                    formattingId = false;
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+            }
+        });
+    }
+
+    private void selectHand(boolean left) {        prefs.setLeftHanded(left);
         updateHandednessUi(left);
         tick();
     }
@@ -179,7 +214,8 @@ public class PinActivity extends AppCompatActivity {
     }
 
     /** Edge-to-edge: durum çubuğu/klavye altında kalan içeriği kaydır. */
-    private void applyWindowInsets() {        final View scroll = findViewById(R.id.pin_scroll);
+    private void applyWindowInsets() {
+        final View scroll = findViewById(R.id.pin_scroll);
         ViewCompat.setOnApplyWindowInsetsListener(scroll, (v, insets) -> {
             Insets bars = insets.getInsets(
                     WindowInsetsCompat.Type.systemBars()

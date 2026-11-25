@@ -524,6 +524,43 @@ pub fn field(ui: &mut egui::Ui, label: &str, value: &mut String, hint: &str, mon
         });
 }
 
+/// Yalnız rakam kabul eden, belirli haneyle sınırlı alan (şifre gibi).
+pub fn digits_field(
+    ui: &mut egui::Ui,
+    label: &str,
+    value: &mut String,
+    hint: &str,
+    max_chars: usize,
+) {
+    ui.label(RichText::new(label).color(muted()).size(9.5).strong());
+    ui.add_space(3.0);
+    egui::Frame::none()
+        .fill(field_bg())
+        .stroke(Stroke::new(1.0_f32, border()))
+        .rounding(Rounding::same(8.0))
+        .inner_margin(Margin::symmetric(10.0, 7.0))
+        .show(ui, |ui| {
+            let edit = egui::TextEdit::singleline(value)
+                .frame(false)
+                .hint_text(RichText::new(hint).color(muted()))
+                .text_color(text())
+                .char_limit(max_chars)
+                .font(mono(12.0))
+                .desired_width(f32::INFINITY);
+            let response = ui.add(edit);
+            if response.changed() {
+                let filtered: String = value
+                    .chars()
+                    .filter(|c| c.is_ascii_digit())
+                    .take(max_chars)
+                    .collect();
+                if filtered != *value {
+                    *value = filtered;
+                }
+            }
+        });
+}
+
 /// Eski çağrı uyumluluğu: arka plan artık düz koyu; parıltı yok.
 pub fn paint_background(ui: &egui::Ui, rect: egui::Rect) {
     ui.painter().rect_filled(rect, 0.0, bg());
