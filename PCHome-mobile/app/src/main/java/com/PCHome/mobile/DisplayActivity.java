@@ -47,7 +47,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     /** İki parmak ve sağ şerit için: 1 dp ≈ 20 yüksek çözünürlüklü birim. */
     private static final float SCROLL_UNITS_PER_DP = 20f;
     /** Trackpad'de imleç ile parmak arasındaki görsel boşluk (dp). */
-    private static final float TRACKPAD_GAP_DP = 56f;
+    private static final float TRACKPAD_GAP_DP = 64f;
     /** Dikey ön-gitme: parmak yukarıdayken yukarı, aşağıdayken aşağı. */
     private static final float TRACKPAD_LEAD_RATIO = 0.35f;
     private static final float TRACKPAD_LEAD_MAX_DP = 28f;
@@ -72,7 +72,6 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private Button btnKeyboard;
     private MaterialButton btnWheel;
     private ImageButton btnZoom;
-    private ImageButton btnHand;
     private boolean menuHidden;
     private boolean zoomMode;
     private float zoomScale = 1f;
@@ -81,7 +80,6 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private float zoomLastTouchX;
     private float zoomLastTouchY;
     private ScaleGestureDetector scaleDetector;
-    private boolean topInfoVisible = true;
     private float twoFingerScrollCarryX;
     private float twoFingerScrollCarryY;
     private float scrollFlingVelocity;
@@ -163,15 +161,8 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         scrollRail = findViewById(R.id.scroll_rail);
         btnHideMenu = findViewById(R.id.btn_hide_menu);
         btnZoom = findViewById(R.id.btn_zoom);
-        btnHand = findViewById(R.id.btn_hand);
 
         applyHudInsets();
-        topOverlay.setOnTouchListener((v, event) -> {
-            if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                hideTopInfoOnTouch();
-            }
-            return false;
-        });
 
         // Video alanı; üst/alt HUD yükseklikleri değişince (döndürme,
         // klavye, inset) yeniden hesaplanmalı.
@@ -201,7 +192,6 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         if (pcId == null) pcId = "";
         if (password == null) password = "";
         leftHanded = getIntent().getBooleanExtra("leftHanded", false);
-        updateHandButton();
         pcId = pcId.replaceAll("[^0-9]", "");
         password = password.replaceAll("[^0-9]", "");
         infoChip.setText("PC " + pcId);
@@ -321,8 +311,17 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         Button btnPaste = findViewById(R.id.btn_paste);
         btnKeyboard = findViewById(R.id.btn_keyboard);
         btnWheel = findViewById(R.id.btn_wheel);
+        Button btnZoomOut = findViewById(R.id.btn_zoom_out);
+        Button btnZoomIn = findViewById(R.id.btn_zoom_in);
         Button btnRotate = findViewById(R.id.btn_rotate);
-        Button btnRefresh = findViewById(R.id.btn_refresh);
+        btnZoomOut.setOnClickListener(v -> {
+            adjustZoom(-0.25f);
+            tick();
+        });
+        btnZoomIn.setOnClickListener(v -> {
+            adjustZoom(0.25f);
+            tick();
+        });
 
         btnMode.setOnClickListener(v -> {
             mode = (mode == MODE_DIRECT) ? MODE_TRACKPAD : MODE_DIRECT;
@@ -369,10 +368,6 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             resetZoom();
             return true;
         });
-        btnHand.setOnClickListener(v -> {
-            toggleHandedness();
-            tick();
-        });
         scaleDetector = new ScaleGestureDetector(this,
                 new ScaleGestureDetector.SimpleOnScaleGestureListener() {
                     @Override
@@ -388,15 +383,6 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         scaleDetector.setQuickScaleEnabled(false);
         scaleDetector.setStylusScaleEnabled(false);
         btnRotate.setOnClickListener(v -> rotateScreen());
-        btnRefresh.setOnClickListener(v -> {
-            if (webRtcClient != null) {
-                webRtcClient.refreshStream();
-            }
-            streamStatus.setText(R.string.refreshing_stream);
-            streamStatus.setVisibility(View.VISIBLE);
-            Toast.makeText(this, R.string.refreshing_stream, Toast.LENGTH_SHORT).show();
-            tick();
-        });
 
         findViewById(R.id.btn_disconnect).setOnClickListener(v -> {
             saveRecent();
@@ -429,9 +415,6 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         if (menuHidden && keyboardContainer.getVisibility() == View.VISIBLE) {
             keyboardContainer.setVisibility(View.GONE);
             btnKeyboard.setText(R.string.keyboard);
-            if (btnHand != null) {
-                btnHand.setVisibility(View.VISIBLE);
-            }
         }
         if (menuHidden && scrollRail.getVisibility() == View.VISIBLE) {
             scrollRail.setVisibility(View.GONE);
@@ -445,12 +428,6 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             lp.bottomMargin = Math.round((menuHidden ? 24f : 130f)
                     * getResources().getDisplayMetrics().density);
             scrollRail.setLayoutParams(lp);
-        }
-        if (btnHand != null) {
-            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) btnHand.getLayoutParams();
-            lp.bottomMargin = Math.round((menuHidden ? 24f : 120f)
-                    * getResources().getDisplayMetrics().density);
-            btnHand.setLayoutParams(lp);
         }
         applyAspectLayout();
         surfaceView.postDelayed(this::applyAspectLayout, 120L);
@@ -495,7 +472,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                 updateReticle(r[0] + virtX / pcWidth * r[2],
                         r[1] + virtY / pcHeight * r[3]);
             }
-            scheduleTopInfo();
+            showTopInfoNow();
         }
         applyAspectLayout();
     }
@@ -508,75 +485,28 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         Toast.makeText(this, R.string.zoom_reset, Toast.LENGTH_SHORT).show();
     }
 
-    private void toggleHandedness() {
-        leftHanded = !leftHanded;
-        new Prefs(this).setLeftHanded(leftHanded);
-        updateHandButton();
-        Toast.makeText(this, leftHanded ? R.string.hand_left : R.string.hand_right,
-                Toast.LENGTH_SHORT).show();
-    }
-
-    private void updateHandButton() {
-        if (btnHand == null) {
+    private void adjustZoom(float delta) {
+        float next = clamp(zoomScale + delta, 1f, 3f);
+        if (Math.abs(next - zoomScale) < 0.001f) {
             return;
         }
-        btnHand.setScaleX(leftHanded ? -1f : 1f);
-        btnHand.setContentDescription(getString(
-                leftHanded ? R.string.hand_left : R.string.hand_right));
-        btnHand.setImageTintList(ColorStateList.valueOf(
-                leftHanded ? 0xFFF4F4F5 : 0xFFA1A1AA));
+        zoomScale = next;
+        applyAspectLayout();
     }
 
     private void hideTopInfoNow() {
-        topInfoVisible = false;
-        if (uiHandler != null) {
-            uiHandler.removeCallbacks(showTopInfoRunnable);
-        }
         if (topOverlay != null) {
             topOverlay.animate().cancel();
             topOverlay.setVisibility(View.INVISIBLE);
         }
     }
 
-    private void hideTopInfoOnTouch() {
-        if (zoomMode) {
-            hideTopInfoNow();
-            return;
-        }
-        if (topInfoVisible) {
-            topInfoVisible = false;
-            topOverlay.animate().cancel();
-            topOverlay.animate()
-                    .alpha(0f)
-                    .setDuration(140L)
-                    .withEndAction(() -> {
-                        if (!topInfoVisible) {
-                            topOverlay.setVisibility(View.INVISIBLE);
-                        }
-                    })
-                    .start();
-        }
-        if (uiHandler != null) {
-            uiHandler.removeCallbacks(showTopInfoRunnable);
+    private void showTopInfoNow() {
+        if (topOverlay != null) {
+            topOverlay.setVisibility(View.VISIBLE);
+            topOverlay.animate().alpha(1f).setDuration(180L).start();
         }
     }
-
-    private void scheduleTopInfo() {
-        if (uiHandler == null) {
-            return;
-        }
-        uiHandler.removeCallbacks(showTopInfoRunnable);
-        uiHandler.postDelayed(showTopInfoRunnable, 1600L);
-    }
-
-    private final Runnable showTopInfoRunnable = () -> {
-        if (zoomMode || topOverlay == null) {
-            return;
-        }
-        topInfoVisible = true;
-        topOverlay.setVisibility(View.VISIBLE);
-        topOverlay.animate().alpha(1f).setDuration(180L).start();
-    };
 
     private void sendCopyPaste(int keyCode) {
         if (ctrlSticky) {
@@ -606,9 +536,6 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             boolean show = keyboardContainer.getVisibility() != View.VISIBLE;
             keyboardContainer.setVisibility(show ? View.VISIBLE : View.GONE);
             btnKeyboard.setText(show ? "GİZLE" : getString(R.string.keyboard));
-            if (btnHand != null) {
-                btnHand.setVisibility(show ? View.GONE : View.VISIBLE);
-            }
             if (show && scrollRail != null && scrollRail.getVisibility() == View.VISIBLE) {
                 scrollRail.setVisibility(View.GONE);
                 setWheelActive(false);
@@ -675,23 +602,12 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             if (!zoomMode) {
                 return false;
             }
-            if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                hideTopInfoOnTouch();
-            }
             handleZoomTouch(e);
             return true;
         });
         surfaceView.setOnTouchListener((v, e) -> {
-            int touchAction = e.getActionMasked();
-            if (touchAction == MotionEvent.ACTION_DOWN) {
-                hideTopInfoOnTouch();
-            }
             if (zoomMode) {
                 return true;
-            }
-            if (touchAction == MotionEvent.ACTION_UP
-                    || touchAction == MotionEvent.ACTION_CANCEL) {
-                scheduleTopInfo();
             }
             MotionEvent copy = MotionEvent.obtain(e);
             touchHandler.post(() -> {
@@ -732,7 +648,6 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                     break;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
-                    scheduleTopInfo();
                     break;
                 default:
                     break;
