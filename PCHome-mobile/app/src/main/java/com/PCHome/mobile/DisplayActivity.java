@@ -47,10 +47,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     /** İki parmak ve sağ şerit için: 1 dp ≈ 20 yüksek çözünürlüklü birim. */
     private static final float SCROLL_UNITS_PER_DP = 20f;
     /** Trackpad'de imleç ile parmak arasındaki görsel boşluk (dp). */
-    private static final float TRACKPAD_GAP_DP = 64f;
-    /** Dikey ön-gitme: parmak yukarıdayken yukarı, aşağıdayken aşağı. */
-    private static final float TRACKPAD_LEAD_RATIO = 0.35f;
-    private static final float TRACKPAD_LEAD_MAX_DP = 28f;
+    private static final float TRACKPAD_GAP_DP = 80f;
     private static final float MOVE_THRESHOLD = 12f;
     private static final long LONG_PRESS_MS = 500;
     private static final long DOUBLE_TAP_MS = 300;
@@ -71,7 +68,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private ImageButton btnHideMenu;
     private Button btnKeyboard;
     private MaterialButton btnWheel;
-    private ImageButton btnZoom;
+    private MaterialButton btnZoom;
     private boolean menuHidden;
     private boolean zoomMode;
     private float zoomScale = 1f;
@@ -118,7 +115,6 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private boolean leftHanded;
     private float virtX = pcWidth / 2f;
     private float virtY = pcHeight / 2f;
-    private float trackpadLeadScreen;
 
     private HandlerThread touchThread;
     private Handler touchHandler;
@@ -277,15 +273,9 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             Insets cut = insets.getInsets(WindowInsetsCompat.Type.displayCutout());
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            topOverlay.setPadding(56 + cut.left, 12 + bars.top + cut.top,
+            topOverlay.setPadding(16 + cut.left, 12 + bars.top + cut.top,
                     16 + cut.right, 16);
             controlBar.setPadding(10 + cut.left, 9, 10 + cut.right, 9 + bars.bottom);
-            if (btnZoom != null) {
-                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) btnZoom.getLayoutParams();
-                lp.leftMargin = 8 + cut.left;
-                lp.topMargin = 8 + bars.top + cut.top;
-                btnZoom.setLayoutParams(lp);
-            }
             v.post(this::applyAspectLayout);
             return insets;
         });
@@ -311,17 +301,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         Button btnPaste = findViewById(R.id.btn_paste);
         btnKeyboard = findViewById(R.id.btn_keyboard);
         btnWheel = findViewById(R.id.btn_wheel);
-        Button btnZoomOut = findViewById(R.id.btn_zoom_out);
-        Button btnZoomIn = findViewById(R.id.btn_zoom_in);
         Button btnRotate = findViewById(R.id.btn_rotate);
-        btnZoomOut.setOnClickListener(v -> {
-            adjustZoom(-0.25f);
-            tick();
-        });
-        btnZoomIn.setOnClickListener(v -> {
-            adjustZoom(0.25f);
-            tick();
-        });
 
         btnMode.setOnClickListener(v -> {
             mode = (mode == MODE_DIRECT) ? MODE_TRACKPAD : MODE_DIRECT;
@@ -456,8 +436,14 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
 
     private void toggleZoomMode() {
         zoomMode = !zoomMode;
-        btnZoom.setImageTintList(ColorStateList.valueOf(
+        if (zoomMode && zoomScale <= 1.01f) {
+            // 1x'te yatay boşluk yok; zoom moduna girince hemen pan alanı aç.
+            zoomScale = 1.5f;
+        }
+        btnZoom.setText(zoomMode ? "KAPAT" : "ZOOM");
+        btnZoom.setIconTint(ColorStateList.valueOf(
                 zoomMode ? 0xFFF4F4F5 : 0xFFA1A1AA));
+        btnZoom.setTextColor(zoomMode ? 0xFFF4F4F5 : 0xFFA1A1AA);
         if (zoomMode) {
             hideTopInfoNow();
             if (scrollRail.getVisibility() == View.VISIBLE) {
@@ -481,17 +467,14 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         zoomScale = 1f;
         zoomPanX = 0f;
         zoomPanY = 0f;
+        zoomMode = false;
+        btnZoom.setText("ZOOM");
+        btnZoom.setIconTint(ColorStateList.valueOf(0xFFA1A1AA));
+        btnZoom.setTextColor(ColorStateList.valueOf(0xFFA1A1AA));
+        reticle.setVisible(true);
+        showTopInfoNow();
         applyAspectLayout();
         Toast.makeText(this, R.string.zoom_reset, Toast.LENGTH_SHORT).show();
-    }
-
-    private void adjustZoom(float delta) {
-        float next = clamp(zoomScale + delta, 1f, 3f);
-        if (Math.abs(next - zoomScale) < 0.001f) {
-            return;
-        }
-        zoomScale = next;
-        applyAspectLayout();
     }
 
     private void hideTopInfoNow() {
@@ -880,7 +863,6 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                 moved = false;
                 longPressFired = false;
                 pressed = true;
-                trackpadLeadScreen = 0f;
                 placeTrackpadCursor(x, y, viewW, viewH, true);
                 touchHandler.postDelayed(() -> {
                     if (pressed && !moved && !longPressFired) {
@@ -890,14 +872,6 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                 }, LONG_PRESS_MS);
                 break;
             case MotionEvent.ACTION_MOVE:
-                float dy = y - lastY;
-                if (dy != 0f) {
-                    float density = getResources().getDisplayMetrics().density;
-                    float maxLead = TRACKPAD_LEAD_MAX_DP * density;
-                    trackpadLeadScreen = clamp(
-                            trackpadLeadScreen + dy * TRACKPAD_LEAD_RATIO,
-                            -maxLead, maxLead) * 0.82f;
-                }
                 lastX = x;
                 lastY = y;
                 if (Math.abs(x - downX) > MOVE_THRESHOLD || Math.abs(y - downY) > MOVE_THRESHOLD) {
@@ -938,9 +912,8 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         float density = getResources().getDisplayMetrics().density;
         float gapPc = (TRACKPAD_GAP_DP * density) / Math.max(1f, r[2]) * pcWidth;
         float side = leftHanded ? 1f : -1f;
-        float leadPc = (trackpadLeadScreen / Math.max(1f, r[3])) * pcHeight;
         float targetX = clamp(mapped[0] + side * gapPc, 0, pcWidth - 1);
-        float targetY = clamp(mapped[1] + leadPc, 0, pcHeight - 1);
+        float targetY = clamp(mapped[1], 0, pcHeight - 1);
         virtX = targetX;
         virtY = targetY;
         sendMoveAbs(Math.round(targetX), Math.round(targetY));

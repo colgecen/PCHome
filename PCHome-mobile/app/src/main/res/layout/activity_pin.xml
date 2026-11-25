@@ -215,13 +215,14 @@
                         android:textSize="9sp" />
 
                     <Space
-                        android:layout_width="12dp"
-                        android:layout_height="1dp" />
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" />
 
                     <com.google.android.material.textview.MaterialTextView
-                        android:layout_width="0dp"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
                         android:text="@string/remember_password"
                         android:textColor="@color/PCHome_muted"
                         android:textSize="13sp" />
