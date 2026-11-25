@@ -76,9 +76,9 @@ public class ReticleView extends View {
         super.onDraw(canvas);
         if (videoRight > videoLeft && videoBottom > videoTop) {
             videoRect.set(videoLeft, videoTop, videoRight, videoBottom);
-            float r = 12f * density;
-            canvas.drawRoundRect(videoRect, r, r, glowPaint);
-            canvas.drawRoundRect(videoRect, r, r, borderPaint);
+            // Video alanının köşeleri kırpılmasın: yuvarlatma yok.
+            canvas.drawRect(videoRect, glowPaint);
+            canvas.drawRect(videoRect, borderPaint);
         }
         if (!visible) {
             return;

@@ -7,6 +7,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.PixelCopy;
 import android.view.MotionEvent;
@@ -14,6 +15,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -29,6 +31,7 @@ import androidx.core.view.WindowInsetsControllerCompat;
 import com.PCHome.mobile.control.KeyCodeMap;
 import com.PCHome.mobile.ui.NeonKeyboard;
 import com.PCHome.mobile.ui.ReticleView;
+import com.PCHome.mobile.ui.ScrollRailView;
 import com.google.android.material.button.MaterialButton;
 
 import org.json.JSONException;
@@ -40,7 +43,14 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
 
     private static final int MODE_DIRECT = 0;
     private static final int MODE_TRACKPAD = 1;
-    private static final float SENSITIVITY = 1.6f;
+    /** İki parmak ve sağ şerit için: 1 dp ≈ 12 yüksek çözünürlüklü birim. */
+    private static final float SCROLL_UNITS_PER_DP = 12f;
+    /** Trackpad: yatay 1:1 kalsın ki imleç parmağın hep solunda dursun. */
+    private static final float TRACKPAD_X_SENSITIVITY = 1.0f;
+    /** Dikeyde hafif önde gitsin: yukarı çıkarken üstte, aşağı inerken altta. */
+    private static final float TRACKPAD_Y_SENSITIVITY = 1.4f;
+    /** İmlecin parmaktan sola uzaklığı (dp). */
+    private static final float TRACKPAD_LEFT_OFFSET_DP = 56f;
     private static final float MOVE_THRESHOLD = 12f;
     private static final long LONG_PRESS_MS = 500;
     private static final long DOUBLE_TAP_MS = 300;
@@ -56,6 +66,16 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private View topOverlay;
     private View controlBar;
     private LinearLayout keyboardContainer;
+    private ScrollRailView scrollRail;
+    private NeonKeyboard softKeyboard;
+    private ImageButton btnHideMenu;
+    private Button btnKeyboard;
+    private MaterialButton btnWheel;
+    private boolean menuHidden;
+    private float twoFingerScrollCarryX;
+    private float twoFingerScrollCarryY;
+    private float scrollFlingVelocity;
+    private long scrollFlingLast;
     private WebRtcClient webRtcClient;
     private RecentStore recentStore;
     private String pcId = "";
@@ -89,6 +109,8 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private int mode = MODE_DIRECT;
     private float virtX = pcWidth / 2f;
     private float virtY = pcHeight / 2f;
+    private float trackpadCarryX;
+    private float trackpadCarryY;
 
     private HandlerThread touchThread;
     private Handler touchHandler;
@@ -128,10 +150,10 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         topOverlay = findViewById(R.id.top_overlay);
         controlBar = findViewById(R.id.control_bar);
         keyboardContainer = findViewById(R.id.keyboard_container);
+        scrollRail = findViewById(R.id.scroll_rail);
+        btnHideMenu = findViewById(R.id.btn_hide_menu);
 
         applyHudInsets();
-        ((TextView) findViewById(R.id.hud_version))
-                .setText("v" + BuildConfig.VERSION_NAME);
 
         // Video alanı; üst/alt HUD yükseklikleri değişince (döndürme,
         // klavye, inset) yeniden hesaplanmalı.
@@ -268,11 +290,11 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         Button btnMode = findViewById(R.id.btn_mode);
         Button btnLeft = findViewById(R.id.btn_left);
         Button btnRight = findViewById(R.id.btn_right);
-        Button btnKeyboard = findViewById(R.id.btn_keyboard);
+        Button btnCopy = findViewById(R.id.btn_copy);
+        Button btnPaste = findViewById(R.id.btn_paste);
+        btnKeyboard = findViewById(R.id.btn_keyboard);
+        btnWheel = findViewById(R.id.btn_wheel);
         Button btnRotate = findViewById(R.id.btn_rotate);
-        Button btnEsc = findViewById(R.id.btn_esc);
-        Button btnCtrl = findViewById(R.id.btn_ctrl);
-        Button btnShift = findViewById(R.id.btn_shift);
         Button btnRefresh = findViewById(R.id.btn_refresh);
 
         btnMode.setOnClickListener(v -> {
@@ -296,13 +318,23 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             sendClick("right", "click");
             tick();
         });
-        btnRotate.setOnClickListener(v -> rotateScreen());
-        btnEsc.setOnClickListener(v -> {
-            sendKey(KeyCodeMap.KEY_ESC, true);
-            sendKey(KeyCodeMap.KEY_ESC, false);
+        btnCopy.setOnClickListener(v -> {
+            sendCopyPaste(KeyCodeMap.KEY_C);
+            tick();
         });
-        btnCtrl.setOnClickListener(v -> toggleModifier(KeyCodeMap.KEY_LEFTCTRL));
-        btnShift.setOnClickListener(v -> toggleModifier(KeyCodeMap.KEY_LEFTSHIFT));
+        btnPaste.setOnClickListener(v -> {
+            sendCopyPaste(KeyCodeMap.KEY_V);
+            tick();
+        });
+        btnWheel.setOnClickListener(v -> {
+            toggleScrollRail();
+            tick();
+        });
+        btnHideMenu.setOnClickListener(v -> {
+            toggleMenu();
+            tick();
+        });
+        btnRotate.setOnClickListener(v -> rotateScreen());
         btnRefresh.setOnClickListener(v -> {
             if (webRtcClient != null) {
                 webRtcClient.refreshStream();
@@ -317,23 +349,107 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             saveRecent();
             finish();
         });
+
+        scrollRail.setListener(new ScrollRailView.Listener() {
+            @Override
+            public void onStart() {
+                stopScrollFling();
+            }
+
+            @Override
+            public void onScroll(int hiResDy) {
+                stopScrollFling();
+                sendScrollHiRes(0, hiResDy);
+            }
+
+            @Override
+            public void onFling(float unitsPerSecond) {
+                startScrollFling(unitsPerSecond);
+            }
+        });
+    }
+
+    /** Alt menüyü göster/gizle; video alanı boşalan yeri doldurur. */
+    private void toggleMenu() {
+        menuHidden = !menuHidden;
+        controlBar.setVisibility(menuHidden ? View.GONE : View.VISIBLE);
+        if (menuHidden && keyboardContainer.getVisibility() == View.VISIBLE) {
+            keyboardContainer.setVisibility(View.GONE);
+            btnKeyboard.setText(R.string.keyboard);
+        }
+        if (menuHidden && scrollRail.getVisibility() == View.VISIBLE) {
+            scrollRail.setVisibility(View.GONE);
+            setWheelActive(false);
+        }
+        btnHideMenu.setImageResource(menuHidden ? R.drawable.ic_eye : R.drawable.ic_eye_off);
+        btnHideMenu.setContentDescription(getString(
+                menuHidden ? R.string.show_menu : R.string.hide_menu));
+        if (scrollRail != null) {
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) scrollRail.getLayoutParams();
+            lp.bottomMargin = Math.round((menuHidden ? 24f : 130f)
+                    * getResources().getDisplayMetrics().density);
+            scrollRail.setLayoutParams(lp);
+        }
+        applyAspectLayout();
+        surfaceView.postDelayed(this::applyAspectLayout, 120L);
+    }
+
+    /** Sağdaki kaydırma şeridini aç/kapat. */
+    private void toggleScrollRail() {
+        boolean show = scrollRail.getVisibility() != View.VISIBLE;
+        scrollRail.setVisibility(show ? View.VISIBLE : View.GONE);
+        setWheelActive(show);
+        if (!show) {
+            stopScrollFling();
+        }
+    }
+
+    private void setWheelActive(boolean active) {
+        if (btnWheel == null) {
+            return;
+        }
+        btnWheel.setBackgroundTintList(ColorStateList.valueOf(
+                active ? 0xFF2A2A30 : 0xFF18181B));
+        btnWheel.setTextColor(active ? 0xFFF4F4F5 : 0xFFA1A1AA);
+        btnWheel.setIconTint(ColorStateList.valueOf(
+                active ? 0xFFF4F4F5 : 0xFFA1A1AA));
+    }
+
+    private void sendCopyPaste(int keyCode) {
+        if (ctrlSticky) {
+            sendKey(keyCode, true);
+            sendKey(keyCode, false);
+        } else {
+            sendCombo(keyCode, "ctrl");
+        }
     }
 
     private void setupKeyboard() {
-        Button btnKeyboard = findViewById(R.id.btn_keyboard);
-        // The custom grid is the actual input path: it sends Linux keycodes
-        // over the control DataChannel. (An IME without a text target sends
-        // nothing at all, which is why the old picker-only button did nothing.)
-        new NeonKeyboard().build(keyboardContainer, this::onSoftKey);
+        // Telefon QWERTY'sine benzeyen iki sayfalı özel klavye; Linux
+        // keycode'larını control DataChannel üzerinden gönderir.
+        softKeyboard = new NeonKeyboard();
+        softKeyboard.build(keyboardContainer, new NeonKeyboard.OnKeyListener() {
+            @Override
+            public void onKey(int code, boolean down, boolean withShift) {
+                onSoftKey(code, down, withShift);
+            }
+
+            @Override
+            public void onToggleModifier(int code) {
+                toggleModifier(code);
+            }
+        });
         btnKeyboard.setOnClickListener(v -> {
             boolean show = keyboardContainer.getVisibility() != View.VISIBLE;
             keyboardContainer.setVisibility(show ? View.VISIBLE : View.GONE);
             btnKeyboard.setText(show ? "GİZLE" : getString(R.string.keyboard));
+            applyAspectLayout();
+            surfaceView.postDelayed(this::applyAspectLayout, 120L);
         });
     }
 
     /** Ekran klavyesinden gelen tuş: değiştiriciler yapışkan, diğerleri anlık. */
-    private void onSoftKey(int code, boolean down) {
+    private void onSoftKey(int code, boolean down, boolean withShift) {
         if (code < 0) {
             return;
         }
@@ -343,11 +459,14 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             }
             return;
         }
-        if (down) {
-            sendKey(code, true);
-        } else {
-            sendKey(code, false);
+        // Sembol sayfasındaki @, #, : gibi tuşlar Shift gerektirir.
+        if (withShift && !shiftSticky) {
+            if (down) {
+                sendCombo(code, "shift");
+            }
+            return;
         }
+        sendKey(code, down);
     }
 
     private void toggleModifier(int code) {
@@ -355,30 +474,18 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         if (code == KeyCodeMap.KEY_LEFTSHIFT) {
             shiftSticky = !shiftSticky;
             active = shiftSticky;
-            tint(findViewById(R.id.btn_shift), active);
         } else if (code == KeyCodeMap.KEY_LEFTCTRL) {
             ctrlSticky = !ctrlSticky;
             active = ctrlSticky;
-            tint(findViewById(R.id.btn_ctrl), active);
         } else {
             altSticky = !altSticky;
             active = altSticky;
         }
+        if (softKeyboard != null) {
+            softKeyboard.setModifierActive(code, active);
+        }
         sendKey(code, active);
         tick();
-    }
-
-    /** Yapışkan değiştiriciyi neon vurguyla işaretle (arka planı bozmadan). */
-    private void tint(View v, boolean active) {
-        if (!(v instanceof MaterialButton)) {
-            return;
-        }
-        MaterialButton b = (MaterialButton) v;
-        b.setBackgroundTintList(ColorStateList.valueOf(
-                active ? 0xFF2A2A30 : 0xFF1F1F23));
-        b.setTextColor(active ? 0xFFF4F4F5 : 0xFFA1A1AA);
-        b.setIconTint(ColorStateList.valueOf(
-                active ? 0xFFF4F4F5 : 0xFFA1A1AA));
     }
 
     private void releaseModifiers() {
@@ -386,6 +493,11 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         if (ctrlSticky) sendKey(KeyCodeMap.KEY_LEFTCTRL, false);
         if (altSticky) sendKey(KeyCodeMap.KEY_LEFTALT, false);
         shiftSticky = ctrlSticky = altSticky = false;
+        if (softKeyboard != null) {
+            softKeyboard.setModifierActive(KeyCodeMap.KEY_LEFTSHIFT, false);
+            softKeyboard.setModifierActive(KeyCodeMap.KEY_LEFTCTRL, false);
+            softKeyboard.setModifierActive(KeyCodeMap.KEY_LEFTALT, false);
+        }
     }
 
     private void setupTouch() {
@@ -423,14 +535,23 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         Log.d("PCHomeTouch", "touch action=" + action + " at " + x + "," + y
                 + " view=" + viewW + "x" + viewH);
 
-        // Two-finger scroll.
+        // Two-finger scroll: yüksek çözünürlüklü tekerlek birimleriyle akıcı.
         if (e.getPointerCount() >= 2 && action == MotionEvent.ACTION_MOVE) {
             float cx = (e.getX(0) + e.getX(1)) / 2f;
             float cy = (e.getY(0) + e.getY(1)) / 2f;
             if (lastCentroidX != 0 || lastCentroidY != 0) {
-                int dx = (int) ((cx - lastCentroidX) * SENSITIVITY);
-                int dy = (int) ((cy - lastCentroidY) * SENSITIVITY);
-                sendScroll(-dx, -dy);
+                float density = getResources().getDisplayMetrics().density;
+                float unitsPerPx = SCROLL_UNITS_PER_DP / Math.max(1f, density);
+                twoFingerScrollCarryX += -(cx - lastCentroidX) * unitsPerPx;
+                twoFingerScrollCarryY += -(cy - lastCentroidY) * unitsPerPx;
+                int sx = (int) twoFingerScrollCarryX;
+                int sy = (int) twoFingerScrollCarryY;
+                twoFingerScrollCarryX -= sx;
+                twoFingerScrollCarryY -= sy;
+                if (sx != 0 || sy != 0) {
+                    stopScrollFling();
+                    sendScrollHiRes(sx, sy);
+                }
             }
             lastCentroidX = cx;
             lastCentroidY = cy;
@@ -438,6 +559,8 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         }
         lastCentroidX = 0;
         lastCentroidY = 0;
+        twoFingerScrollCarryX = 0f;
+        twoFingerScrollCarryY = 0f;
 
         if (mode == MODE_DIRECT) {
             processDirect(action, x, y, viewW, viewH);
@@ -482,9 +605,10 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         FrameLayout parent = (FrameLayout) surfaceView.getParent();
         int parentW = parent.getWidth();
         int parentH = parent.getHeight();
-        int topInset = topOverlay != null ? topOverlay.getHeight() : 0;
+        int topInset = topOverlay != null && topOverlay.getVisibility() == View.VISIBLE
+                ? topOverlay.getHeight() : 0;
         int bottomInset = 0;
-        if (controlBar != null) {
+        if (controlBar != null && controlBar.getVisibility() == View.VISIBLE) {
             // Klavye açılınca dock yukarı büyür; videoyu sıfıra indirmek
             // yerine klavye videonun altını geçici olarak örtsün.
             if (keyboardContainer == null
@@ -525,6 +649,10 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         float[] mapped = mapToPc(x, y, viewW, viewH);
         float pcX = mapped[0];
         float pcY = mapped[1];
+        // Trackpad'e geçildiğinde göreli sıçramanın doğru hesaplanması için
+        // son mutlak imleç konumunu da aklımızda tut.
+        virtX = pcX;
+        virtY = pcY;
         // Siyah letterbox alanına dokunmak imleci ekranın kenarına
         // fırlatıyordu. Basışı yalnız gerçek görüntü dikdörtgeninde kabul et;
         // sürükleme görüntü dışına taşarsa mevcut basış devam eder.
@@ -597,6 +725,9 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                 moved = false;
                 longPressFired = false;
                 pressed = true;
+                trackpadCarryX = 0f;
+                trackpadCarryY = 0f;
+                placeTrackpadCursor(x, y, viewW, viewH);
                 touchHandler.postDelayed(() -> {
                     if (pressed && !moved && !longPressFired) {
                         longPressFired = true;
@@ -605,8 +736,12 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                 }, LONG_PRESS_MS);
                 break;
             case MotionEvent.ACTION_MOVE:
-                int dx = (int) ((x - lastX) * SENSITIVITY);
-                int dy = (int) ((y - lastY) * SENSITIVITY);
+                float rawDx = (x - lastX) * TRACKPAD_X_SENSITIVITY + trackpadCarryX;
+                float rawDy = (y - lastY) * TRACKPAD_Y_SENSITIVITY + trackpadCarryY;
+                int dx = (int) rawDx;
+                int dy = (int) rawDy;
+                trackpadCarryX = rawDx - dx;
+                trackpadCarryY = rawDy - dy;
                 lastX = x;
                 lastY = y;
                 if (Math.abs(x - downX) > MOVE_THRESHOLD || Math.abs(y - downY) > MOVE_THRESHOLD) {
@@ -637,6 +772,29 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
 
     private float clamp(float v, float min, float max) {
         return Math.max(min, Math.min(max, v));
+    }
+
+    /**
+     * Trackpad'e dokunulunca imleci parmağın 56dp soluna yerleştirir.
+     * Yatay hareket 1:1 olduğu için bu mesafe korunur; dikeyde 1.4x
+     * hassasiyet sayesinde yukarı çıkarken imleç parmağın üstünde,
+     * aşağı inerken altında kalır. Böylece parmak imleci kapatmaz.
+     */
+    private void placeTrackpadCursor(float x, float y, int viewW, int viewH) {
+        float[] r = videoRect(viewW, viewH);
+        float[] mapped = mapToPc(x, y, viewW, viewH);
+        float density = getResources().getDisplayMetrics().density;
+        float offsetScreen = TRACKPAD_LEFT_OFFSET_DP * density;
+        float offsetPc = offsetScreen / Math.max(1f, r[2]) * pcWidth;
+        float targetX = clamp(mapped[0] - offsetPc, 0, pcWidth - 1);
+        float targetY = clamp(mapped[1], 0, pcHeight - 1);
+        virtX = targetX;
+        virtY = targetY;
+        // İlk yerleştirmeyi mutlak yap: PC imlecinin gerçek konumu ne olursa
+        // olsun parmağın solunda başlasın. Sonraki hareketler göreli kalır.
+        sendMoveAbs(Math.round(targetX), Math.round(targetY));
+        sendMode(); // Kip satırı "Dokunma"ya dönmesin.
+        updateReticle(r[0] + virtX / pcWidth * r[2], r[1] + virtY / pcHeight * r[3]);
     }
 
     private void updateReticle(float x, float y) {
@@ -670,12 +828,65 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         send(new ControlMessage().type("click").put("button", button).put("action", action).toJson());
     }
 
-    private void sendScroll(int dx, int dy) {
-        send(new ControlMessage().type("scroll").put("dx", dx).put("dy", dy).toJson());
+    private void sendScrollHiRes(int dx, int dy) {
+        send(new ControlMessage()
+                .type("scroll_hi")
+                .put("dx", dx)
+                .put("dy", dy)
+                .toJson());
     }
+
+    private void startScrollFling(float unitsPerSecond) {
+        if (uiHandler == null) {
+            return;
+        }
+        scrollFlingVelocity = clamp(unitsPerSecond, -4200f, 4200f);
+        if (Math.abs(scrollFlingVelocity) < 50f) {
+            return;
+        }
+        scrollFlingLast = SystemClock.uptimeMillis();
+        uiHandler.removeCallbacks(scrollFlingRunnable);
+        uiHandler.post(scrollFlingRunnable);
+    }
+
+    private void stopScrollFling() {
+        scrollFlingVelocity = 0f;
+        if (uiHandler != null) {
+            uiHandler.removeCallbacks(scrollFlingRunnable);
+        }
+    }
+
+    private final Runnable scrollFlingRunnable = new Runnable() {
+        @Override
+        public void run() {
+            long now = SystemClock.uptimeMillis();
+            float dt = (now - scrollFlingLast) / 1000f;
+            scrollFlingLast = now;
+            if (dt <= 0f) {
+                dt = 0.016f;
+            }
+            dt = Math.min(dt, 0.05f);
+            int units = Math.round(scrollFlingVelocity * dt);
+            if (units != 0) {
+                sendScrollHiRes(0, units);
+            }
+            scrollFlingVelocity *= (float) Math.pow(0.08f, dt);
+            if (Math.abs(scrollFlingVelocity) > 40f) {
+                uiHandler.postDelayed(this, 16L);
+            }
+        }
+    };
 
     private void sendKey(int code, boolean down) {
         send(new ControlMessage().type("key").put("code", code).put("action", down ? "down" : "up").toJson());
+    }
+
+    private void sendCombo(int code, String mod) {
+        send(new ControlMessage()
+                .type("combo")
+                .put("code", code)
+                .put("mod", mod)
+                .toJson());
     }
 
     private void send(String json) {
@@ -974,6 +1185,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     @Override
     protected void onDestroy() {
         releaseModifiers();
+        stopScrollFling();
         if (uiHandler != null) {
             uiHandler.removeCallbacks(timeoutCheck);
         }

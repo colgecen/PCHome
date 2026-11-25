@@ -21,6 +21,16 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <com.PCHome.mobile.ui.ScrollRailView
+        android:id="@+id/scroll_rail"
+        android:layout_width="44dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:layout_marginTop="64dp"
+        android:layout_marginBottom="130dp"
+        android:contentDescription="@string/scroll"
+        android:visibility="gone" />
+
     <!-- ===================== Üst HUD ===================== -->
     <LinearLayout
         android:id="@+id/top_overlay"
@@ -79,17 +89,15 @@
             android:layout_height="1dp"
             android:layout_weight="1" />
 
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/hud_version"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:fontFamily="@font/inter_regular"
-            android:paddingStart="8dp"
-            android:paddingTop="4dp"
-            android:paddingEnd="2dp"
-            android:paddingBottom="4dp"
-            android:textColor="@color/PCHome_dim"
-            android:textSize="9.5sp" />
+        <ImageButton
+            android:id="@+id/btn_hide_menu"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/bg_icon_button"
+            android:contentDescription="@string/hide_menu"
+            android:padding="8dp"
+            android:src="@drawable/ic_eye_off"
+            android:tint="@color/PCHome_muted" />
     </LinearLayout>
 
     <com.google.android.material.chip.Chip
@@ -224,6 +232,23 @@
             android:orientation="horizontal">
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_copy"
+                style="@style/Widget.PCHome.Button.Key"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="5dp"
+                android:layout_weight="1"
+                android:maxLines="1"
+                android:paddingStart="2dp"
+                android:paddingEnd="4dp"
+                android:text="@string/ctrl_c"
+                android:textSize="9sp"
+                app:icon="@drawable/ic_copy"
+                app:iconGravity="textStart"
+                app:iconPadding="3dp"
+                app:iconSize="13dp" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_left"
                 style="@style/Widget.PCHome.Button.Key"
                 android:layout_width="0dp"
@@ -231,11 +256,31 @@
                 android:layout_marginEnd="5dp"
                 android:layout_weight="1"
                 android:maxLines="1"
+                android:paddingStart="2dp"
+                android:paddingEnd="4dp"
                 android:text="@string/mouse_left"
+                android:textSize="9sp"
                 app:icon="@drawable/ic_mouse"
                 app:iconGravity="textStart"
                 app:iconPadding="3dp"
-                app:iconSize="14dp" />
+                app:iconSize="13dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_wheel"
+                style="@style/Widget.PCHome.Button.Key"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="5dp"
+                android:layout_weight="1"
+                android:maxLines="1"
+                android:paddingStart="2dp"
+                android:paddingEnd="4dp"
+                android:text="@string/scroll"
+                android:textSize="9sp"
+                app:icon="@drawable/ic_scroll"
+                app:iconGravity="textStart"
+                app:iconPadding="3dp"
+                app:iconSize="13dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_right"
@@ -245,40 +290,30 @@
                 android:layout_marginEnd="5dp"
                 android:layout_weight="1"
                 android:maxLines="1"
+                android:paddingStart="2dp"
+                android:paddingEnd="4dp"
                 android:text="@string/mouse_right"
+                android:textSize="9sp"
                 app:icon="@drawable/ic_mouse"
                 app:iconGravity="textStart"
                 app:iconPadding="3dp"
-                app:iconSize="14dp" />
+                app:iconSize="13dp" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_esc"
-                style="@style/Widget.PCHome.Button.Key"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_marginEnd="5dp"
-                android:layout_weight="1"
-                android:maxLines="1"
-                android:text="@string/key_esc" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_ctrl"
-                style="@style/Widget.PCHome.Button.Key"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_marginEnd="5dp"
-                android:layout_weight="1"
-                android:maxLines="1"
-                android:text="@string/key_ctrl" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_shift"
+                android:id="@+id/btn_paste"
                 style="@style/Widget.PCHome.Button.Key"
                 android:layout_width="0dp"
                 android:layout_height="36dp"
                 android:layout_weight="1"
                 android:maxLines="1"
-                android:text="@string/key_shift" />
+                android:paddingStart="2dp"
+                android:paddingEnd="4dp"
+                android:text="@string/ctrl_v"
+                android:textSize="9sp"
+                app:icon="@drawable/ic_paste"
+                app:iconGravity="textStart"
+                app:iconPadding="3dp"
+                app:iconSize="13dp" />
         </LinearLayout>
     </LinearLayout>
 

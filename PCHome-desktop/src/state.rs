@@ -31,6 +31,10 @@ pub struct AppState {
     pub uinput_active: AtomicBool,
     /// Active injection mode ("EV_ABS" for direct touch, "EV_REL" for trackpad).
     pub mode: Mutex<String>,
+    /// Kip telefondan açıkça bildirildi mi? Eski istemcilerde kip, gelen
+    /// hareket mesajlarından çıkarılır; yeni istemcilerde `mode` mesajı
+    /// hareket mesajlarının kipi ezmesini engeller.
+    pub mode_explicit: AtomicBool,
     /// Rolling terminal-style log of incoming control events.
     pub events: Mutex<VecDeque<String>>,
     /// Set by the GUI TERMINATE button to shut the daemon down.

@@ -42,7 +42,7 @@
 
     <!-- ===================== Tipografi ===================== -->
     <style name="TextAppearance.PCHome.Hero" parent="TextAppearance.Material3.DisplaySmall">
-        <item name="android:textSize">36sp</item>
+        <item name="android:textSize">28sp</item>
         <item name="android:textColor">@color/PCHome_text</item>
         <item name="android:textStyle">bold</item>
         <item name="android:fontFamily">@font/inter</item>

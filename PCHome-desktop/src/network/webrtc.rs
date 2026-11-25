@@ -180,6 +180,7 @@ impl WebRtcEngine {
                 st.peer_generation.store(generation, Ordering::SeqCst);
                 st.peer_connected.store(true, Ordering::SeqCst);
                 st.peer_since.store(now_epoch(), Ordering::SeqCst);
+                st.mode_explicit.store(false, Ordering::SeqCst);
                 st.push_event("cihaz bağlandı (veri kanalı açık)".to_string());
                 log::info!(
                     "control data channel opened (session {}, {}x{})",

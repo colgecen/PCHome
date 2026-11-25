@@ -279,6 +279,7 @@ fn small_metric(ui: &mut egui::Ui, label: &str, value: &str) {
 impl DesktopGui {
     fn top_bar(&mut self, ctx: &egui::Context) {
         let status = self.state.status.lock().unwrap().clone();
+        let peer_connected = self.state.peer_connected.load(Ordering::SeqCst);
         let (label, color) = status_of(&status);
         egui::TopBottomPanel::top("topbar")
             .exact_height(52.0)
@@ -337,11 +338,15 @@ impl DesktopGui {
                                 .push_event("ekran yakalama yenileniyor…".to_string());
                         }
                         ui.add_space(10.0);
-                        ui.label(
-                            RichText::new(format!("v{}", crate::updater::current_version()))
-                                .font(theme::mono_font(9.5))
-                                .color(theme::muted()),
-                        );
+                        // Yansıtma sırasında sürüm etiketi telefon ekranının
+                        // sağ üstünde görünmesin; yalnız boştayken göster.
+                        if !peer_connected {
+                            ui.label(
+                                RichText::new(format!("v{}", crate::updater::current_version()))
+                                    .font(theme::mono_font(9.5))
+                                    .color(theme::muted()),
+                            );
+                        }
                     });
                 });
             });

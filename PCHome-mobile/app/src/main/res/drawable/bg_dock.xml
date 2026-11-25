@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="#FA18181B" />
+    <!-- HUD köşeleri düz: ekranın alt köşeleri kapanmasın. -->
     <corners
-        android:topLeftRadius="18dp"
-        android:topRightRadius="18dp" />
+        android:topLeftRadius="0dp"
+        android:topRightRadius="0dp" />
     <stroke android:width="1dp" android:color="#0AFFFFFF" />
 </shape>

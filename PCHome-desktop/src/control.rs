@@ -6,6 +6,10 @@ use tokio::sync::Mutex;
 use crate::state::SharedState;
 use crate::uinput::{button_code, UInputDevice};
 
+const KEY_LEFTCTRL: u32 = 29;
+const KEY_LEFTSHIFT: u32 = 42;
+const KEY_LEFTALT: u32 = 56;
+
 /// Dispatches control messages received over the WebRTC DataChannel to the
 /// kernel via `/dev/uinput`. A missing uinput device only disables that part of
 /// input injection; video viewing keeps working.
@@ -52,12 +56,12 @@ impl ControlHandler {
 
     async fn inject_rel<F>(&self, action: F)
     where
-        F: FnOnce(&UInputDevice) -> anyhow::Result<()>,
+        F: FnOnce(&mut UInputDevice) -> anyhow::Result<()>,
     {
         match &self.rel {
             Some(dev) => {
-                let dev = dev.lock().await;
-                if let Err(e) = action(&dev) {
+                let mut dev = dev.lock().await;
+                if let Err(e) = action(&mut dev) {
                     log::warn!("uinput relative injection failed: {}", e);
                 }
             }
@@ -80,6 +84,32 @@ impl ControlHandler {
         }
     }
 
+    /// Değiştirici + tuşu tek kilit altında gönderir; arada başka bir tuş
+    /// mesajı girse bile Ctrl+C / Shift+2 gibi kombinasyonlar bölünmez.
+    async fn inject_combo(&self, modifier: Option<u32>, code: u32) {
+        let Some(dev) = &self.keyboard else {
+            log::debug!("klavye cihazı yok; kombo yoksayıldı");
+            return;
+        };
+        let dev = dev.lock().await;
+        if let Some(m) = modifier {
+            if let Err(e) = dev.key(m, true) {
+                log::warn!("uinput modifier down failed: {}", e);
+            }
+        }
+        if let Err(e) = dev.key(code, true) {
+            log::warn!("uinput combo key down failed: {}", e);
+        }
+        if let Err(e) = dev.key(code, false) {
+            log::warn!("uinput combo key up failed: {}", e);
+        }
+        if let Some(m) = modifier {
+            if let Err(e) = dev.key(m, false) {
+                log::warn!("uinput modifier up failed: {}", e);
+            }
+        }
+    }
+
     pub async fn handle(&self, msg: &Value) {
         let typ = msg.get("type").and_then(|v| v.as_str()).unwrap_or("");
         match typ {
@@ -95,18 +125,23 @@ impl ControlHandler {
                     }
                 };
                 *self.state.mode.lock().unwrap() = mode.to_string();
+                self.state.mode_explicit.store(true, Ordering::SeqCst);
             }
             "move_abs" => {
                 let x = msg.get("x").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
                 let y = msg.get("y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-                *self.state.mode.lock().unwrap() = "EV_ABS".to_string();
+                if !self.state.mode_explicit.load(Ordering::SeqCst) {
+                    *self.state.mode.lock().unwrap() = "EV_ABS".to_string();
+                }
                 self.inject_abs(|d| d.move_absolute(x, y)).await;
                 self.state.push_event(format!("ABS {} {}", x, y));
             }
             "move_rel" => {
                 let dx = msg.get("dx").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
                 let dy = msg.get("dy").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-                *self.state.mode.lock().unwrap() = "EV_REL".to_string();
+                if !self.state.mode_explicit.load(Ordering::SeqCst) {
+                    *self.state.mode.lock().unwrap() = "EV_REL".to_string();
+                }
                 self.inject_rel(|d| d.move_relative(dx, dy)).await;
                 self.state.push_event(format!("REL {} {}", dx, dy));
             }
@@ -135,6 +170,15 @@ impl ControlHandler {
                 self.inject_rel(|d| d.wheel(dx, dy)).await;
                 self.state.push_event(format!("WHEEL {} {}", dx, dy));
             }
+            // Yeni istemciler: 120 birim = 1 klasik tık. Eski masaüstü bu
+            // türü tanımaz, böylece yüksek çözünürlüklü birimleri yanlışlıkla
+            // tam tekerlek tıkı sanıp aşırı hızlı kaydırmaz.
+            "scroll_hi" => {
+                let dx = msg.get("dx").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                let dy = msg.get("dy").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                self.inject_rel(|d| d.wheel_hi_res(dx, dy)).await;
+                self.state.push_event(format!("WHEEL-HI {} {}", dx, dy));
+            }
             "key" => {
                 let code = msg.get("code").and_then(|v| v.as_i64()).unwrap_or(0) as u32;
                 let down = msg
@@ -145,6 +189,23 @@ impl ControlHandler {
                 self.inject_key(|d| d.key(code, down)).await;
                 self.state
                     .push_event(format!("KEY {} {}", code, if down { "dn" } else { "up" }));
+            }
+            // Tek pakette değiştirici + tuş: sırasız DataChannel'da Shift/Ctrl
+            // ile tuşun birbirinden ayrı düşmesini engeller (Ctrl+C, @, : ...).
+            "combo" => {
+                let code = msg.get("code").and_then(|v| v.as_i64()).unwrap_or(0) as u32;
+                if code == 0 {
+                    return;
+                }
+                let modifier = match msg.get("mod").and_then(|v| v.as_str()) {
+                    Some("ctrl") => Some(KEY_LEFTCTRL),
+                    Some("shift") => Some(KEY_LEFTSHIFT),
+                    Some("alt") => Some(KEY_LEFTALT),
+                    _ => None,
+                };
+                self.inject_combo(modifier, code).await;
+                self.state
+                    .push_event(format!("COMBO {:?} {}", modifier, code));
             }
             "pong" => {
                 let sent = msg.get("t").and_then(|v| v.as_u64()).unwrap_or(0);

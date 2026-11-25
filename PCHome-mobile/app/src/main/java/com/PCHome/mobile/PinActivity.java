@@ -18,7 +18,6 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.airbnb.lottie.LottieAnimationView;
 import com.google.android.material.button.MaterialButton;
 import androidx.appcompat.widget.SwitchCompat;
 import com.google.android.material.textfield.TextInputEditText;
@@ -40,7 +39,6 @@ public class PinActivity extends AppCompatActivity {
     private MaterialTextView updateStateText;
     private RecyclerView recentGrid;
     private MaterialTextView recentEmpty;
-    private LottieAnimationView heroPulse;
     private Prefs prefs;
     private RecentStore recentStore;
     private RecentAdapter recentAdapter;
@@ -62,11 +60,8 @@ public class PinActivity extends AppCompatActivity {
         recentEmpty = findViewById(R.id.recent_empty);
         updateStateText = findViewById(R.id.update_state_text);
         updateStateText.setText(getString(R.string.update_idle));
-        heroPulse = findViewById(R.id.hero_pulse);
         MaterialTextView versionFooter = findViewById(R.id.version_footer);
         versionFooter.setText("WebRTC • uçtan uca");
-        MaterialTextView versionPill = findViewById(R.id.version_pill);
-        versionPill.setText(getString(R.string.version_pill, BuildConfig.VERSION_NAME));
         prefs = new Prefs(this);
         recentStore = new RecentStore(this);
         rememberCheck.setChecked(prefs.getRememberPassword());
@@ -262,18 +257,12 @@ public class PinActivity extends AppCompatActivity {
 
     @Override
     protected void onPause() {
-        if (heroPulse != null) {
-            heroPulse.pauseAnimation();
-        }
         super.onPause();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (heroPulse != null) {
-            heroPulse.playAnimation();
-        }
         refreshRecent();
         // Güncelleme denetimi (Faz 5'te UpdateChecker bağlanır).
         checkForUpdate();

@@ -59,6 +59,10 @@ const REL_Y: u16 = 0x01;
 const REL_WHEEL: u16 = 0x08;
 #[cfg(target_family = "unix")]
 const REL_HWHEEL: u16 = 0x09;
+#[cfg(target_family = "unix")]
+const REL_WHEEL_HI_RES: u16 = 0x0b;
+#[cfg(target_family = "unix")]
+const REL_HWHEEL_HI_RES: u16 = 0x0c;
 
 #[cfg(target_family = "unix")]
 const ABS_X: u16 = 0x00;
@@ -131,6 +135,9 @@ pub struct UInputDevice {
     width: i32,
     height: i32,
     kind: DeviceKind,
+    /// High-resolution wheel artıkları: 120 birim = 1 klasik tık.
+    wheel_hi_x: i32,
+    wheel_hi_y: i32,
 }
 
 #[cfg(target_family = "unix")]
@@ -237,6 +244,10 @@ impl UInputDevice {
                 ioctl(raw_fd, UI_SET_RELBIT, REL_Y as libc::c_ulong);
                 ioctl(raw_fd, UI_SET_RELBIT, REL_WHEEL as libc::c_ulong);
                 ioctl(raw_fd, UI_SET_RELBIT, REL_HWHEEL as libc::c_ulong);
+                // Yüksek çözünürlüklü tekerlek: modern uygulamalarda akıcı
+                // kaydırma; desteklemeyenler için REL_WHEEL'e de düşeriz.
+                ioctl(raw_fd, UI_SET_RELBIT, REL_WHEEL_HI_RES as libc::c_ulong);
+                ioctl(raw_fd, UI_SET_RELBIT, REL_HWHEEL_HI_RES as libc::c_ulong);
                 ioctl(raw_fd, UI_SET_KEYBIT, BTN_LEFT as libc::c_ulong);
                 ioctl(raw_fd, UI_SET_KEYBIT, BTN_RIGHT as libc::c_ulong);
                 ioctl(raw_fd, UI_SET_KEYBIT, BTN_MIDDLE as libc::c_ulong);
@@ -298,6 +309,8 @@ impl UInputDevice {
             width: width as i32,
             height: height as i32,
             kind,
+            wheel_hi_x: 0,
+            wheel_hi_y: 0,
         })
     }
 
@@ -357,6 +370,35 @@ impl UInputDevice {
         }
         if dx != 0 {
             self.emit(InputEvent::new(EV_REL, REL_HWHEEL, dx))?;
+        }
+        self.emit(InputEvent::new(EV_SYN, SYN_REPORT, 0))?;
+        Ok(())
+    }
+
+    /// Akıcı kaydırma: 120 birim = 1 klasik tekerlek tıkı. High-res
+    /// destekleyen uygulamalar küçük birimleri yumuşak işler; desteklemeyenler
+    /// için 120 birim dolunca normal REL_WHEEL de gönderilir.
+    pub fn wheel_hi_res(&mut self, dx: i32, dy: i32) -> Result<()> {
+        if self.kind != DeviceKind::RelativePointer {
+            anyhow::bail!("wheel_hi_res yalnız göreli işaretçide kullanılabilir");
+        }
+        if dy != 0 {
+            self.emit(InputEvent::new(EV_REL, REL_WHEEL_HI_RES, dy))?;
+            self.wheel_hi_y += dy;
+            let notches = self.wheel_hi_y / 120;
+            if notches != 0 {
+                self.wheel_hi_y -= notches * 120;
+                self.emit(InputEvent::new(EV_REL, REL_WHEEL, notches))?;
+            }
+        }
+        if dx != 0 {
+            self.emit(InputEvent::new(EV_REL, REL_HWHEEL_HI_RES, dx))?;
+            self.wheel_hi_x += dx;
+            let notches = self.wheel_hi_x / 120;
+            if notches != 0 {
+                self.wheel_hi_x -= notches * 120;
+                self.emit(InputEvent::new(EV_REL, REL_HWHEEL, notches))?;
+            }
         }
         self.emit(InputEvent::new(EV_SYN, SYN_REPORT, 0))?;
         Ok(())

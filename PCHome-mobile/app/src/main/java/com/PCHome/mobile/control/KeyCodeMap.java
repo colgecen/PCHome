@@ -61,6 +61,7 @@ public final class KeyCodeMap {
     public static final int KEY_SLASH = 53;
     public static final int KEY_LEFTALT = 56;
     public static final int KEY_SPACE = 57;
+    public static final int KEY_CAPSLOCK = 58;
     public static final int KEY_F1 = 59;
     public static final int KEY_F10 = 68;
     public static final int KEY_F11 = 87;
