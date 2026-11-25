@@ -131,13 +131,14 @@ fn install_desktop_integration() {
         .to_string_lossy()
         .replace('\\', "\\\\")
         .replace('"', "\\\"");
+    let icon = icon_path.to_string_lossy().replace('\\', "\\\\");
     let desktop = format!(
         "[Desktop Entry]\n\
          Type=Application\n\
          Name=PCHome\n\
          Comment=Remote control your Linux PC from Android\n\
          Exec=\"{exec}\"\n\
-         Icon=PCHome\n\
+         Icon={icon}\n\
          Terminal=false\n\
          Categories=Network;RemoteAccess;\n\
          StartupWMClass=PCHome\n\
