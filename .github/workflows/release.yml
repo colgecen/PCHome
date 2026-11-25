@@ -104,7 +104,7 @@ jobs:
           find ~/rpmbuild/RPMS -name '*.rpm' -exec mv {} PCHome-desktop-${VER}-x86_64.rpm \;
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: desktop-packages
           path: |
@@ -135,7 +135,7 @@ jobs:
           tar -czf PCHome-signal-${VERSION}-x86_64.tar.gz -C staging PCHome-signal README.md
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: signal-package
           path: PCHome-signal-*-x86_64.tar.gz
@@ -183,7 +183,7 @@ jobs:
           mv app-debug.apk PCHome-mobile-${VERSION}.apk
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-apk
           path: PCHome-mobile/app/build/outputs/apk/debug/PCHome-mobile-*.apk
