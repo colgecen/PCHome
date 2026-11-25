@@ -429,6 +429,9 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         if (menuHidden && keyboardContainer.getVisibility() == View.VISIBLE) {
             keyboardContainer.setVisibility(View.GONE);
             btnKeyboard.setText(R.string.keyboard);
+            if (btnHand != null) {
+                btnHand.setVisibility(View.VISIBLE);
+            }
         }
         if (menuHidden && scrollRail.getVisibility() == View.VISIBLE) {
             scrollRail.setVisibility(View.GONE);
@@ -603,6 +606,13 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             boolean show = keyboardContainer.getVisibility() != View.VISIBLE;
             keyboardContainer.setVisibility(show ? View.VISIBLE : View.GONE);
             btnKeyboard.setText(show ? "GİZLE" : getString(R.string.keyboard));
+            if (btnHand != null) {
+                btnHand.setVisibility(show ? View.GONE : View.VISIBLE);
+            }
+            if (show && scrollRail != null && scrollRail.getVisibility() == View.VISIBLE) {
+                scrollRail.setVisibility(View.GONE);
+                setWheelActive(false);
+            }
             applyAspectLayout();
             surfaceView.postDelayed(this::applyAspectLayout, 120L);
         });
