@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 
 /// Masaüstü GUI giriş noktası (ana iş parçacığında winit döngüsünü bloklar).
 pub fn run(state: SharedState) {
+    install_desktop_integration();
     let focus_request = Arc::new(AtomicBool::new(false));
     #[cfg(unix)]
     {
@@ -25,6 +26,7 @@ pub fn run(state: SharedState) {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1200.0, 800.0])
             .with_min_inner_size([1000.0, 680.0])
+            .with_app_id("PCHome")
             .with_icon(app_icon()),
         ..Default::default()
     };
@@ -52,6 +54,7 @@ pub fn run(state: SharedState) {
             let (update_tx, update_rx) = channel();
             Ok(Box::new(DesktopGui {
                 state,
+                settings_signal_url: signal_url.clone(),
                 signal_url,
                 show_settings: is_default,
                 show_password: false,
@@ -93,9 +96,75 @@ fn app_icon() -> egui::IconData {
     }
 }
 
+/// AppImage/tarball doğrudan çalıştırıldığında masaüstü simgesi ve görev
+/// çubuğu eşleşmesi için .desktop + ikon dosyasını kullanıcı dizinine kur.
+/// Wayland'de pencere ikonu protokolü olmadığı için taskbar simgesi ancak
+/// app_id ile eşleşen bir .desktop girdisi varsa görünür.
+fn install_desktop_integration() {
+    const ICON_PNG: &[u8] = include_bytes!("../../assets/icon.png");
+    let Some(data_dir) = user_data_dir() else {
+        return;
+    };
+    let icon_dir = data_dir.join("icons/hicolor/256x256/apps");
+    let apps_dir = data_dir.join("applications");
+    if let Err(e) =
+        std::fs::create_dir_all(&icon_dir).and_then(|_| std::fs::create_dir_all(&apps_dir))
+    {
+        log::warn!("masaüstü entegrasyon dizinleri oluşturulamadı: {}", e);
+        return;
+    }
+    let icon_path = icon_dir.join("PCHome.png");
+    if std::fs::read(&icon_path).ok().as_deref() != Some(ICON_PNG) {
+        if let Err(e) = std::fs::write(&icon_path, ICON_PNG) {
+            log::warn!("uygulama ikonu yazılamadı: {}", e);
+        }
+    }
+
+    let exec = std::env::var_os("APPIMAGE")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| std::env::current_exe().ok());
+    let Some(exec) = exec else {
+        return;
+    };
+    let exec = exec
+        .to_string_lossy()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
+    let desktop = format!(
+        "[Desktop Entry]\n\
+         Type=Application\n\
+         Name=PCHome\n\
+         Comment=Remote control your Linux PC from Android\n\
+         Exec=\"{exec}\"\n\
+         Icon=PCHome\n\
+         Terminal=false\n\
+         Categories=Network;RemoteAccess;\n\
+         StartupWMClass=PCHome\n\
+         X-GNOME-WMClass=PCHome\n"
+    );
+    let desktop_path = apps_dir.join("PCHome.desktop");
+    if std::fs::read_to_string(&desktop_path).ok().as_deref() != Some(desktop.as_str()) {
+        if let Err(e) = std::fs::write(&desktop_path, desktop) {
+            log::warn!("masaüstü girdisi yazılamadı: {}", e);
+        }
+    }
+}
+
+fn user_data_dir() -> Option<PathBuf> {
+    if let Some(base) = std::env::var_os("XDG_DATA_HOME").filter(|v| !v.is_empty()) {
+        return Some(PathBuf::from(base));
+    }
+    std::env::var_os("HOME")
+        .filter(|v| !v.is_empty())
+        .map(|home| PathBuf::from(home).join(".local/share"))
+}
+
 struct DesktopGui {
     state: SharedState,
     signal_url: String,
+    /// Ayarlar formunun kalıcı taslağı; her karede sıfırlanmasın.
+    settings_signal_url: String,
     show_settings: bool,
     show_password: bool,
     new_password: String,
@@ -321,6 +390,7 @@ impl DesktopGui {
                             .clicked()
                         {
                             self.new_pc_name = self.state.pc_name.lock().unwrap().clone();
+                            self.settings_signal_url = self.signal_url.clone();
                             self.new_password.clear();
                             self.settings_msg.clear();
                             self.show_settings = !self.show_settings;
@@ -385,6 +455,8 @@ impl DesktopGui {
                     v.widgets.inactive.rounding = egui::Rounding::same(0.0);
                     v.widgets.hovered.rounding = egui::Rounding::same(0.0);
                     v.widgets.active.rounding = egui::Rounding::same(0.0);
+                    // Daha kalın, kolay tutulabilir scrollbar.
+                    ui.spacing_mut().scroll.bar_width = 12.0;
                     let vis = if hovered {
                         egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded
                     } else {
@@ -1048,7 +1120,7 @@ impl DesktopGui {
             return;
         }
         let was_open = self.settings_rect.is_some();
-        let mut signal_url = self.signal_url.clone();
+        let mut signal_url = self.settings_signal_url.clone();
         let mut pc_name = self.new_pc_name.clone();
         let mut new_password = self.new_password.clone();
         let mut close = false;
@@ -1116,10 +1188,12 @@ impl DesktopGui {
         if let Some(r) = resp {
             self.settings_rect = Some(r.response.rect);
         }
+        // TextEdit'ler yerel değişkenleri düzenler; bir sonraki karede
+        // kaybolmasın diye taslağı kalıcı alanlara geri yaz.
+        self.settings_signal_url = signal_url;
+        self.new_pc_name = pc_name;
+        self.new_password = new_password;
         if save {
-            self.signal_url = signal_url;
-            self.new_pc_name = pc_name;
-            self.new_password = new_password;
             self.save_settings();
         } else if close || (was_open && outside_tap(ctx, self.settings_rect)) {
             self.show_settings = false;
@@ -1338,7 +1412,7 @@ impl DesktopGui {
     }
 
     fn save_settings(&mut self) {
-        let raw_url = self.signal_url.trim().to_string();
+        let raw_url = self.settings_signal_url.trim().to_string();
         if !raw_url.is_empty() {
             let Some(url) = crate::config::Config::normalize_signal_url(&raw_url) else {
                 self.settings_msg = "geçerli bir sinyal adresi gir".to_string();

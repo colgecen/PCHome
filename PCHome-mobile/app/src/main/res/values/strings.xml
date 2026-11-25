@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">PCHome</string>
     <string name="app_tagline">Uzak masaüstü</string>
-    <string name="hero_title">PCHome: Masaüstün.\nCebinde.</string>
+    <string name="hero_title">PCHome: Masaüstün\nCebinde.</string>
     <string name="hero_subtitle">Gecikmesiz görüntü, gerçek fare ve klavye kontrolü. Tek dokunuşla bağlan.</string>
 
     <string name="accessibility_service_description">PCHome accessibility service for remote input control</string>

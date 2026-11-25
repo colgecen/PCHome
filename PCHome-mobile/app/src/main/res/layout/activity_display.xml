@@ -23,7 +23,7 @@
 
     <com.PCHome.mobile.ui.ScrollRailView
         android:id="@+id/scroll_rail"
-        android:layout_width="44dp"
+        android:layout_width="52dp"
         android:layout_height="match_parent"
         android:layout_gravity="end"
         android:layout_marginTop="64dp"

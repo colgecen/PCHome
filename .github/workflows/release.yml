@@ -43,6 +43,7 @@ jobs:
           Comment=Remote control your Linux PC from Android
           Exec=PCHome-desktop
           Icon=PCHome
+          StartupWMClass=PCHome
           Categories=Network;RemoteAccess;
           EOF
           # appimagetool does not generate AppRun; ship our own launcher

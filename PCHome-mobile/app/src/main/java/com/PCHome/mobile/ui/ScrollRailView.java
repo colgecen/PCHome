@@ -53,7 +53,7 @@ public class ScrollRailView extends View {
     public ScrollRailView(Context context, AttributeSet attrs) {
         super(context, attrs);
         density = getResources().getDisplayMetrics().density;
-        thumbHeight = 48f * density;
+        thumbHeight = 56f * density;
 
         trackPaint.setColor(0x33FFFFFF);
         trackPaint.setStyle(Paint.Style.FILL);
@@ -72,7 +72,7 @@ public class ScrollRailView extends View {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        float railWidth = 3.5f * density;
+        float railWidth = 6f * density;
         float top = 8f * density;
         float bottom = h - 8f * density;
         if (bottom - top < thumbHeight * 1.5f) {
@@ -103,7 +103,7 @@ public class ScrollRailView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        float thumbWidth = 22f * density;
+        float thumbWidth = 30f * density;
         trackRect.inset(0f, 0f);
         // Track.
         canvas.drawRoundRect(trackRect, trackRect.width() / 2f, trackRect.width() / 2f, trackPaint);
@@ -116,7 +116,7 @@ public class ScrollRailView extends View {
     }
 
     private void updateThumbRect() {
-        float w = 22f * density;
+        float w = 30f * density;
         float cx = getWidth() / 2f;
         float top = clamp(thumbCenterY - thumbHeight / 2f,
                 trackRect.top, trackRect.bottom - thumbHeight);
