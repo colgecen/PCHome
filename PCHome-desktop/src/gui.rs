@@ -1,3 +1,4 @@
+use crate::i18n;
 use crate::local_input::LocalClicker;
 use crate::state::SharedState;
 use crate::theme;
@@ -31,7 +32,7 @@ pub fn run(state: SharedState) {
         ..Default::default()
     };
     let _ = eframe::run_native(
-        "PCHome — Uzak Masaüstü",
+        i18n::t("PCHome — Remote Desktop", "PCHome — Uzak Masaüstü"),
         options,
         Box::new(|cc| {
             theme::apply(&cc.egui_ctx);
@@ -40,14 +41,24 @@ pub fn run(state: SharedState) {
                 .unwrap_or_else(|_| "ws://localhost:8080".to_string());
             let is_default = signal_url.trim() == "ws://localhost:8080";
             if is_default {
-                *state.status.lock().unwrap() = "SİNYAL: AYARLARDAN ADRESİ GİRİN".to_string();
+                *state.status.lock().unwrap() = i18n::t(
+                    "SIGNAL: ENTER ADDRESS IN SETTINGS",
+                    "SİNYAL: AYARLARDAN ADRESİ GİRİN",
+                )
+                .to_string();
             }
             let (cap_w, cap_h) = crate::config::Config::from_env()
                 .map(|c| (c.capture_width, c.capture_height))
                 .unwrap_or((1920, 1080));
-            *state.update_status.lock().unwrap() = format!(
-                "v{} — güncellemeler denetleniyor…",
-                crate::updater::current_version()
+            *state.update_status.lock().unwrap() = i18n::pick(
+                format!(
+                    "v{} — checking for updates…",
+                    crate::updater::current_version()
+                ),
+                format!(
+                    "v{} — güncellemeler denetleniyor…",
+                    crate::updater::current_version()
+                ),
             );
             let updater_state = state.clone();
             crate::updater::spawn_background_checker(updater_state);
@@ -238,14 +249,18 @@ fn fmt_id(id: &str) -> String {
 }
 
 fn status_of(status: &str) -> (&'static str, Color32) {
-    if status.contains("BAĞLI") {
-        ("Bağlı", theme::success())
-    } else if status.contains("DENEN") || status.contains("DEĞİŞTİ") {
-        ("Bağlanıyor", theme::warning())
-    } else if status.contains("BAŞARISIZ") || status.contains("YOK") {
-        ("Bağlantı yok", theme::danger())
+    if status.contains("BAĞLI") || status.contains("CONNECTED") {
+        (i18n::t("Connected", "Bağlı"), theme::success())
+    } else if status.contains("DENEN")
+        || status.contains("DEĞİŞTİ")
+        || status.contains("RETRY")
+        || status.contains("CHANGED")
+    {
+        (i18n::t("Connecting", "Bağlanıyor"), theme::warning())
+    } else if status.contains("BAŞARISIZ") || status.contains("YOK") || status.contains("FAILED") {
+        (i18n::t("No connection", "Bağlantı yok"), theme::danger())
     } else {
-        ("Hazırlanıyor", theme::muted())
+        (i18n::t("Preparing", "Hazırlanıyor"), theme::muted())
     }
 }
 
@@ -264,7 +279,14 @@ fn raise_window(ctx: &egui::Context) {
 
 fn event_color(line: &str) -> egui::Color32 {
     let l = line.to_lowercase();
-    if l.contains("yanlış") || l.contains("hata") || l.contains("kilit") || l.contains("başarısız")
+    if l.contains("yanlış")
+        || l.contains("hata")
+        || l.contains("kilit")
+        || l.contains("başarısız")
+        || l.contains("wrong")
+        || l.contains("error")
+        || l.contains("failed")
+        || l.contains("locked")
     {
         theme::danger()
     } else if l.contains("doğrulandı")
@@ -272,6 +294,9 @@ fn event_color(line: &str) -> egui::Color32 {
         || l.contains("güncelleme bulundu")
         || l.contains("kuruldu")
         || l.contains("ayrıldı")
+        || l.contains("verified")
+        || l.contains("connected")
+        || l.contains("installed")
     {
         theme::success()
     } else {
@@ -333,7 +358,7 @@ fn dash(s: String) -> String {
 fn mode_label(mode: &str) -> &'static str {
     match mode {
         "EV_REL" => "Trackpad",
-        _ => "Dokunma",
+        _ => i18n::t("Touch", "Dokunma"),
     }
 }
 
@@ -380,18 +405,33 @@ impl DesktopGui {
                     ui.label(RichText::new(label).size(11.0).color(theme::text2()));
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if theme::icon_button(ui, theme::I_POWER, "Kapat", theme::danger())
-                            .clicked()
+                        if theme::icon_button(
+                            ui,
+                            theme::I_POWER,
+                            i18n::t("Quit", "Kapat"),
+                            theme::danger(),
+                        )
+                        .clicked()
                         {
                             if self.update_modal.busy() {
-                                self.state
-                                    .push_event("kurulum bitmeden kapatılamaz — bekle".to_string());
+                                self.state.push_event(
+                                    i18n::t(
+                                        "cannot quit while installing — wait",
+                                        "kurulum bitmeden kapatılamaz — bekle",
+                                    )
+                                    .to_string(),
+                                );
                             } else {
                                 self.state.terminate.store(true, Ordering::SeqCst);
                             }
                         }
-                        if theme::icon_button(ui, theme::I_SETTINGS, "Ayarlar", theme::muted())
-                            .clicked()
+                        if theme::icon_button(
+                            ui,
+                            theme::I_SETTINGS,
+                            i18n::t("Settings", "Ayarlar"),
+                            theme::muted(),
+                        )
+                        .clicked()
                         {
                             self.new_pc_name = self.state.pc_name.lock().unwrap().clone();
                             self.settings_signal_url = self.signal_url.clone();
@@ -402,14 +442,19 @@ impl DesktopGui {
                         if theme::icon_button(
                             ui,
                             theme::I_REFRESH,
-                            "Ekran yakalamayı yenile",
+                            i18n::t("Refresh screen capture", "Ekran yakalamayı yenile"),
                             theme::muted(),
                         )
                         .clicked()
                         {
                             self.state.restart_capture.fetch_add(1, Ordering::SeqCst);
-                            self.state
-                                .push_event("ekran yakalama yenileniyor…".to_string());
+                            self.state.push_event(
+                                i18n::t(
+                                    "refreshing screen capture…",
+                                    "ekran yakalama yenileniyor…",
+                                )
+                                .to_string(),
+                            );
                         }
                         ui.add_space(10.0);
                         // Yansıtma sırasında sürüm etiketi telefon ekranının
@@ -476,7 +521,7 @@ impl DesktopGui {
                             ui.set_width(content_w);
                             self.sidebar_identity(ctx, ui);
                             theme::divider(ui);
-                            theme::section_label(ui, "CİHAZ");
+                            theme::section_label(ui, i18n::t("DEVICE", "CİHAZ"));
                             ui.add_space(6.0);
                             self.sidebar_device(ui);
                             theme::divider(ui);
@@ -488,7 +533,7 @@ impl DesktopGui {
     }
 
     fn sidebar_identity(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
-        theme::section_label(ui, "PC KİMLİĞİ");
+        theme::section_label(ui, i18n::t("PC IDENTITY", "PC KİMLİĞİ"));
         ui.add_space(3.0);
         let id = self.state.pc_id.lock().unwrap().clone();
         ui.horizontal(|ui| {
@@ -498,23 +543,36 @@ impl DesktopGui {
                     .color(theme::text()),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if theme::icon_button(ui, theme::I_COPY, "ID + şifreyi kopyala", theme::muted())
-                    .clicked()
+                if theme::icon_button(
+                    ui,
+                    theme::I_COPY,
+                    i18n::t("Copy ID + password", "ID + şifreyi kopyala"),
+                    theme::muted(),
+                )
+                .clicked()
                 {
                     let pw = self.state.password.lock().unwrap().clone();
-                    ctx.copy_text(format!("ID: {}  Şifre: {}", id, pw));
-                    self.state.push_event("ID ve şifre kopyalandı".to_string());
+                    ctx.copy_text(i18n::pick(
+                        format!("ID: {}  Password: {}", id, pw),
+                        format!("ID: {}  Şifre: {}", id, pw),
+                    ));
+                    self.state.push_event(
+                        i18n::t("ID and password copied", "ID ve şifre kopyalandı").to_string(),
+                    );
                 }
             });
         });
         ui.label(
-            RichText::new("Telefondaki PC ID alanına gir")
-                .size(10.0)
-                .color(theme::muted()),
+            RichText::new(i18n::t(
+                "Enter this in the PC ID field on your phone",
+                "Telefondaki PC ID alanına gir",
+            ))
+            .size(10.0)
+            .color(theme::muted()),
         );
         ui.add_space(14.0);
 
-        theme::section_label(ui, "ŞİFRE");
+        theme::section_label(ui, i18n::t("PASSWORD", "ŞİFRE"));
         ui.add_space(2.0);
         ui.horizontal(|ui| {
             let shown = if self.show_password {
@@ -528,37 +586,62 @@ impl DesktopGui {
                     .color(theme::text2()),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if theme::icon_button(ui, theme::I_REFRESH, "Şifreyi yenile", theme::muted())
-                    .clicked()
+                if theme::icon_button(
+                    ui,
+                    theme::I_REFRESH,
+                    i18n::t("Refresh password", "Şifreyi yenile"),
+                    theme::muted(),
+                )
+                .clicked()
                 {
                     self.refresh_password();
                 }
-                if theme::icon_button(ui, theme::I_COPY, "ID + şifreyi kopyala", theme::muted())
-                    .clicked()
+                if theme::icon_button(
+                    ui,
+                    theme::I_COPY,
+                    i18n::t("Copy ID + password", "ID + şifreyi kopyala"),
+                    theme::muted(),
+                )
+                .clicked()
                 {
                     let pw = self.state.password.lock().unwrap().clone();
-                    ctx.copy_text(format!("ID: {}  Şifre: {}", id, pw));
-                    self.state.push_event("ID ve şifre kopyalandı".to_string());
+                    ctx.copy_text(i18n::pick(
+                        format!("ID: {}  Password: {}", id, pw),
+                        format!("ID: {}  Şifre: {}", id, pw),
+                    ));
+                    self.state.push_event(
+                        i18n::t("ID and password copied", "ID ve şifre kopyalandı").to_string(),
+                    );
                 }
                 let eye = if self.show_password {
                     theme::I_EYE_OFF
                 } else {
                     theme::I_EYE
                 };
-                if theme::icon_button(ui, eye, "Göster / gizle", theme::muted()).clicked() {
+                if theme::icon_button(
+                    ui,
+                    eye,
+                    i18n::t("Show / hide", "Göster / gizle"),
+                    theme::muted(),
+                )
+                .clicked()
+                {
                     self.show_password = !self.show_password;
                 }
             });
         });
         ui.label(
-            RichText::new("6 haneli sabit şifre")
+            RichText::new(i18n::t("6-digit fixed password", "6 haneli sabit şifre"))
                 .size(9.5)
                 .color(theme::muted()),
         );
         if !self.settings_msg.is_empty() {
             ui.add_space(4.0);
             let ok = self.settings_msg.contains("güncellendi")
-                || self.settings_msg.contains("kaydedildi");
+                || self.settings_msg.contains("updated")
+                || self.settings_msg.contains("refreshed")
+                || self.settings_msg.contains("kaydedildi")
+                || self.settings_msg.contains("saved");
             ui.label(RichText::new(&self.settings_msg).size(10.0).color(if ok {
                 theme::success()
             } else {
@@ -569,17 +652,20 @@ impl DesktopGui {
 
     fn sidebar_device(&mut self, ui: &mut egui::Ui) {
         let rows = [
-            ("Ad", dash(self.state.pc_name.lock().unwrap().clone())),
             (
-                "Yerel IP",
+                i18n::t("Name", "Ad"),
+                dash(self.state.pc_name.lock().unwrap().clone()),
+            ),
+            (
+                i18n::t("Local IP", "Yerel IP"),
                 dash(self.state.local_ip.lock().unwrap().clone()),
             ),
             (
-                "Çözünürlük",
+                i18n::t("Resolution", "Çözünürlük"),
                 dash(self.state.resolution.lock().unwrap().clone()),
             ),
             (
-                "Yakalama",
+                i18n::t("Capture", "Yakalama"),
                 dash(
                     self.state
                         .capture_status
@@ -592,9 +678,9 @@ impl DesktopGui {
                         .to_string(),
                 ),
             ),
-            ("Sunucu", host_of(&self.signal_url)),
+            (i18n::t("Server", "Sunucu"), host_of(&self.signal_url)),
             (
-                "Kip",
+                i18n::t("Mode", "Kip"),
                 mode_label(&self.state.mode.lock().unwrap()).to_string(),
             ),
         ];
@@ -604,7 +690,7 @@ impl DesktopGui {
     }
 
     fn sidebar_peer(&mut self, ui: &mut egui::Ui) {
-        theme::section_label(ui, "BAĞLI CİHAZ");
+        theme::section_label(ui, i18n::t("CONNECTED DEVICE", "BAĞLI CİHAZ"));
         ui.add_space(5.0);
         let connected = self.state.peer_connected.load(Ordering::SeqCst);
         let peer_name = self.state.peer_name.lock().unwrap().clone();
@@ -620,9 +706,13 @@ impl DesktopGui {
                 6.0,
             );
             ui.label(
-                RichText::new(if connected { "Bağlı" } else { "Bekleniyor" })
-                    .size(11.5)
-                    .color(theme::text2()),
+                RichText::new(if connected {
+                    i18n::t("Connected", "Bağlı")
+                } else {
+                    i18n::t("Waiting", "Bekleniyor")
+                })
+                .size(11.5)
+                .color(theme::text2()),
             );
         });
         if connected {
@@ -632,29 +722,39 @@ impl DesktopGui {
             let since = self.state.peer_since.load(Ordering::SeqCst);
             let last = self.state.peer_last_auth.load(Ordering::SeqCst);
             ui.label(
-                RichText::new(format!(
-                    "{}'den beri  •  son doğrulama {}",
-                    fmt_clock(since),
-                    fmt_clock(last)
+                RichText::new(i18n::pick(
+                    format!(
+                        "since {}  •  last auth {}",
+                        fmt_clock(since),
+                        fmt_clock(last)
+                    ),
+                    format!(
+                        "{}'den beri  •  son doğrulama {}",
+                        fmt_clock(since),
+                        fmt_clock(last)
+                    ),
                 ))
                 .size(9.5)
                 .color(theme::muted()),
             );
         } else {
             ui.label(
-                RichText::new("Henüz bağlı cihaz yok")
+                RichText::new(i18n::t("No device connected yet", "Henüz bağlı cihaz yok"))
                     .size(11.0)
                     .color(theme::text2()),
             );
             ui.label(
-                RichText::new("Telefondan bu ID ve şifreyle bağlan.")
-                    .size(9.5)
-                    .color(theme::muted()),
+                RichText::new(i18n::t(
+                    "Connect from your phone with this ID and password.",
+                    "Telefondan bu ID ve şifreyle bağlan.",
+                ))
+                .size(9.5)
+                .color(theme::muted()),
             );
         }
         if !seen.is_empty() {
             ui.add_space(8.0);
-            theme::section_label(ui, "SON CİHAZLAR");
+            theme::section_label(ui, i18n::t("RECENT DEVICES", "SON CİHAZLAR"));
             for device in seen.iter().take(2) {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(&device.name).size(10.0).color(theme::text2()));
@@ -673,7 +773,10 @@ impl DesktopGui {
     fn sidebar_footer(&mut self, ui: &mut egui::Ui) {
         theme::divider(ui);
         let upd = self.state.update_status.lock().unwrap().clone();
-        let has_update = upd.contains("yeni sürüm") || upd.contains("kuruldu");
+        let has_update = upd.contains("yeni sürüm")
+            || upd.contains("kuruldu")
+            || upd.contains("new version")
+            || upd.contains("installed");
         ui.horizontal(|ui| {
             ui.label(
                 RichText::new(format!("v{}", crate::updater::current_version()))
@@ -684,7 +787,7 @@ impl DesktopGui {
                 theme::dot(ui, theme::success(), 5.0);
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let resp = text_link(ui, "Güncelle");
+                let resp = text_link(ui, i18n::t("Update", "Güncelle"));
                 if resp.on_hover_text(upd).clicked() {
                     self.update_modal = UpdateModalState::Idle;
                 }
@@ -730,7 +833,7 @@ impl DesktopGui {
                         );
                         ui.add_space(2.0);
                         ui.label(
-                            RichText::new("CANLI ÖNİZLEME")
+                            RichText::new(i18n::t("LIVE PREVIEW", "CANLI ÖNİZLEME"))
                                 .size(9.5)
                                 .color(theme::muted())
                                 .strong(),
@@ -762,11 +865,19 @@ impl DesktopGui {
                         let ping = self.state.ping_ms.load(Ordering::SeqCst);
                         let fps = self.state.fps.load(Ordering::SeqCst);
                         let uinput = self.state.uinput_active.load(Ordering::SeqCst);
-                        small_metric(ui, "GECİKME", &format!("{} ms", ping));
+                        small_metric(ui, i18n::t("LATENCY", "GECİKME"), &format!("{} ms", ping));
                         status_sep(ui);
                         small_metric(ui, "FPS", &format!("{}", fps));
                         status_sep(ui);
-                        small_metric(ui, "GİRİŞ", if uinput { "AKTİF" } else { "KAPALI" });
+                        small_metric(
+                            ui,
+                            i18n::t("INPUT", "GİRİŞ"),
+                            if uinput {
+                                i18n::t("ACTIVE", "AKTİF")
+                            } else {
+                                i18n::t("OFF", "KAPALI")
+                            },
+                        );
                         if uinput {
                             theme::dot(ui, theme::success(), 5.0);
                         }
@@ -880,7 +991,10 @@ impl DesktopGui {
                     ui.painter().text(
                         bar.left_center() + egui::vec2(22.0, 0.0),
                         egui::Align2::LEFT_CENTER,
-                        format!("Bağlandı  {}", fmt_clock(since)),
+                        i18n::pick(
+                            format!("Connected  {}", fmt_clock(since)),
+                            format!("Bağlandı  {}", fmt_clock(since)),
+                        ),
                         egui::FontId::proportional(9.5),
                         theme::text2(),
                     );
@@ -898,28 +1012,41 @@ impl DesktopGui {
         let alive = self.state.preview_alive.load(Ordering::SeqCst);
         let peer_since = self.state.peer_since.load(Ordering::SeqCst);
         let peer_connected = self.state.peer_connected.load(Ordering::SeqCst);
-        let (title, msg, accent) = if peer_since > 0 && !peer_connected {
+        let disconnected = peer_since > 0 && !peer_connected;
+        let (title, msg, accent) = if disconnected {
             (
-                "Bağlantı kesildi",
-                "Cihaz ayrıldı — yeniden bekleniyor…",
+                i18n::t("Connection lost", "Bağlantı kesildi").to_string(),
+                i18n::t(
+                    "Device disconnected — waiting for it again…",
+                    "Cihaz ayrıldı — yeniden bekleniyor…",
+                )
+                .to_string(),
                 theme::danger(),
             )
         } else if peer_since == 0 {
             (
-                "Telefondan bağlanın",
-                "PCHome mobil uygulamasında bu ID ve şifreyi girin.",
+                i18n::t("Connect from your phone", "Telefondan bağlanın").to_string(),
+                i18n::t(
+                    "Enter this ID and password in the PCHome mobile app.",
+                    "PCHome mobil uygulamasında bu ID ve şifreyi girin.",
+                )
+                .to_string(),
                 theme::muted(),
             )
         } else if alive {
             (
-                "İlk kare bekleniyor…",
-                "Ekran akışı hazırlanıyor.",
+                i18n::t("Waiting for the first frame…", "İlk kare bekleniyor…").to_string(),
+                i18n::t("Preparing the screen stream.", "Ekran akışı hazırlanıyor.").to_string(),
                 theme::muted(),
             )
         } else {
             (
-                "Telefondan bağlanın",
-                "PCHome mobil uygulamasında bu ID ve şifreyi girin.",
+                i18n::t("Connect from your phone", "Telefondan bağlanın").to_string(),
+                i18n::t(
+                    "Enter this ID and password in the PCHome mobile app.",
+                    "PCHome mobil uygulamasında bu ID ve şifreyi girin.",
+                )
+                .to_string(),
                 theme::muted(),
             )
         };
@@ -942,9 +1069,9 @@ impl DesktopGui {
         ui.painter().text(
             area.center() + egui::vec2(0.0, 42.0),
             Align2::CENTER_CENTER,
-            title,
+            &title,
             FontId::proportional(13.5),
-            if title == "Bağlantı kesildi" {
+            if disconnected {
                 theme::danger()
             } else {
                 theme::text()
@@ -953,7 +1080,7 @@ impl DesktopGui {
         ui.painter().text(
             area.center() + egui::vec2(0.0, 60.0),
             Align2::CENTER_CENTER,
-            msg,
+            &msg,
             FontId::proportional(10.5),
             theme::muted(),
         );
@@ -1005,7 +1132,11 @@ impl DesktopGui {
         if self.clicker.is_none() {
             self.clicker = Some(LocalClicker::open(self.cap_w, self.cap_h));
         }
-        let label = if right { "SAĞ" } else { "SOL" };
+        let label = if right {
+            i18n::t("RIGHT", "SAĞ")
+        } else {
+            i18n::t("LEFT", "SOL")
+        };
         match &self.clicker {
             Some(c) => {
                 let r = if right {
@@ -1014,13 +1145,19 @@ impl DesktopGui {
                     c.click_at(x, y)
                 };
                 match r {
-                    Ok(()) => self
-                        .state
-                        .push_event(format!("YEREL {} tık {} {}", label, x, y)),
-                    Err(e) => self.state.push_event(format!("yerel tık hatası: {}", e)),
+                    Ok(()) => self.state.push_event(i18n::pick(
+                        format!("LOCAL {} click {} {}", label, x, y),
+                        format!("YEREL {} tık {} {}", label, x, y),
+                    )),
+                    Err(e) => self.state.push_event(i18n::pick(
+                        format!("local click failed: {}", e),
+                        format!("yerel tık hatası: {}", e),
+                    )),
                 }
             }
-            None => self.state.push_event("yerel tıklayıcı yok".to_string()),
+            None => self.state.push_event(
+                i18n::t("local clicker not available", "yerel tıklayıcı yok").to_string(),
+            ),
         }
     }
 
@@ -1038,7 +1175,7 @@ impl DesktopGui {
         ui.painter().text(
             egui::pos2(rect.left(), rect.center().y),
             Align2::LEFT_CENTER,
-            "OLAYLAR",
+            i18n::t("EVENTS", "OLAYLAR"),
             FontId::proportional(9.0),
             theme::muted(),
         );
@@ -1093,7 +1230,7 @@ impl DesktopGui {
                     .show(ui, |ui| {
                         if lines.is_empty() {
                             ui.label(
-                                RichText::new("Henüz olay yok.")
+                                RichText::new(i18n::t("No events yet.", "Henüz olay yok."))
                                     .size(10.0)
                                     .color(theme::muted()),
                             );
@@ -1130,7 +1267,7 @@ impl DesktopGui {
         let mut close = false;
         let mut save = false;
 
-        let resp = egui::Window::new("ayarlar")
+        let resp = egui::Window::new(i18n::t("settings", "ayarlar"))
             .title_bar(false)
             .resizable(false)
             .collapsible(false)
@@ -1139,41 +1276,66 @@ impl DesktopGui {
             .show(ctx, |ui| {
                 ui.set_width(380.0);
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Ayarlar").size(16.0).color(theme::text()));
+                    ui.label(
+                        RichText::new(i18n::t("Settings", "Ayarlar"))
+                            .size(16.0)
+                            .color(theme::text()),
+                    );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if theme::icon_button(ui, theme::I_CLOSE, "Kapat", theme::muted()).clicked()
+                        if theme::icon_button(
+                            ui,
+                            theme::I_CLOSE,
+                            i18n::t("Close", "Kapat"),
+                            theme::muted(),
+                        )
+                        .clicked()
                         {
                             close = true;
                         }
                     });
                 });
                 ui.label(
-                    RichText::new("Bağlantı ve kimlik bilgileri")
-                        .size(10.0)
-                        .color(theme::muted()),
+                    RichText::new(i18n::t(
+                        "Connection and identity",
+                        "Bağlantı ve kimlik bilgileri",
+                    ))
+                    .size(10.0)
+                    .color(theme::muted()),
                 );
                 ui.add_space(14.0);
                 theme::field(
                     ui,
-                    "SİNYAL SUNUCUSU",
+                    i18n::t("SIGNAL SERVER", "SİNYAL SUNUCUSU"),
                     &mut signal_url,
-                    "wss://sunucu-adresi/ws",
+                    i18n::t("wss://server-address/ws", "wss://sunucu-adresi/ws"),
                     true,
                 );
                 ui.add_space(8.0);
-                theme::field(ui, "PC ADI", &mut pc_name, "SistemBey", false);
+                theme::field(
+                    ui,
+                    i18n::t("PC NAME", "PC ADI"),
+                    &mut pc_name,
+                    i18n::t("Studio-PC", "PCHome-PC"),
+                    false,
+                );
                 ui.add_space(8.0);
                 theme::digits_field(
                     ui,
-                    "YENİ ŞİFRE",
+                    i18n::t("NEW PASSWORD", "YENİ ŞİFRE"),
                     &mut new_password,
-                    "6 hane • boş bırak = değişmesin",
+                    i18n::t(
+                        "6 digits • leave empty to keep",
+                        "6 hane • boş bırak = değişmesin",
+                    ),
                     6,
                 );
                 if !self.settings_msg.is_empty() {
                     ui.add_space(6.0);
                     let ok = self.settings_msg.contains("güncellendi")
-                        || self.settings_msg.contains("kaydedildi");
+                        || self.settings_msg.contains("updated")
+                        || self.settings_msg.contains("refreshed")
+                        || self.settings_msg.contains("kaydedildi")
+                        || self.settings_msg.contains("saved");
                     ui.label(RichText::new(&self.settings_msg).size(10.0).color(if ok {
                         theme::success()
                     } else {
@@ -1181,11 +1343,11 @@ impl DesktopGui {
                     }));
                 }
                 ui.add_space(16.0);
-                if theme::neon_button(ui, "Kaydet").clicked() {
+                if theme::neon_button(ui, i18n::t("Save", "Kaydet")).clicked() {
                     save = true;
                 }
                 ui.add_space(6.0);
-                if theme::ghost_button(ui, "Vazgeç").clicked() {
+                if theme::ghost_button(ui, i18n::t("Cancel", "Vazgeç")).clicked() {
                     close = true;
                 }
             });
@@ -1215,8 +1377,10 @@ impl DesktopGui {
             match ev {
                 UpdateEvent::Checked(Ok((info, size))) => match info {
                     Some(info) => {
-                        self.state
-                            .push_event(format!("güncelleme bulundu: {}", info.version));
+                        self.state.push_event(i18n::pick(
+                            format!("update found: {}", info.version),
+                            format!("güncelleme bulundu: {}", info.version),
+                        ));
                         self.update_modal = UpdateModalState::Available { info, size };
                     }
                     None => self.update_modal = UpdateModalState::UpToDate,
@@ -1225,8 +1389,13 @@ impl DesktopGui {
                     self.update_modal = UpdateModalState::Failed { msg };
                 }
                 UpdateEvent::Installed(Ok(path)) => {
-                    self.state
-                        .push_event("güncelleme kuruldu, yeniden başlatılıyor".to_string());
+                    self.state.push_event(
+                        i18n::t(
+                            "update installed, restarting",
+                            "güncelleme kuruldu, yeniden başlatılıyor",
+                        )
+                        .to_string(),
+                    );
                     crate::updater::relaunch(&path);
                 }
                 UpdateEvent::Installed(Err(msg)) => {
@@ -1237,7 +1406,7 @@ impl DesktopGui {
 
         let locked = self.update_modal.busy();
         let mut close = false;
-        let resp = egui::Window::new("guncelleme")
+        let resp = egui::Window::new(i18n::t("update", "guncelleme"))
             .title_bar(false)
             .resizable(false)
             .collapsible(false)
@@ -1246,32 +1415,47 @@ impl DesktopGui {
             .show(ctx, |ui| {
                 ui.set_width(390.0);
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Güncelleme").size(16.0).color(theme::text()));
+                    ui.label(
+                        RichText::new(i18n::t("Update", "Güncelleme"))
+                            .size(16.0)
+                            .color(theme::text()),
+                    );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if !locked
-                            && theme::icon_button(ui, theme::I_CLOSE, "Kapat", theme::muted())
-                                .clicked()
+                            && theme::icon_button(
+                                ui,
+                                theme::I_CLOSE,
+                                i18n::t("Close", "Kapat"),
+                                theme::muted(),
+                            )
+                            .clicked()
                         {
                             close = true;
                         }
                     });
                 });
                 ui.label(
-                    RichText::new("GitHub üzerindeki en son sürüm")
-                        .size(10.0)
-                        .color(theme::muted()),
+                    RichText::new(i18n::t(
+                        "Latest release on GitHub",
+                        "GitHub üzerindeki en son sürüm",
+                    ))
+                    .size(10.0)
+                    .color(theme::muted()),
                 );
                 ui.add_space(12.0);
                 match &self.update_modal {
                     UpdateModalState::Closed => {}
                     UpdateModalState::Idle => {
                         ui.label(
-                            RichText::new("En son sürüm denetlenecek.")
-                                .size(12.0)
-                                .color(theme::text2()),
+                            RichText::new(i18n::t(
+                                "The latest release will be checked.",
+                                "En son sürüm denetlenecek.",
+                            ))
+                            .size(12.0)
+                            .color(theme::text2()),
                         );
                         ui.add_space(12.0);
-                        if theme::neon_button(ui, "Kontrol et").clicked() {
+                        if theme::neon_button(ui, i18n::t("Check", "Kontrol et")).clicked() {
                             self.start_check();
                         }
                     }
@@ -1279,7 +1463,7 @@ impl DesktopGui {
                         ui.horizontal(|ui| {
                             ui.add(egui::Spinner::new().color(theme::accent()));
                             ui.label(
-                                RichText::new("Denetleniyor…")
+                                RichText::new(i18n::t("Checking…", "Denetleniyor…"))
                                     .size(11.0)
                                     .color(theme::text2()),
                             );
@@ -1287,15 +1471,21 @@ impl DesktopGui {
                     }
                     UpdateModalState::Available { info, size } => {
                         ui.label(
-                            RichText::new(format!("Yeni sürüm: {}", info.version))
-                                .size(15.0)
-                                .color(theme::text())
-                                .strong(),
+                            RichText::new(i18n::pick(
+                                format!("New version: {}", info.version),
+                                format!("Yeni sürüm: {}", info.version),
+                            ))
+                            .size(15.0)
+                            .color(theme::text())
+                            .strong(),
                         );
                         ui.label(
-                            RichText::new(format!("İndirme boyutu: {}", size))
-                                .size(10.0)
-                                .color(theme::muted()),
+                            RichText::new(i18n::pick(
+                                format!("Download size: {}", size),
+                                format!("İndirme boyutu: {}", size),
+                            ))
+                            .size(10.0)
+                            .color(theme::muted()),
                         );
                         if !info.notes.trim().is_empty() {
                             ui.add_space(6.0);
@@ -1307,7 +1497,14 @@ impl DesktopGui {
                                 });
                         }
                         ui.add_space(12.0);
-                        if theme::neon_button(ui, &format!("Güncelle ({})", info.version)).clicked()
+                        if theme::neon_button(
+                            ui,
+                            &i18n::pick(
+                                format!("Update ({})", info.version),
+                                format!("Güncelle ({})", info.version),
+                            ),
+                        )
+                        .clicked()
                         {
                             self.start_install();
                         }
@@ -1316,9 +1513,15 @@ impl DesktopGui {
                         ui.horizontal(|ui| {
                             theme::dot(ui, theme::success(), 5.0);
                             ui.label(
-                                RichText::new(format!(
-                                    "Zaten güncel (v{})",
-                                    crate::updater::current_version()
+                                RichText::new(i18n::pick(
+                                    format!(
+                                        "Already up to date (v{})",
+                                        crate::updater::current_version()
+                                    ),
+                                    format!(
+                                        "Zaten güncel (v{})",
+                                        crate::updater::current_version()
+                                    ),
                                 ))
                                 .size(12.0)
                                 .color(theme::text2()),
@@ -1332,26 +1535,32 @@ impl DesktopGui {
                         });
                         ui.add_space(6.0);
                         ui.label(
-                            RichText::new("Kurulum bitmeden bu ekrandan çıkma!")
-                                .size(10.0)
-                                .color(theme::danger()),
+                            RichText::new(i18n::t(
+                                "Do not leave this screen before installation finishes!",
+                                "Kurulum bitmeden bu ekrandan çıkma!",
+                            ))
+                            .size(10.0)
+                            .color(theme::danger()),
                         );
                     }
                     UpdateModalState::Failed { msg } => {
                         ui.label(
-                            RichText::new(format!("Hata: {}", msg))
-                                .size(11.0)
-                                .color(theme::danger()),
+                            RichText::new(i18n::pick(
+                                format!("Error: {}", msg),
+                                format!("Hata: {}", msg),
+                            ))
+                            .size(11.0)
+                            .color(theme::danger()),
                         );
                         ui.add_space(12.0);
-                        if theme::ghost_button(ui, "Tekrar dene").clicked() {
+                        if theme::ghost_button(ui, i18n::t("Try again", "Tekrar dene")).clicked() {
                             self.update_modal = UpdateModalState::Idle;
                         }
                     }
                 }
                 if !locked {
                     ui.add_space(12.0);
-                    if theme::ghost_button(ui, "Kapat").clicked() {
+                    if theme::ghost_button(ui, i18n::t("Close", "Kapat")).clicked() {
                         close = true;
                     }
                 }
@@ -1382,7 +1591,7 @@ impl DesktopGui {
                         crate::updater::asset_size(url)
                     })
                     .map(crate::updater::human_size)
-                    .unwrap_or_else(|| "bilinmiyor".to_string());
+                    .unwrap_or_else(|| i18n::t("unknown", "bilinmiyor").to_string());
                 Ok((info, size))
             })();
             let _ = tx.send(UpdateEvent::Checked(out));
@@ -1391,7 +1600,7 @@ impl DesktopGui {
 
     fn start_install(&mut self) {
         self.update_modal = UpdateModalState::Busy {
-            phase: "İndiriliyor…".to_string(),
+            phase: i18n::t("Downloading…", "İndiriliyor…").to_string(),
         };
         let tx = self.update_tx.clone();
         let st = self.state.clone();
@@ -1406,12 +1615,24 @@ impl DesktopGui {
             Ok(mut id) => match id.regenerate_password() {
                 Ok(()) => {
                     *self.state.password.lock().unwrap() = id.password.clone();
-                    self.state.push_event("şifre yenilendi".to_string());
-                    self.settings_msg = "şifre yenilendi".to_string();
+                    self.state
+                        .push_event(i18n::t("password refreshed", "şifre yenilendi").to_string());
+                    self.settings_msg =
+                        i18n::t("password refreshed", "şifre yenilendi").to_string();
                 }
-                Err(e) => self.settings_msg = format!("şifre yenilenemedi: {}", e),
+                Err(e) => {
+                    self.settings_msg = i18n::pick(
+                        format!("password could not be refreshed: {}", e),
+                        format!("şifre yenilenemedi: {}", e),
+                    );
+                }
             },
-            Err(e) => self.settings_msg = format!("kimlik açılamadı: {}", e),
+            Err(e) => {
+                self.settings_msg = i18n::pick(
+                    format!("identity could not be opened: {}", e),
+                    format!("kimlik açılamadı: {}", e),
+                );
+            }
         }
     }
 
@@ -1419,14 +1640,22 @@ impl DesktopGui {
         let raw_url = self.settings_signal_url.trim().to_string();
         if !raw_url.is_empty() {
             let Some(url) = crate::config::Config::normalize_signal_url(&raw_url) else {
-                self.settings_msg = "geçerli bir sinyal adresi gir".to_string();
+                self.settings_msg = i18n::t(
+                    "enter a valid signal address",
+                    "geçerli bir sinyal adresi gir",
+                )
+                .to_string();
                 return;
             };
             let _ = crate::config::Config::save_signal_url(&url);
             self.signal_url = url.clone();
             *self.state.signal_url.lock().unwrap() = url.clone();
-            *self.state.status.lock().unwrap() = "SİNYAL: ADRES GÜNCELLENDİ".to_string();
-            self.state.push_event(format!("sinyal adresi: {}", url));
+            *self.state.status.lock().unwrap() =
+                i18n::t("SIGNAL: ADDRESS UPDATED", "SİNYAL: ADRES GÜNCELLENDİ").to_string();
+            self.state.push_event(i18n::pick(
+                format!("signal address: {}", url),
+                format!("sinyal adresi: {}", url),
+            ));
         }
         if !self.new_pc_name.trim().is_empty() {
             if let Ok(mut id) = crate::identity::Identity::load_or_create() {
@@ -1440,12 +1669,25 @@ impl DesktopGui {
                 Ok(mut id) => match id.set_password(self.new_password.trim()) {
                     Ok(()) => {
                         *self.state.password.lock().unwrap() = id.password.clone();
-                        self.settings_msg = "şifre güncellendi".to_string();
-                        self.state.push_event("şifre güncellendi".to_string());
+                        self.settings_msg =
+                            i18n::t("password updated", "şifre güncellendi").to_string();
+                        self.state.push_event(
+                            i18n::t("password updated", "şifre güncellendi").to_string(),
+                        );
                     }
-                    Err(e) => self.settings_msg = format!("şifre hatası: {}", e),
+                    Err(e) => {
+                        self.settings_msg = i18n::pick(
+                            format!("password error: {}", e),
+                            format!("şifre hatası: {}", e),
+                        );
+                    }
                 },
-                Err(e) => self.settings_msg = format!("kimlik açılamadı: {}", e),
+                Err(e) => {
+                    self.settings_msg = i18n::pick(
+                        format!("identity could not be opened: {}", e),
+                        format!("kimlik açılamadı: {}", e),
+                    );
+                }
             }
         }
         self.show_settings = false;

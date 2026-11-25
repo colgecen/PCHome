@@ -11,6 +11,7 @@ use tokio::sync::Mutex;
 mod config;
 mod device;
 mod encoder;
+mod i18n;
 mod identity;
 #[cfg(feature = "gui")]
 mod local_input;
@@ -72,7 +73,10 @@ fn main() -> Result<()> {
             let _ = std::process::Command::new("notify-send")
                 .args([
                     "PCHome",
-                    "PCHome zaten çalışıyor — görev çubuğundaki PCHome penceresini aç.",
+                    i18n::t(
+                        "PCHome is already running — open its window from the taskbar.",
+                        "PCHome zaten çalışıyor — görev çubuğundaki PCHome penceresini aç.",
+                    ),
                 ])
                 .spawn();
             return Ok(());
@@ -149,9 +153,9 @@ async fn daemon(state: SharedState) {
     let connection = Arc::new(ConnectionManager::new(config.signal_url.clone()));
     if let Err(e) = connection.connect(&id.pc_id).await {
         log::warn!("sinyal bağlantısı kurulamadı: {}", e);
-        *state.status.lock().unwrap() = "SİNYAL: BAŞARISIZ".to_string();
+        *state.status.lock().unwrap() = i18n::t("SIGNAL: FAILED", "SİNYAL: BAŞARISIZ").to_string();
     } else {
-        *state.status.lock().unwrap() = "SİNYAL: BAĞLI".to_string();
+        *state.status.lock().unwrap() = i18n::t("SIGNAL: CONNECTED", "SİNYAL: BAĞLI").to_string();
     }
 
     // Yeniden bağlanma gözcüsü: bağlantı koparsa AYNI kalıcı ID ile dönülür.
@@ -169,8 +173,12 @@ async fn daemon(state: SharedState) {
                 if !desired.is_empty() && connection.signal_url().await != desired {
                     connection.set_signal_url(&desired).await;
                     connection.disconnect().await;
-                    *state.status.lock().unwrap() = "SİNYAL: ADRES DEĞİŞTİ".to_string();
-                    state.push_event(format!("sinyal adresi güncellendi: {}", desired));
+                    *state.status.lock().unwrap() =
+                        i18n::t("SIGNAL: ADDRESS CHANGED", "SİNYAL: ADRES DEĞİŞTİ").to_string();
+                    state.push_event(i18n::pick(
+                        format!("signal address updated: {}", desired),
+                        format!("sinyal adresi güncellendi: {}", desired),
+                    ));
                 }
                 let current = connection.state().await;
                 if current != network::ConnectionState::Connected {
@@ -180,11 +188,17 @@ async fn daemon(state: SharedState) {
                     }
                     match connection.connect(&pc_id).await {
                         Ok(()) => {
-                            *state.status.lock().unwrap() = "SİNYAL: BAĞLI".to_string();
-                            state.push_event("sinyale yeniden bağlanıldı".to_string());
+                            *state.status.lock().unwrap() =
+                                i18n::t("SIGNAL: CONNECTED", "SİNYAL: BAĞLI").to_string();
+                            state.push_event(
+                                i18n::t("reconnected to signal", "sinyale yeniden bağlanıldı")
+                                    .to_string(),
+                            );
                         }
                         Err(e) => {
-                            *state.status.lock().unwrap() = "SİNYAL: YENİDEN DENENİYOR".to_string();
+                            *state.status.lock().unwrap() =
+                                i18n::t("SIGNAL: RETRYING", "SİNYAL: YENİDEN DENENİYOR")
+                                    .to_string();
                             log::debug!("yeniden bağlanma denemesi başarısız: {}", e);
                         }
                     }
@@ -199,13 +213,20 @@ async fn daemon(state: SharedState) {
         // resolution, and everything downstream (uinput mapping, display_info,
         // engine) must use that same size.
         if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-            *state.capture_status.lock().unwrap() =
-                "Portal izni bekleniyor (tüm ekranları seç)".to_string();
-            *state.status.lock().unwrap() = "EKRAN: PORTAL İZNİ BEKLENİYOR".to_string();
-            state.push_event(
-                "Wayland portal penceresinde TÜM fiziksel ekranları işaretle;                  'gelecekteki oturumlarda geri yükle' seçeneğini aç"
-                    .to_string(),
-            );
+            *state.capture_status.lock().unwrap() = i18n::t(
+                "Waiting for portal permission (select all screens)",
+                "Portal izni bekleniyor (tüm ekranları seç)",
+            )
+            .to_string();
+            *state.status.lock().unwrap() = i18n::t(
+                "SCREEN: WAITING FOR PORTAL PERMISSION",
+                "EKRAN: PORTAL İZNİ BEKLENİYOR",
+            )
+            .to_string();
+            state.push_event(i18n::t(
+                "In the Wayland portal window select ALL physical screens and enable 'restore for future sessions'",
+                "Wayland portal penceresinde TÜM fiziksel ekranları işaretle; 'gelecekteki oturumlarda geri yükle' seçeneğini aç",
+            ).to_string());
         }
         let mut capture = match H264Capture::spawn(
             config.capture_width,
@@ -218,16 +239,23 @@ async fn daemon(state: SharedState) {
             Ok(c) => c,
             Err(e) => {
                 log::error!("Capture spawn failed: {}", e);
-                *state.capture_status.lock().unwrap() = format!("YAKALAMA HATASI: {}", e);
-                *state.status.lock().unwrap() = "EKRAN: YAKALANAMIYOR".to_string();
-                state.push_event(format!("ekran yakalanamadı: {}", e));
+                *state.capture_status.lock().unwrap() = i18n::pick(
+                    format!("CAPTURE ERROR: {}", e),
+                    format!("YAKALAMA HATASI: {}", e),
+                );
+                *state.status.lock().unwrap() =
+                    i18n::t("SCREEN: CAPTURE FAILED", "EKRAN: YAKALANAMIYOR").to_string();
+                state.push_event(i18n::pick(
+                    format!("screen capture failed: {}", e),
+                    format!("ekran yakalanamadı: {}", e),
+                ));
                 return;
             }
         };
         let cap_w = capture.width;
         let cap_h = capture.height;
         *state.resolution.lock().unwrap() = format!("{}x{}", cap_w, cap_h);
-        *state.status.lock().unwrap() = "SİNYAL: BAĞLI".to_string();
+        *state.status.lock().unwrap() = i18n::t("SIGNAL: CONNECTED", "SİNYAL: BAĞLI").to_string();
         let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some();
         *state.capture_status.lock().unwrap() = match capture.source {
             crate::encoder::CaptureInput::Portal => {
@@ -250,7 +278,11 @@ async fn daemon(state: SharedState) {
             )
         {
             state.push_event(
-                "uyarı: Wayland ekran yakalama başlatılamadı; görüntü siyah olabilir".to_string(),
+                i18n::t(
+                    "warning: Wayland screen capture could not start; the image may be black",
+                    "uyarı: Wayland ekran yakalama başlatılamadı; görüntü siyah olabilir",
+                )
+                .to_string(),
             );
         }
         log::info!(
@@ -271,9 +303,15 @@ async fn daemon(state: SharedState) {
             Ok(d) => abs = Some(Arc::new(Mutex::new(d))),
             Err(e) => {
                 log::error!("uinput absolüt işaretçi açılamadı: {}", e);
-                state.push_event(format!(
-                    "uyarı: absolüt işaretçi açılamadı (doğrudan dokunma çalışmaz): {}",
-                    e
+                state.push_event(i18n::pick(
+                    format!(
+                        "warning: absolute pointer could not open (touch mode disabled): {}",
+                        e
+                    ),
+                    format!(
+                        "uyarı: absolüt işaretçi açılamadı (doğrudan dokunma çalışmaz): {}",
+                        e
+                    ),
                 ));
             }
         }
@@ -281,9 +319,15 @@ async fn daemon(state: SharedState) {
             Ok(d) => rel = Some(Arc::new(Mutex::new(d))),
             Err(e) => {
                 log::error!("uinput göreli işaretçi açılamadı: {}", e);
-                state.push_event(format!(
-                    "uyarı: göreli işaretçi açılamadı (touchpad çalışmaz): {}",
-                    e
+                state.push_event(i18n::pick(
+                    format!(
+                        "warning: relative pointer could not open (trackpad disabled): {}",
+                        e
+                    ),
+                    format!(
+                        "uyarı: göreli işaretçi açılamadı (touchpad çalışmaz): {}",
+                        e
+                    ),
                 ));
             }
         }
@@ -291,9 +335,12 @@ async fn daemon(state: SharedState) {
             Ok(d) => keyboard = Some(Arc::new(Mutex::new(d))),
             Err(e) => {
                 log::error!("uinput klavye açılamadı: {}", e);
-                state.push_event(format!(
-                    "uyarı: klavye açılamadı (uzaktan tuşlar çalışmaz): {}",
-                    e
+                state.push_event(i18n::pick(
+                    format!(
+                        "warning: keyboard could not open (remote keys disabled): {}",
+                        e
+                    ),
+                    format!("uyarı: klavye açılamadı (uzaktan tuşlar çalışmaz): {}", e),
                 ));
             }
         }
@@ -444,7 +491,8 @@ async fn daemon(state: SharedState) {
             if state.terminate.load(Ordering::SeqCst) {
                 break;
             }
-            *state.capture_status.lock().unwrap() = "Yeniden başlatılıyor…".to_string();
+            *state.capture_status.lock().unwrap() =
+                i18n::t("Restarting…", "Yeniden başlatılıyor…").to_string();
             tokio::time::sleep(Duration::from_millis(400)).await;
             let mut respawned = None;
             for attempt in 0..5 {
@@ -586,18 +634,30 @@ fn spawn_signal_supervisor(
                         let seen =
                             crate::device::remember_seen_device(&dev_name, &dev_os, &app_version);
                         *state.seen_devices.lock().unwrap() = seen;
-                        state.push_event(format!("telefon doğrulandı: {}", dev_name));
+                        state.push_event(i18n::pick(
+                            format!("phone verified: {}", dev_name),
+                            format!("telefon doğrulandı: {}", dev_name),
+                        ));
                         log::info!("mobil doğrulandı (pc_id={}, cihaz={})", pc_id, dev_name);
                     } else {
                         fails += 1;
                         state.peer_fails.store(fails, Ordering::SeqCst);
                         if fails >= 5 {
                             lockout_until = Some(Instant::now() + Duration::from_secs(60));
-                            state.push_event("5 yanlış şifre: 60 sn kilit".to_string());
+                            state.push_event(
+                                i18n::t(
+                                    "5 wrong passwords: locked for 60 s",
+                                    "5 yanlış şifre: 60 sn kilit",
+                                )
+                                .to_string(),
+                            );
                             log::warn!("art arda 5 yanlış şifre, 60 sn kilit");
                         }
                         connection
-                            .send_json(&json_msg("auth_rejected", "şifre hatalı"))
+                            .send_json(&json_msg(
+                                "auth_rejected",
+                                i18n::t("wrong password", "şifre hatalı"),
+                            ))
                             .await;
                     }
                 }
@@ -652,7 +712,10 @@ fn spawn_signal_supervisor(
                         }
                         Err(e) => {
                             log::warn!("WebRTC engine build failed: {}", e);
-                            state.push_event(format!("WebRTC oturumu kurulamadı: {}", e));
+                            state.push_event(i18n::pick(
+                                format!("WebRTC session could not be established: {}", e),
+                                format!("WebRTC oturumu kurulamadı: {}", e),
+                            ));
                         }
                     }
                 }

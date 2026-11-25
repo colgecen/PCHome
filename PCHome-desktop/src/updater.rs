@@ -142,20 +142,44 @@ fn set_status(state: &SharedState, line: String) {
 /// Tek seferlik denetleme; sonucu `state.update_status` satırına yazar.
 /// Ağ yoksa sessizce "denetlenemedi" yazar, daemon etkilenmez.
 pub fn check_once(state: &SharedState) {
-    set_status(state, "güncelleme denetleniyor…".to_string());
+    set_status(
+        state,
+        crate::i18n::t("checking for updates…", "güncelleme denetleniyor…").to_string(),
+    );
     match check_for_update() {
         Ok(Some(info)) => {
             set_status(
                 state,
-                format!(
-                    "yeni sürüm mevcut: {} — Ayarlar'dan güncelleyin",
-                    info.version
+                crate::i18n::pick(
+                    format!(
+                        "new version available: {} — update from Settings",
+                        info.version
+                    ),
+                    format!(
+                        "yeni sürüm mevcut: {} — Ayarlar'dan güncelleyin",
+                        info.version
+                    ),
                 ),
             );
-            state.push_event(format!("güncelleme bulundu: {}", info.version));
+            state.push_event(crate::i18n::pick(
+                format!("update found: {}", info.version),
+                format!("güncelleme bulundu: {}", info.version),
+            ));
         }
-        Ok(None) => set_status(state, format!("güncel (v{})", current_version())),
-        Err(e) => set_status(state, format!("denetlenemedi: {}", e)),
+        Ok(None) => set_status(
+            state,
+            crate::i18n::pick(
+                format!("up to date (v{})", current_version()),
+                format!("güncel (v{})", current_version()),
+            ),
+        ),
+        Err(e) => set_status(
+            state,
+            crate::i18n::pick(
+                format!("check failed: {}", e),
+                format!("denetlenemedi: {}", e),
+            ),
+        ),
     }
 }
 
@@ -166,7 +190,13 @@ pub fn install_update(state: &SharedState) -> Result<std::path::PathBuf> {
     let body = curl_get(&latest_api_url())?;
     let info = parse_release(&body)?;
     if !is_newer(&info.version, &current_version()) {
-        set_status(state, format!("zaten güncel (v{})", current_version()));
+        set_status(
+            state,
+            crate::i18n::pick(
+                format!("already up to date (v{})", current_version()),
+                format!("zaten güncel (v{})", current_version()),
+            ),
+        );
         return Ok(std::env::current_exe().unwrap_or_default());
     }
     let new_path = if std::env::var_os("APPIMAGE").is_some() {
@@ -182,9 +212,15 @@ pub fn install_update(state: &SharedState) -> Result<std::path::PathBuf> {
     };
     set_status(
         state,
-        format!("{} kuruldu — yeniden başlatılıyor", info.version),
+        crate::i18n::pick(
+            format!("{} installed — restarting", info.version),
+            format!("{} kuruldu — yeniden başlatılıyor", info.version),
+        ),
     );
-    state.push_event(format!("güncelleme kuruldu: {}", info.version));
+    state.push_event(crate::i18n::pick(
+        format!("update installed: {}", info.version),
+        format!("güncelleme kuruldu: {}", info.version),
+    ));
     Ok(new_path)
 }
 
@@ -266,7 +302,10 @@ fn install_appimage_next_to_current(
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| std::path::PathBuf::from("."));
     let dest = dir.join(format!("PCHome-{}-x86_64.AppImage", info.version));
-    set_status(state, "yeni AppImage indiriliyor…".to_string());
+    set_status(
+        state,
+        crate::i18n::t("downloading new AppImage…", "yeni AppImage indiriliyor…").to_string(),
+    );
     download_to(&info.appimage_url, &dest)?;
     #[cfg(target_family = "unix")]
     {
@@ -285,7 +324,14 @@ fn install_tarball_over_current(
     let tmp = std::env::temp_dir().join(format!("pchome-update-{}", std::process::id()));
     std::fs::create_dir_all(&tmp)?;
     let tgz = tmp.join("pkg.tar.gz");
-    set_status(state, "güncelleme paketi indiriliyor…".to_string());
+    set_status(
+        state,
+        crate::i18n::t(
+            "downloading update package…",
+            "güncelleme paketi indiriliyor…",
+        )
+        .to_string(),
+    );
     download_to(&info.tarball_url, &tgz)?;
     let status = std::process::Command::new("tar")
         .args(["-xzf", &tgz.to_string_lossy(), "-C", &tmp.to_string_lossy()])

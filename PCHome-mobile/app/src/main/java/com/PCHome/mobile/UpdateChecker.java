@@ -7,6 +7,7 @@ import android.net.Uri;
 import android.os.Environment;
 import android.util.Log;
 
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
 import org.json.JSONArray;
@@ -169,7 +170,7 @@ public class UpdateChecker {
             String fileName = "PCHome-" + info.version + ".apk";
             DownloadManager.Request req = new DownloadManager.Request(Uri.parse(info.apkUrl));
             req.setTitle("PCHome " + info.version + " indiriliyor");
-            req.setDescription("Güncelleme paketi");
+            req.setDescription(ctx.getString(R.string.update_package_desc));
             req.setNotificationVisibility(
                     DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             // file:// hedef Android 7+ üstünde istisna fırlatır; API'nin
@@ -212,7 +213,8 @@ public class UpdateChecker {
                             main.post(cb::onInstalled);
                         } else {
                             final int code = status;
-                            main.post(() -> cb.onFailed("indirme tamamlanamadı (durum=" + code + ")"));
+                            main.post(() -> cb.onFailed(
+                                    ctx.getString(R.string.download_failed_status, code)));
                         }
                     } catch (Exception e) {
                         main.post(() -> cb.onFailed(String.valueOf(e.getMessage())));
@@ -221,11 +223,8 @@ public class UpdateChecker {
             };
             android.content.IntentFilter filter =
                     new android.content.IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-            if (android.os.Build.VERSION.SDK_INT >= 33) {
-                ctx.registerReceiver(done, filter, Context.RECEIVER_NOT_EXPORTED);
-            } else {
-                ctx.registerReceiver(done, filter);
-            }
+            ContextCompat.registerReceiver(
+                    ctx, done, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
             return id;
         } catch (Exception e) {
             Log.e(TAG, "İndirme başlatılamadı", e);

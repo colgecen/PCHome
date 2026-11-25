@@ -27,8 +27,10 @@ use crate::control::ControlHandler;
 use crate::network::ConnectionManager;
 
 /// WebRTC offerer. Captures the desktop screen into an H.264 video track and
-/// exchanges control messages with the mobile client over an unordered,
-/// unreliable DataChannel named `control`.
+/// exchanges control messages with the mobile client over two DataChannels:
+/// `control` (unordered/unreliable, pointer movement) and `input` (reliable
+/// ordered, keyboard/clicks). Separating them keeps typing snappy even while
+/// the pointer is streaming at a high rate.
 ///
 /// One instance is created per mobile `hello`. The old instance is closed and
 /// dropped before a new one is built, because DTLS/SRTP/ICE state cannot be
@@ -37,6 +39,7 @@ pub struct WebRtcEngine {
     pc: Arc<RTCPeerConnection>,
     video_track: Arc<TrackLocalStaticSample>,
     data_channel: Arc<webrtc::data_channel::RTCDataChannel>,
+    input_channel: Arc<webrtc::data_channel::RTCDataChannel>,
     connection: Arc<ConnectionManager>,
     control: Arc<ControlHandler>,
     state: crate::state::SharedState,
@@ -90,6 +93,11 @@ impl WebRtcEngine {
         fps: u32,
         generation: u64,
     ) -> Result<Arc<Self>> {
+        // Telefon uygulaması yeniden açıldığında sıra numarası baştan
+        // başlayabilir; yeni oturumda eski sıra numarası kalmasın. Önceki
+        // oturumdan basılı tuş/buton kaldıysa da bırak.
+        control.reset_pointer_seq();
+        control.release_all_input().await;
         let mut media_engine = MediaEngine::default();
         media_engine
             .register_codec(
@@ -140,13 +148,22 @@ impl WebRtcEngine {
         pc.add_track(Arc::clone(&video_track) as Arc<dyn TrackLocal + Send + Sync>)
             .await?;
 
-        // Unordered + unreliable DataChannel for lowest-latency control input.
+        // Unordered + unreliable DataChannel for lowest-latency pointer input.
         let dc_init = RTCDataChannelInit {
             ordered: Some(false),
             max_retransmits: Some(0),
             ..Default::default()
         };
         let dc = Arc::clone(&pc.create_data_channel("control", Some(dc_init)).await?);
+
+        // Reliable, ordered channel for keyboard/clicks. Putting these on a
+        // separate SCTP stream prevents lost/reordered key events and stops a
+        // flood of pointer moves from delaying typing.
+        let input_init = RTCDataChannelInit {
+            ordered: Some(true),
+            ..Default::default()
+        };
+        let input_dc = Arc::clone(&pc.create_data_channel("input", Some(input_init)).await?);
 
         let conn_ice = connection.clone();
         pc.on_ice_candidate(Box::new(
@@ -181,7 +198,13 @@ impl WebRtcEngine {
                 st.peer_connected.store(true, Ordering::SeqCst);
                 st.peer_since.store(now_epoch(), Ordering::SeqCst);
                 st.mode_explicit.store(false, Ordering::SeqCst);
-                st.push_event("cihaz bağlandı (veri kanalı açık)".to_string());
+                st.push_event(
+                    crate::i18n::t(
+                        "device connected (data channel open)",
+                        "cihaz bağlandı (veri kanalı açık)",
+                    )
+                    .to_string(),
+                );
                 log::info!(
                     "control data channel opened (session {}, {}x{})",
                     generation,
@@ -201,15 +224,24 @@ impl WebRtcEngine {
         }));
 
         let state_close = state.clone();
+        let control_close = control.clone();
         dc.on_close(Box::new(move || {
             let st = state_close.clone();
+            let control = control_close.clone();
             Box::pin(async move {
                 // Only the session that owns the current generation may clear
-                // the connected flag; an old engine closing late must not hide
-                // a newly established connection.
+                // the connected flag or release keys; an old engine closing
+                // late must not affect a newly established connection.
                 if st.peer_generation.load(Ordering::SeqCst) == generation {
+                    control.release_all_input().await;
                     st.peer_connected.store(false, Ordering::SeqCst);
-                    st.push_event("cihaz ayrıldı (veri kanalı kapandı)".to_string());
+                    st.push_event(
+                        crate::i18n::t(
+                            "device disconnected (data channel closed)",
+                            "cihaz ayrıldı (veri kanalı kapandı)",
+                        )
+                        .to_string(),
+                    );
                     log::info!("control data channel closed (session {})", generation);
                 }
             })
@@ -220,13 +252,48 @@ impl WebRtcEngine {
             let control = control_msg.clone();
             Box::pin(async move {
                 let data: Bytes = msg.data;
-                log::debug!(
-                    "control message received: {}",
-                    String::from_utf8_lossy(&data)
-                );
                 if let Ok(v) = serde_json::from_slice::<Value>(&data) {
                     control.handle(&v).await;
                 }
+            })
+        }));
+
+        let input_control = control.clone();
+        input_dc.on_message(Box::new(move |msg| {
+            let control = input_control.clone();
+            Box::pin(async move {
+                let data: Bytes = msg.data;
+                if let Ok(v) = serde_json::from_slice::<Value>(&data) {
+                    control.handle(&v).await;
+                }
+            })
+        }));
+        let input_open_dc = Arc::clone(&input_dc);
+        let input_info = json!({
+            "type": "display_info",
+            "width": w,
+            "height": h,
+        })
+        .to_string();
+        input_dc.on_open(Box::new(move || {
+            let dc = Arc::clone(&input_open_dc);
+            let info = input_info.clone();
+            Box::pin(async move {
+                // Güvenilir kanaldan da gönder: imleç modu asla kaybolmasın.
+                let _ = dc.send(&Bytes::from(info.into_bytes())).await;
+                log::info!("reliable input data channel opened");
+            })
+        }));
+        let input_close_control = control.clone();
+        let input_close_state = state.clone();
+        input_dc.on_close(Box::new(move || {
+            let control = input_close_control.clone();
+            let st = input_close_state.clone();
+            Box::pin(async move {
+                if st.peer_generation.load(Ordering::SeqCst) == generation {
+                    control.release_all_input().await;
+                }
+                log::info!("reliable input data channel closed; keyboard falls back to control");
             })
         }));
 
@@ -234,6 +301,7 @@ impl WebRtcEngine {
             pc,
             video_track,
             data_channel: dc,
+            input_channel: input_dc,
             connection,
             control,
             state,
@@ -343,6 +411,9 @@ impl WebRtcEngine {
             return;
         }
         log::info!("WebRTC: closing session {}", self.generation);
+        if self.state.peer_generation.load(Ordering::SeqCst) == self.generation {
+            self.control.release_all_input().await;
+        }
         if let Err(e) = self.pc.close().await {
             log::debug!("peer connection close failed: {}", e);
         }
@@ -369,8 +440,14 @@ impl WebRtcEngine {
                     .map(|d| d.as_millis() as u64)
                     .unwrap_or(0);
                 let msg = json!({ "type": "ping", "t": now }).to_string();
-                if let Err(e) = engine
-                    .data_channel
+                let ping_channel = if engine.input_channel.ready_state()
+                    == webrtc::data_channel::data_channel_state::RTCDataChannelState::Open
+                {
+                    &engine.input_channel
+                } else {
+                    &engine.data_channel
+                };
+                if let Err(e) = ping_channel
                     .send(&bytes::Bytes::from(msg.into_bytes()))
                     .await
                 {

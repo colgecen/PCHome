@@ -1,87 +1,125 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">PCHome</string>
-    <string name="app_tagline">Uzak masaüstü</string>
-    <string name="hero_title">PCHome: Masaüstün\nCebinde.</string>    <string name="hand_left">SOL EL</string>
-    <string name="hand_right">SAĞ EL</string>
-    <string name="hero_subtitle">Gecikmesiz görüntü, gerçek fare ve klavye kontrolü. Tek dokunuşla bağlan.</string>
+    <string name="app_tagline">Remote desktop</string>
+    <string name="hero_title">PCHome: Your Desktop\nIn Your Pocket.</string>
+    <string name="hand_left">LEFT HAND</string>
+    <string name="hand_right">RIGHT HAND</string>
+    <string name="hero_subtitle">Low-latency video, real mouse and keyboard control. Connect in one tap.</string>
 
     <string name="accessibility_service_description">PCHome accessibility service for remote input control</string>
     <string name="pin_hint">PIN shown on the desktop</string>
 
-    <string name="connect_card_title">Bağlantı</string>
-    <string name="signal_server_hint">Sinyal sunucusu</string>
-    <string name="connect_card_subtitle">PC’ye bağlanmak için bilgilerini gir.</string>
-    <string name="server_label">Sunucu</string>
-    <string name="signal_server_help">PC uygulamasındaki adresle aynı olmalı</string>
+    <string name="connect_card_title">Connection</string>
+    <string name="signal_server_hint">Signal server</string>
+    <string name="connect_card_subtitle">Enter your details to connect to the PC.</string>
+    <string name="server_label">Server</string>
+    <string name="signal_server_help">Must match the address in the PC app</string>
     <string name="pc_id_hint">PC ID</string>
-    <string name="password_hint">Şifre</string>
-    <string name="remember_password">Şifreyi hatırla</string>
-    <string name="connect">Bağlan</string>
-    <string name="disconnect">Kes</string>
-    <string name="refresh">Yenile</string>
-    <string name="refreshing_stream">Görüntü yenileniyor…</string>
-    <string name="connecting">Bağlanıyor…</string>
-    <string name="connected">Bağlı</string>
-    <string name="disconnected">Bağlantı kesildi</string>
-    <string name="error">Hata</string>
-    <string name="touchpad_hint">Bu alanı touchpad olarak kullan</string>
-    <string name="waiting_for_stream">Sinyal bekleniyor…</string>
-    <string name="conn_phase_signal">Sinyale bağlanılıyor…</string>
-    <string name="conn_phase_verified">PC doğrulandı, görüntü bekleniyor…</string>
-    <string name="conn_phase_video">Bağlandı, ilk kare bekleniyor…</string>
-    <string name="retry">Tekrar dene</string>
-    <string name="go_back">Geri dön</string>
+    <string name="password_hint">Password</string>
+    <string name="remember_password">Remember password</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="refresh">Refresh</string>
+    <string name="refreshing_stream">Refreshing video…</string>
+    <string name="connecting">Connecting…</string>
+    <string name="connected">Connected</string>
+    <string name="disconnected">Disconnected</string>
+    <string name="error">Error</string>
+    <string name="touchpad_hint">Use this area as a touchpad</string>
+    <string name="waiting_for_stream">Waiting for signal…</string>
+    <string name="conn_phase_signal">Connecting to signal…</string>
+    <string name="conn_phase_verified">PC verified, waiting for video…</string>
+    <string name="conn_phase_video">Connected, waiting for first frame…</string>
+    <string name="retry">Retry</string>
+    <string name="go_back">Go back</string>
     <string name="signal_url_hint">wss://your-service.onrender.com/ws</string>
     <string name="screen_capture_notification">PCHome Screen Capture</string>
     <string name="screen_capture_notification_channel">Screen Capture</string>
 
-    <!-- Son bağlantılar -->
-    <string name="recent_title">Son bağlantılar</string>
-    <string name="recent_hint">Karta dokun → bağlan</string>
-    <string name="recent_empty">Henüz kayıtlı bir bilgisayar yok.\nİlk bağlantını yukarıdan kur.</string>
-    <string name="recent_thumb_desc">PC son görüntüsü</string>
-    <string name="recent_delete_desc">Kaydı sil</string>
-    <string name="recent_password_saved">şifre kayıtlı</string>
-    <string name="recent_password_missing">şifre sorulacak</string>
+    <!-- Recent connections -->
+    <string name="recent_title">Recent connections</string>
+    <string name="recent_hint">Tap a card → connect</string>
+    <string name="recent_empty">No saved computers yet.\nCreate your first connection above.</string>
+    <string name="recent_thumb_desc">PC last screen</string>
+    <string name="recent_delete_desc">Delete entry</string>
+    <string name="recent_password_saved">password saved</string>
+    <string name="recent_password_missing">password will be asked</string>
 
-    <!-- Güncelleme -->
-    <string name="update_section_title">Güncellemeler</string>
-    <string name="update_idle">En son sürümü denetle</string>
-    <string name="update_open">Kontrol et</string>
-    <string name="update_check_now">Kontrol et</string>
-    <string name="update_checking">Denetleniyor…</string>
-    <string name="update_uptodate">Güncel • v%1$s</string>
-    <string name="update_available">Yeni sürüm %1$s (%2$s)</string>
-    <string name="update_idle_dialog">GitHub üzerindeki en son sürüm denetlenecek.</string>
-    <string name="update_busy">İndiriliyor — bu ekrandan çıkma</string>
-    <string name="update_retry">Tekrar dene</string>
-    <string name="update_failed">Denetlenemedi: %1$s</string>
-    <string name="update_now">Güncelle</string>
-    <string name="update_close">Kapat</string>
-    <string name="update_title">PCHome güncellemesi</string>
+    <!-- Updates -->
+    <string name="update_section_title">Updates</string>
+    <string name="update_idle">Check for the latest version</string>
+    <string name="update_open">Check</string>
+    <string name="update_check_now">Check</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_uptodate">Up to date • v%1$s</string>
+    <string name="update_available">New version %1$s (%2$s)</string>
+    <string name="update_idle_dialog">The latest GitHub release will be checked.</string>
+    <string name="update_busy">Downloading — do not leave this screen</string>
+    <string name="update_retry">Retry</string>
+    <string name="update_failed">Check failed: %1$s</string>
+    <string name="update_now">Update</string>
+    <string name="update_close">Close</string>
+    <string name="update_title">PCHome update</string>
+    <string name="update_package_desc">Update package</string>
+    <string name="download_failed_status">Download did not finish (status=%1$d)</string>
 
-    <!-- Uzak masaüstü HUD -->
-    <string name="hud_remote">Uzak masaüstü</string>
-    <string name="mode_direct">Dokunma</string>
+    <!-- Remote desktop HUD -->
+    <string name="hud_remote">Remote desktop</string>
+    <string name="mode_direct">Touch</string>
     <string name="mode_trackpad">Trackpad</string>
-    <string name="keyboard">Klavye</string>
-    <string name="rotate">Döndür</string>
+    <string name="keyboard">Keyboard</string>
+    <string name="keyboard_hide">HIDE</string>
+    <string name="rotate">Rotate</string>
     <string name="key_esc">ESC</string>
     <string name="key_ctrl">CTRL</string>
     <string name="key_shift">SHIFT</string>
     <string name="key_alt">ALT</string>
-    <string name="mouse_left">Sol</string>
-    <string name="mouse_right">Sağ</string>
+    <string name="key_space">SPACE</string>
+    <string name="mouse_left">Left</string>
+    <string name="mouse_right">Right</string>
+    <string name="side_click_left">LEFT\nCLICK</string>
+    <string name="side_click_right">RIGHT\nCLICK</string>
     <string name="ctrl_c">CTRL+C</string>
     <string name="ctrl_v">CTRL+V</string>
-    <string name="scroll">KAYDIR</string>
-    <string name="zoom">Yakınlaştır</string>
-    <string name="zoom_in">Büyüt</string>
-    <string name="zoom_out">Küçült</string>
-    <string name="zoom_hint">Büyüt veya küçült</string>
-    <string name="zoom_reset">Sığdır</string>
-    <string name="hide_menu">Menüyü gizle</string>
-    <string name="show_menu">Menüyü göster</string>
-    <string name="stream_border_desc">Uzak masaüstü görüntüsü</string>
+    <string name="scroll">SCROLL</string>
+    <string name="zoom">Zoom</string>
+    <string name="zoom_close">CLOSE</string>
+    <string name="zoom_in">Zoom in</string>
+    <string name="zoom_out">Zoom out</string>
+    <string name="zoom_hint">Zoom in or out</string>
+    <string name="zoom_reset">Fit</string>
+    <string name="hide_menu">Hide menu</string>
+    <string name="show_menu">Show menu</string>
+    <string name="stream_border_desc">Remote desktop video</string>
+
+    <!-- Runtime messages -->
+    <string name="preparing">Preparing…</string>
+    <string name="start_failed">Could not start</string>
+    <string name="media_engine_failed">Media engine could not be set up:\n%1$s</string>
+    <string name="connection_rejected">Connection rejected</string>
+    <string name="timeout_title">PC did not respond</string>
+    <string name="timeout_body">Signal was reached but the PC did not respond.\n\n• Is the PC app running?\n• Is the signal address the same on both sides?\n• Is the PC ID correct?</string>
+    <string name="crash_title">Previous run crashed</string>
+    <string name="crash_body">This report shows the cause of the connection problem:</string>
+    <string name="crash_phases">--- recent phases ---</string>
+    <string name="crash_clear">Clear</string>
+    <string name="crash_close">Close</string>
+    <string name="footer_secure">WebRTC • end-to-end</string>
+    <string name="error_enter_server">Enter a signal server address first</string>
+    <string name="error_enter_password_from_card">Enter the saved password and connect</string>
+    <string name="error_pc_id_6">PC ID must be 6 digits</string>
+    <string name="error_password_6">Password must be 6 digits</string>
+    <string name="installer_opened">Installer opened ✓</string>
+    <string name="signal_unreachable">Could not reach the signal server (%1$s, %2$d attempts)</string>
+    <string name="no_identity_response">No identity response from PC — is the PC app running?</string>
+    <string name="media_start_failed">Could not start media: %1$s</string>
+    <string name="video_connection_failed">Could not establish the video connection (several attempts)</string>
+    <string name="auth_failed_reason">wrong password</string>
+
+    <!-- Relative time -->
+    <string name="time_just_now">just now</string>
+    <string name="time_minutes_ago">%1$d min ago</string>
+    <string name="time_hours_ago">%1$d h ago</string>
+    <string name="time_days_ago">%1$d d ago</string>
 </resources>

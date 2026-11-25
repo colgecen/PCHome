@@ -21,6 +21,51 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- Tam ekranda PC görüntüsünün dışında kalan yan tık butonları. -->
+    <LinearLayout
+        android:id="@+id/side_clicks"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/side_btn_left_click"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_side_click"
+            android:clickable="true"
+            android:focusable="false"
+            android:fontFamily="@font/inter"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:maxLines="2"
+            android:text="@string/side_click_left"
+            android:textColor="#D9FFFFFF"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/side_btn_right_click"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_side_click"
+            android:clickable="true"
+            android:focusable="false"
+            android:fontFamily="@font/inter"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:maxLines="2"
+            android:text="@string/side_click_right"
+            android:textColor="#D9FFFFFF"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
     <com.PCHome.mobile.ui.ScrollRailView
         android:id="@+id/scroll_rail"
         android:layout_width="52dp"
@@ -97,7 +142,7 @@
             android:contentDescription="@string/hide_menu"
             android:padding="8dp"
             android:src="@drawable/ic_eye_off"
-            android:tint="@color/PCHome_muted" />
+            app:tint="@color/PCHome_muted" />
     </LinearLayout>
 
     <com.google.android.material.textview.MaterialTextView
@@ -123,6 +168,21 @@
         android:layout_gravity="top|center_horizontal"
         android:layout_marginTop="86dp"
         android:text="@string/waiting_for_stream" />
+
+    <!-- Tam ekranda menüyü geri getiren yüzen göz. -->
+    <ImageButton
+        android:id="@+id/btn_eye_float"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="10dp"
+        android:background="@drawable/bg_eye_float"
+        android:contentDescription="@string/show_menu"
+        android:padding="9dp"
+        android:src="@drawable/ic_eye"
+        app:tint="@color/PCHome_text_primary"
+        android:visibility="gone" />
 
     <!-- ===================== Alt HUD ===================== -->
     <LinearLayout
@@ -181,7 +241,7 @@
                 android:maxLines="1"
                 android:paddingStart="4dp"
                 android:paddingEnd="6dp"
-                android:text="ZOOM"
+                android:text="@string/zoom"
                 android:textSize="10sp"
                 app:icon="@drawable/ic_zoom"
                 app:iconGravity="textStart"
@@ -222,21 +282,17 @@
                 app:iconPadding="4dp"
                 app:iconSize="16dp" />
 
-            <com.google.android.material.button.MaterialButton
+            <ImageButton
                 android:id="@+id/btn_rotate"
-                style="@style/Widget.PCHome.Button.Soft"
                 android:layout_width="0dp"
                 android:layout_height="44dp"
                 android:layout_weight="1"
-                android:maxLines="1"
-                android:paddingStart="4dp"
-                android:paddingEnd="6dp"
-                android:text="@string/rotate"
-                android:textSize="10sp"
-                app:icon="@drawable/ic_rotate"
-                app:iconGravity="textStart"
-                app:iconPadding="4dp"
-                app:iconSize="16dp" />
+                android:background="@drawable/bg_rotate_button"
+                android:contentDescription="@string/rotate"
+                android:padding="7dp"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_rotate_device"
+                app:tint="@color/PCHome_text_primary" />
         </LinearLayout>
 
         <LinearLayout

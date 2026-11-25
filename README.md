@@ -1,236 +1,56 @@
-# PCHome
+<h1 align="center">PCHome</h1>
 
-> Turn your Linux PC into a remote-controlled machine — stream the screen to your Android phone over a direct WebRTC connection and control mouse & keyboard from your pocket.
+<p align="center">Stream a Linux desktop to Android over WebRTC and control the mouse and keyboard from anywhere.</p>
 
-PCHome is a self-hosted remote control system consisting of three components: a Linux desktop daemon with a permanent PC ID and fixed password, an Android app that connects with ID + password and keeps a "Recent" grid with thumbnails, and a tiny WebSocket signaling server that pairs the two. Media never touches the server — it flows peer-to-peer. Both apps update themselves from GitHub Releases.
+## Screenshots
 
-| | |
-|---|---|
-| **Desktop** | Rust · Wayland portal/PipeWire or X11 capture · VA-API/NVENC/software H.264 · uinput injection · egui HUD |
-| **Mobile** | Java · WebRTC `SurfaceViewRenderer` · touchpad overlay |
-| **Signal** | Rust · tokio · WebSocket relay · Prometheus metrics |
+<p align="center">
+  <img src="docs/img/pixel-10-pro.svg" alt="PCHome Android app connected in landscape" width="800">
+</p>
 
-## Table of Contents
-
-- [Features](#features)
-- [How It Works](#how-it-works)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Project Structure](#project-structure)
-- [Running Tests](#running-tests)
-- [Contributing](#contributing)
-- [License](#license)
+<p align="center">
+  <img src="docs/img/desktop.svg" alt="PCHome desktop app with a connected phone" width="800">
+</p>
 
 ## Features
 
-- **Low-latency P2P streaming** — screen video travels over a direct WebRTC peer connection; the relay only handles handshake. Wayland is captured through the XDG Desktop Portal (PipeWire), and the default 720p30 target keeps software encoding responsive.
-- **Hardware-accelerated encoding** — VA-API or NVENC H.264 on the desktop, MediaCodec on Android, automatic software fallback.
-- **Permanent PC ID + fixed password** — the desktop creates a 6-digit ID and 6-digit password once (`~/.config/PCHome/identity.toml`); the phone connects with ID + password, no rotating PINs.
-- **Recent grid** — the phone keeps the last PCs with a thumbnail square plus ID/IP/MAC underneath; tap to reconnect, long-press to delete.
-- **Remote input** — tap, swipe and hotkeys from the phone, injected via `/dev/uinput`.
-- **Zero-config cloud deploy** — ship the signal server anywhere with the included Dockerfile; `/health` and `/metrics` are served on the same port for platforms that expose only one.
-- **Built-in HUD** — the desktop daemon opens an egui window showing the active PIN and live telemetry.
-- **Rate limiting** — per-IP sliding-window cap on new relay connections.
-
-## How It Works
-
-```
-+------------------+   WebSocket    +----------------+   WebSocket    +----------------+
-| PCHome-desktop   |<-------------->|  PCHome-signal |<-------------->| PCHome-mobile  |
-| capture + encode |  PIN register  | PIN room match |  join w/ PIN   | render + input |
-+------------------+                +----------------+                +----------------+
-         \                                                                                /
-          \____________________ direct WebRTC (video + data channel) ____________________/
-```
-
- 1. The desktop daemon loads (or generates) its permanent PC ID + password and registers the ID with the signal server.
- 2. You type the PC ID + password into the Android app.
- 3. The desktop verifies the password itself (`auth_ok` / `auth_rejected`, 60 s lockout after 5 wrong tries) and the server relays SDP offers/answers plus ICE candidates.
- 4. A direct WebRTC connection carries the video stream and input events from then on.
+- Direct WebRTC screen streaming from Linux to Android; the signal server only handles the handshake
+- H.264 capture through PipeWire, KWin or X11 with hardware and software encoding fallback
+- Permanent 6-digit PC ID and 6-digit password, with input injected through `/dev/uinput`
+- Trackpad and direct-touch modes, on-screen keyboard, smooth scrolling, zoom and screen rotation
+- Recent connection cards with thumbnails, saved passwords and one-tap reconnect
+- Turkish and English interface selected automatically from the device language
+- Self-hosted Rust signal server with Docker support and in-app updates from GitHub Releases
+- Full-screen mode with side mouse buttons and keyboard-safe touch handling
 
 ## Installation
 
-### Prerequisites
-
-| Component | Requirement |
-|-----------|-------------|
-| Desktop daemon | Linux (kernel 5.10+), Rust 1.70+, PipeWire 0.3+, ffmpeg, `/dev/uinput` access |
-| Hardware encoding *(optional)* | VA-API (`/dev/dri/renderD128`) or NVIDIA GPU — falls back to `libx264` |
-| Mobile app | Android Studio Iguana (2023.2.1)+, JDK 17, Android SDK (API 34) |
-| Signal server | Rust 1.70+ *or* Docker |
-
-### Clone
+Build and run from source:
 
 ```bash
 git clone https://github.com/colgecen/PCHome.git
 cd PCHome
+./pchome --install
 ```
 
-### Build the signal server
+`--install` is a one-time step that lets you type `pchome` (no `./`) to open the build menu:
 
 ```bash
-cd PCHome-signal
-cargo build --release
-# binary: target/release/PCHome-signal
+pchome
 ```
 
-Or with Docker:
-
-```bash
-docker compose up -d
-```
-
-### Build the desktop daemon
-
-```bash
-cd PCHome-desktop
-cargo build --release
-```
-
-See [PCHome-desktop/BUILD.md](PCHome-desktop/BUILD.md) for system dependencies and udev rules.
-
-### Build the Android app
-
-```bash
-cd PCHome-mobile
-./gradlew assembleDebug
-# APK: app/build/outputs/apk/debug/app-debug.apk
-```
-
-See [PCHome-mobile/BUILD.md](PCHome-mobile/BUILD.md) for details.
+Prebuilt binaries are available on the [Releases](https://github.com/colgecen/PCHome/releases) page.
 
 ## Usage
 
-### 1. Start the signal server
-
-Local development:
+Run the build menu from source:
 
 ```bash
-cd PCHome-signal
-./target/release/PCHome-signal
-# relay:  ws://0.0.0.0:8080/ws
-# health: http://0.0.0.0:8081/health
+./pchome
 ```
 
-Or point everything at a hosted instance — any platform that exposes a single TCP port works (the same port serves both the WebSocket relay and plain-HTTP probes):
-
-```bash
-curl https://your-signal-host.example.com/health   # should print: OK
-```
-
-### 2. Start the desktop daemon
-
-```bash
-cd PCHome-desktop
-sudo ./target/release/PCHome-desktop
-```
-
-An egui window opens showing the permanent PC ID and password. (`sudo` is needed for `/dev/uinput`; see [PCHome-desktop/etc/udev/rules.d](PCHome-desktop/etc/udev/rules.d) for passwordless setups.)
-
-### 3. Connect the phone
-
-Install the APK, enter the signal server address, the PC ID and the password shown on the desktop — the desktop verifies you and streaming starts. The PC is saved to the "Recent" grid with its last screenshot.
-
-## Updates
-
-Both apps check GitHub Releases automatically (desktop: 20 s after start, then every 6 h; mobile: at most once a day on the connect screen):
-
-- **Desktop** — the "Ayarlar" panel shows the status; "Şimdi Güncelle" downloads and installs the new AppImage/tarball (`.bak` backup kept next to the binary).
-- **Mobile** — an update card appears on the connect screen; "Güncelle" downloads the APK and opens the system installer.
-- Every release also ships a `latest.json` with direct asset URLs, and the signal server reports its version at `GET /version`.
-
-Point both apps at your own signal server; use the "Signal Server" field in the mobile app and the
-"Ayarlar" panel on the desktop. No deployment address is embedded in the repository.
-
-### One-liner for local development
-
-```bash
-make run        # builds and starts signal server + desktop daemon
-```
-
-## Configuration
-
-Everything is configured through environment variables (a local untracked `.env` next to the desktop daemon is also loaded).
-
-### Signal server
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `8080` | WebSocket relay port |
-| `HEALTH_PORT` | `8081` | Dedicated health/metrics port |
-| `RATE_LIMIT` | `20` | New connections per minute per IP |
-| `RUST_LOG` | – | Log level, e.g. `info`, `debug` |
-
-### Desktop daemon
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PCHOME_SIGNAL_URL` | `ws://localhost:8080` | Signal server URL (`wss://…` in production) |
-| `PCHOME_CAPTURE_WIDTH` | `1280` | Encoded stream width (native screen is reported to the phone for touch mapping) |
-| `PCHOME_CAPTURE_HEIGHT` | `720` | Encoded stream height |
-| `PCHOME_FRAME_RATE` | `30` | Capture/encode frame rate |
-| `PCHOME_BITRATE` | `2000000` | Target H.264 bitrate (bits/s) |
-| `PCHOME_METRICS_ADDR` | `0.0.0.0:9091` | Bind address for the metrics endpoint |
-| `PCHOME_CAPTURE` | auto | Capture path: `portal` (smoother 30 fps; KDE does not embed the mouse cursor), `kwin` (KDE screenshot loop with the real cursor, ~22 fps), or `x11`. KDE defaults to `kwin` so the phone mirrors the real pointer. |
-
-Example:
-
-```bash
-sudo env PCHOME_SIGNAL_URL=wss://your-signal-host.example.com/ws \
-         PCHOME_BITRATE=8000000 \
-    ./target/release/PCHome-desktop
-```
-
-### Wayland screen capture permission
-
-Wayland screen capture uses the XDG Desktop Portal. The first launch asks once which screen(s)
-to share; select **all physical monitors** and enable "restore for future sessions". The restore
-token is stored in `~/.config/PCHome/screencast.token`, so later launches start the stream
-without showing the portal. On an X11 session there is no portal prompt; `x11grab` captures the
-whole X screen automatically.
-
-### Remembered settings (local only, never committed)
-
-- **Desktop**: the signal URL is saved in `~/.config/PCHome/config.toml` and applied live from
-  the "Ayarlar" panel; the permanent PC ID / password / name live in `identity.toml`; phones
-  that successfully authenticated are listed in `devices.json` and shown under "Bağlı Cihaz".
-- **Mobile**: the connect screen keeps the last-used signal server (most-recent-first) and a
-  "Son Girilenler" card per PC, including that PC's own server address. The password is stored
-  only when "Şifreyi hatırla" is checked; all of it lives in the app's private SharedPreferences.
-
-These files live outside the repository (`~/.config/PCHome/` and Android app-private storage).
-
-## Project Structure
-
-```
-PCHome/
-├── PCHome-desktop/   # Linux daemon: capture, encode, uinput input, egui HUD
-├── PCHome-mobile/    # Android app: WebRTC rendering + touchpad overlay
-├── PCHome-signal/    # WebSocket signaling relay with PIN rooms
-├── scripts/          # Helper scripts (local run, e2e smoke test, TLS certs)
-├── docker-compose.yml
-└── Makefile          # make run / build / test / clean
-```
-
-Module-specific documentation lives next to the code: [`ARCHITECTURE.md`](ARCHITECTURE.md) for the overall design, plus `BUILD.md` / `README.md` / `PERMISSIONS.md` inside each module.
-
-## Running Tests
-
-```bash
-make test                      # desktop + signal
-
-cd PCHome-signal && cargo test --release     # includes a live relay roundtrip test
-cd PCHome-desktop && cargo test --all-targets --all-features
-
-cd PCHome-mobile && ./gradlew test           # Android unit tests
-./scripts/e2e-test.sh                        # full-stack smoke test
-```
-
-## Contributing
-
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first — it covers the fork → branch → pull request flow, conventional commit format (`feat`, `fix`, `docs`, … enforced by [commitlint](commitlint.config.js)) and code style expectations. Security-sensitive findings have their own channel in [SECURITY.md](SECURITY.md).
+Choose the desktop, Android or signal component and the output format; finished assets are written to `dist/`. Start the desktop app, then enter the signal server URL, PC ID and password shown on the desktop in the Android app. Configuration lives in `~/.config/PCHome/identity.toml`.
 
 ## License
 
-Distributed under the MIT License. See [LICENSE](LICENSE) for details.
+This project is licensed under the [MIT](LICENSE) license.

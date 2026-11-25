@@ -55,6 +55,10 @@ public class PinActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Giriş ekranı yalnız dikey; PC görüntüsü ekranı döndürme düğmesiyle
+        // yataya geçer.
+        setRequestedOrientation(
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         Diag.init(this);
         setContentView(R.layout.activity_pin);
@@ -70,7 +74,7 @@ public class PinActivity extends AppCompatActivity {
         updateStateText = findViewById(R.id.update_state_text);
         updateStateText.setText(getString(R.string.update_idle));
         MaterialTextView versionFooter = findViewById(R.id.version_footer);
-        versionFooter.setText("WebRTC • uçtan uca");
+        versionFooter.setText(R.string.footer_secure);
         prefs = new Prefs(this);
         recentStore = new RecentStore(this);
         rememberCheck.setChecked(prefs.getRememberPassword());
@@ -134,7 +138,7 @@ public class PinActivity extends AppCompatActivity {
                     server = serverEdit.getText().toString().trim();
                 }
                 if (server.isEmpty()) {
-                    toast("Önce sinyal sunucusu adresini gir");
+                    toast(getString(R.string.error_enter_server));
                     serverEdit.requestFocus();
                     return;
                 }
@@ -146,7 +150,7 @@ public class PinActivity extends AppCompatActivity {
                     pcIdEdit.setText(pc.pcId);
                     passwordEdit.setText("");
                     passwordEdit.requestFocus();
-                    toast("Karttaki şifreyi yazıp bağlan");
+                    toast(getString(R.string.error_enter_password_from_card));
                 }
             }
 
@@ -294,7 +298,7 @@ public class PinActivity extends AppCompatActivity {
         if (!phases.isEmpty()) {
             String tail = phases.length() > 2000
                     ? phases.substring(phases.length() - 2000) : phases;
-            body += "\n--- son aşamalar ---\n" + tail;
+            body += "\n" + getString(R.string.crash_phases) + "\n" + tail;
         }
         android.widget.ScrollView scroll = new android.widget.ScrollView(this);
         android.widget.TextView tv = new android.widget.TextView(this);
@@ -303,11 +307,11 @@ public class PinActivity extends AppCompatActivity {
         tv.setPadding(24, 24, 24, 24);
         scroll.addView(tv);
         new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-                .setTitle("Önceki çalışta çökme oldu")
-                .setMessage("Bu rapor bağlantı sorununun sebebini gösterir:")
+                .setTitle(R.string.crash_title)
+                .setMessage(R.string.crash_body)
                 .setView(scroll)
-                .setPositiveButton("Temizle", (d, w) -> Diag.clear(this))
-                .setNegativeButton("Kapat", (d, w) -> {
+                .setPositiveButton(R.string.crash_clear, (d, w) -> Diag.clear(this))
+                .setNegativeButton(R.string.crash_close, (d, w) -> {
                 })
                 .setOnDismissListener(d -> Diag.clear(this))
                 .show();
@@ -324,17 +328,17 @@ public class PinActivity extends AppCompatActivity {
         String pcId = pcIdEdit.getText().toString().replaceAll("[^0-9]", "");
         String password = passwordEdit.getText().toString().replaceAll("[^0-9]", "");
         if (server.isEmpty()) {
-            toast(getString(R.string.error) + ": sunucu adresi gir");
+            toast(getString(R.string.error) + ": " + getString(R.string.error_enter_server));
             serverEdit.requestFocus();
             return;
         }
         if (pcId.length() != 6) {
-            toast(getString(R.string.error) + ": PC ID 6 hane olmalı");
+            toast(getString(R.string.error) + ": " + getString(R.string.error_pc_id_6));
             pcIdEdit.requestFocus();
             return;
         }
         if (password.length() != 6) {
-            toast(getString(R.string.error) + ": şifre 6 hane olmalı");
+            toast(getString(R.string.error) + ": " + getString(R.string.error_password_6));
             passwordEdit.requestFocus();
             return;
         }
@@ -505,10 +509,10 @@ public class PinActivity extends AppCompatActivity {
                                                     return;
                                                 }
                                                 progress.setVisibility(View.GONE);
-                                                text.setText("Kurulum ekranı açıldı ✓");
+                                                text.setText(R.string.installer_opened);
                                                 close.setVisibility(View.VISIBLE);
                                                 dialog.setCancelable(true);
-                                                updateStateText.setText("Kurulum ekranı açıldı ✓");
+                                                updateStateText.setText(R.string.installer_opened);
                                             }
 
                                             @Override

@@ -15,6 +15,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 
+import com.PCHome.mobile.R;
 import com.PCHome.mobile.control.KeyCodeMap;
 
 import java.util.ArrayList;
@@ -33,6 +34,9 @@ public class NeonKeyboard {
         void onKey(int linuxCode, boolean down, boolean withShift);
 
         void onToggleModifier(int linuxCode);
+
+        /** Sayfa değişirken basılı tuşlar varsa bırakılmasını ister. */
+        void onReleaseAll();
     }
 
     private enum Kind {
@@ -79,6 +83,7 @@ public class NeonKeyboard {
     private final List<Button> shiftButtons = new ArrayList<>();
     private final List<Button> ctrlButtons = new ArrayList<>();
     private final List<Button> altButtons = new ArrayList<>();
+    private final List<Button> letterButtons = new ArrayList<>();
     private Button capsButton;
     private PopupWindow altPopup;
     private final Handler altHandler = new Handler(Looper.getMainLooper());
@@ -108,6 +113,7 @@ public class NeonKeyboard {
         for (Button button : buttons) {
             applyActive(button, active);
         }
+        applyLetterCase();
     }
 
     private void buildPage() {
@@ -120,6 +126,7 @@ public class NeonKeyboard {
         shiftButtons.clear();
         ctrlButtons.clear();
         altButtons.clear();
+        letterButtons.clear();
         capsButton = null;
 
         for (RowDef row : page == 0 ? letterRows() : symbolRows()) {
@@ -137,23 +144,28 @@ public class NeonKeyboard {
                         mod("ALT", KeyCodeMap.KEY_LEFTALT, 1f),
                         key("DEL", KeyCodeMap.KEY_BACKSPACE, 1f)),
                 new RowDef(
-                        letter("Q"), letter("W"), letter("E"), letter("R"), letter("T"),
-                        letter("Y"), letter("U"), letter("I"), letter("O"), letter("P")),
+                        letter("q"), letter("w"), letter("e"), letter("r"), letter("t"),
+                        letter("y"), letter("u"), letter("i"), letter("o"), letter("p")),
                 new RowDef(
-                        letter("A"), letter("S"), letter("D"), letter("F"), letter("G"),
-                        letter("H"), letter("J"), letter("K"), letter("L")),
+                        letter("a"), letter("s"), letter("d"), letter("f"), letter("g"),
+                        letter("h"), letter("j"), letter("k"), letter("l")),
                 new RowDef(
                         mod("SHIFT", KeyCodeMap.KEY_LEFTSHIFT, 1.35f),
-                        letter("Z"), letter("X"), letter("C"), letter("V"),
-                        letter("B"), letter("N"), letter("M"),
+                        letter("z"), letter("x"), letter("c"), letter("v"),
+                        letter("b"), letter("n"), letter("m"),
                         key("DEL", KeyCodeMap.KEY_BACKSPACE, 1.35f)),
                 new RowDef(
                         pageKey("?123", 1, 1.2f),
                         capsKey(),
-                        key("BOŞLUK", KeyCodeMap.KEY_SPACE, 3.4f),
+                        key(spaceLabel(), KeyCodeMap.KEY_SPACE, 3.4f),
                         key(".", KeyCodeMap.KEY_DOT, 1f),
                         key("ENTER", KeyCodeMap.KEY_ENTER, 1.6f)),
         };
+    }
+
+    private String spaceLabel() {
+        return container != null
+                ? container.getContext().getString(R.string.key_space) : "SPACE";
     }
 
     private RowDef[] symbolRows() {
@@ -173,7 +185,7 @@ public class NeonKeyboard {
                         key("DEL", KeyCodeMap.KEY_BACKSPACE, 1.35f)),
                 new RowDef(
                         pageKey("ABC", 0, 1.35f),
-                        key("BOŞLUK", KeyCodeMap.KEY_SPACE, 3.4f),
+                        key(spaceLabel(), KeyCodeMap.KEY_SPACE, 3.4f),
                         key(".", KeyCodeMap.KEY_DOT, 1f),
                         key("ENTER", KeyCodeMap.KEY_ENTER, 1.6f)),
         };
@@ -216,6 +228,9 @@ public class NeonKeyboard {
             } else if (key.kind == Kind.CAPS) {
                 capsButton = btn;
                 applyActive(btn, capsActive);
+            } else if (key.kind == Kind.NORMAL && key.label.length() == 1
+                    && Character.isLetter(key.label.charAt(0))) {
+                letterButtons.add(btn);
             }
 
             String[] alts = key.kind == Kind.NORMAL
@@ -266,6 +281,9 @@ public class NeonKeyboard {
         }
         switch (key.kind) {
             case PAGE:
+                if (listener != null) {
+                    listener.onReleaseAll();
+                }
                 page = key.page;
                 buildPage();
                 break;
@@ -275,6 +293,7 @@ public class NeonKeyboard {
             case CAPS:
                 capsActive = !capsActive;
                 applyActive(capsButton, capsActive);
+                applyLetterCase();
                 listener.onKey(KeyCodeMap.KEY_CAPSLOCK, true, false);
                 listener.onKey(KeyCodeMap.KEY_CAPSLOCK, false, false);
                 break;
@@ -425,6 +444,22 @@ public class NeonKeyboard {
         }
         for (Button button : altButtons) {
             applyActive(button, altActive);
+        }
+        applyLetterCase();
+    }
+
+    /** Shift veya Caps açıkken harf etiketleri büyür, kapalıyken küçülür. */
+    private void applyLetterCase() {
+        boolean upper = shiftActive || capsActive;
+        for (Button button : letterButtons) {
+            CharSequence text = button.getText();
+            if (text == null || text.length() != 1) {
+                continue;
+            }
+            String value = text.toString();
+            button.setText(upper
+                    ? value.toUpperCase(Locale.ROOT)
+                    : value.toLowerCase(Locale.ROOT));
         }
     }
 

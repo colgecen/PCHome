@@ -1,5 +1,6 @@
 package com.PCHome.mobile;
 
+import android.content.Context;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -37,6 +38,7 @@ public class SignalClient {
     private final String deviceName;
     private final String deviceOs;
     private final String appVersion;
+    private final Context context;
     private boolean connected;
     private boolean authFailed;
     private boolean manualClose;
@@ -52,12 +54,14 @@ public class SignalClient {
 
     private final SignalListener listener;
 
-    public SignalClient(String serverUrl, String pcId, String password, SignalListener listener) {
-        this(serverUrl, pcId, password, listener, "", "", "");
+    public SignalClient(String serverUrl, String pcId, String password, SignalListener listener,
+                        Context context) {
+        this(serverUrl, pcId, password, listener, "", "", "", context);
     }
 
     public SignalClient(String serverUrl, String pcId, String password, SignalListener listener,
-                        String deviceName, String deviceOs, String appVersion) {
+                        String deviceName, String deviceOs, String appVersion, Context context) {
+        this.context = context;
         this.serverUrl = serverUrl;
         this.pcId = pcId == null ? "" : pcId.replaceAll("[^A-Za-z0-9]", "");
         this.password = password == null ? "" : password.replaceAll("[^0-9]", "");
@@ -306,8 +310,12 @@ public class SignalClient {
             }
             // Denemeler bitti, hâlâ kopuğuz: arayüz sonsuz beklemesin.
             if (!connected && !authFailed && !manualClose && listener != null) {
-                listener.onError("Sinyal sunucusuna ulaşılamadı ("
-                        + hostOf(serverUrl) + ", " + MAX_RECONNECT_ATTEMPTS + " deneme)");
+                String message = context == null
+                        ? "Could not reach the signal server (" + hostOf(serverUrl)
+                            + ", " + MAX_RECONNECT_ATTEMPTS + " attempts)"
+                        : context.getString(R.string.signal_unreachable,
+                            hostOf(serverUrl), MAX_RECONNECT_ATTEMPTS);
+                listener.onError(message);
             }
         });
         reconnectThread.start();

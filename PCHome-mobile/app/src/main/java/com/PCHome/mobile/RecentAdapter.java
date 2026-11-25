@@ -62,7 +62,7 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.Holder> {
         h.password.setText(pc.rememberPassword && !pc.password.isEmpty()
                 ? h.itemView.getContext().getString(R.string.recent_password_saved)
                 : h.itemView.getContext().getString(R.string.recent_password_missing));
-        String ago = relativeTime(pc.lastSeen);
+        String ago = relativeTime(h.itemView.getContext(), pc.lastSeen);
         h.lastSeen.setText(pc.resolution.isEmpty()
                 ? ago : pc.resolution + "  •  " + ago);
 
@@ -93,13 +93,19 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.Holder> {
         });
     }
 
-    /** Türkçe, kısa "son görülme" metni (sistem dili İngilizce olsa da). */
-    private String relativeTime(long lastSeen) {
+    /** Kısa "son görülme" metni; sistem diline göre otomatik. */
+    private String relativeTime(android.content.Context context, long lastSeen) {
         long diff = Math.max(0L, System.currentTimeMillis() - lastSeen);
-        if (diff < 60_000L) return "az önce";
-        if (diff < 3_600_000L) return (diff / 60_000L) + " dk önce";
-        if (diff < 86_400_000L) return (diff / 3_600_000L) + " sa önce";
-        if (diff < 7L * 86_400_000L) return (diff / 86_400_000L) + " gün önce";
+        if (diff < 60_000L) return context.getString(R.string.time_just_now);
+        if (diff < 3_600_000L) {
+            return context.getString(R.string.time_minutes_ago, diff / 60_000L);
+        }
+        if (diff < 86_400_000L) {
+            return context.getString(R.string.time_hours_ago, diff / 3_600_000L);
+        }
+        if (diff < 7L * 86_400_000L) {
+            return context.getString(R.string.time_days_ago, diff / 86_400_000L);
+        }
         return new java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault())
                 .format(new java.util.Date(lastSeen));
     }

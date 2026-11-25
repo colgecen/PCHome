@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PCHome</string>
+    <string name="app_tagline">Uzak masaüstü</string>
+    <string name="hero_title">PCHome: Masaüstün\nCebinde.</string>
+    <string name="hand_left">SOL EL</string>
+    <string name="hand_right">SAĞ EL</string>
+    <string name="hero_subtitle">Gecikmesiz görüntü, gerçek fare ve klavye kontrolü. Tek dokunuşla bağlan.</string>
+
+    <string name="accessibility_service_description">PCHome accessibility service for remote input control</string>
+    <string name="pin_hint">PIN shown on the desktop</string>
+
+    <string name="connect_card_title">Bağlantı</string>
+    <string name="signal_server_hint">Sinyal sunucusu</string>
+    <string name="connect_card_subtitle">PC’ye bağlanmak için bilgilerini gir.</string>
+    <string name="server_label">Sunucu</string>
+    <string name="signal_server_help">PC uygulamasındaki adresle aynı olmalı</string>
+    <string name="pc_id_hint">PC ID</string>
+    <string name="password_hint">Şifre</string>
+    <string name="remember_password">Şifreyi hatırla</string>
+    <string name="connect">Bağlan</string>
+    <string name="disconnect">Kes</string>
+    <string name="refresh">Yenile</string>
+    <string name="refreshing_stream">Görüntü yenileniyor…</string>
+    <string name="connecting">Bağlanıyor…</string>
+    <string name="connected">Bağlı</string>
+    <string name="disconnected">Bağlantı kesildi</string>
+    <string name="error">Hata</string>
+    <string name="touchpad_hint">Bu alanı touchpad olarak kullan</string>
+    <string name="waiting_for_stream">Sinyal bekleniyor…</string>
+    <string name="conn_phase_signal">Sinyale bağlanılıyor…</string>
+    <string name="conn_phase_verified">PC doğrulandı, görüntü bekleniyor…</string>
+    <string name="conn_phase_video">Bağlandı, ilk kare bekleniyor…</string>
+    <string name="retry">Tekrar dene</string>
+    <string name="go_back">Geri dön</string>
+    <string name="signal_url_hint">wss://your-service.onrender.com/ws</string>
+    <string name="screen_capture_notification">PCHome Screen Capture</string>
+    <string name="screen_capture_notification_channel">Screen Capture</string>
+
+    <!-- Son bağlantılar -->
+    <string name="recent_title">Son bağlantılar</string>
+    <string name="recent_hint">Karta dokun → bağlan</string>
+    <string name="recent_empty">Henüz kayıtlı bir bilgisayar yok.\nİlk bağlantını yukarıdan kur.</string>
+    <string name="recent_thumb_desc">PC son görüntüsü</string>
+    <string name="recent_delete_desc">Kaydı sil</string>
+    <string name="recent_password_saved">şifre kayıtlı</string>
+    <string name="recent_password_missing">şifre sorulacak</string>
+
+    <!-- Güncelleme -->
+    <string name="update_section_title">Güncellemeler</string>
+    <string name="update_idle">En son sürümü denetle</string>
+    <string name="update_open">Kontrol et</string>
+    <string name="update_check_now">Kontrol et</string>
+    <string name="update_checking">Denetleniyor…</string>
+    <string name="update_uptodate">Güncel • v%1$s</string>
+    <string name="update_available">Yeni sürüm %1$s (%2$s)</string>
+    <string name="update_idle_dialog">GitHub üzerindeki en son sürüm denetlenecek.</string>
+    <string name="update_busy">İndiriliyor — bu ekrandan çıkma</string>
+    <string name="update_retry">Tekrar dene</string>
+    <string name="update_failed">Denetlenemedi: %1$s</string>
+    <string name="update_now">Güncelle</string>
+    <string name="update_close">Kapat</string>
+    <string name="update_title">PCHome güncellemesi</string>
+    <string name="update_package_desc">Güncelleme paketi</string>
+    <string name="download_failed_status">indirme tamamlanamadı (durum=%1$d)</string>
+
+    <!-- Uzak masaüstü HUD -->
+    <string name="hud_remote">Uzak masaüstü</string>
+    <string name="mode_direct">Dokunma</string>
+    <string name="mode_trackpad">Trackpad</string>
+    <string name="keyboard">Klavye</string>
+    <string name="keyboard_hide">GİZLE</string>
+    <string name="rotate">Döndür</string>
+    <string name="key_esc">ESC</string>
+    <string name="key_ctrl">CTRL</string>
+    <string name="key_shift">SHIFT</string>
+    <string name="key_alt">ALT</string>
+    <string name="key_space">BOŞLUK</string>
+    <string name="mouse_left">Sol</string>
+    <string name="mouse_right">Sağ</string>
+    <string name="side_click_left">SOL\nTIK</string>
+    <string name="side_click_right">SAĞ\nTIK</string>
+    <string name="ctrl_c">CTRL+C</string>
+    <string name="ctrl_v">CTRL+V</string>
+    <string name="scroll">KAYDIR</string>
+    <string name="zoom">Yakınlaştır</string>
+    <string name="zoom_close">KAPAT</string>
+    <string name="zoom_in">Büyüt</string>
+    <string name="zoom_out">Küçült</string>
+    <string name="zoom_hint">Büyüt veya küçült</string>
+    <string name="zoom_reset">Sığdır</string>
+    <string name="hide_menu">Menüyü gizle</string>
+    <string name="show_menu">Menüyü göster</string>
+    <string name="stream_border_desc">Uzak masaüstü görüntüsü</string>
+
+    <!-- Çalışma zamanı mesajları -->
+    <string name="preparing">Hazırlanıyor…</string>
+    <string name="start_failed">Başlatılamadı</string>
+    <string name="media_engine_failed">Medya motoru kurulamadı:\n%1$s</string>
+    <string name="connection_rejected">Bağlantı reddedildi</string>
+    <string name="timeout_title">PC cevap vermedi</string>
+    <string name="timeout_body">Sinyale ulaşıldı ama PC’den yanıt yok.\n\n• PC uygulaması açık mı?\n• İki tarafta da aynı sinyal adresi mi?\n• PC ID doğru mu?</string>
+    <string name="crash_title">Önceki çalışta çökme oldu</string>
+    <string name="crash_body">Bu rapor bağlantı sorununun sebebini gösterir:</string>
+    <string name="crash_phases">--- son aşamalar ---</string>
+    <string name="crash_clear">Temizle</string>
+    <string name="crash_close">Kapat</string>
+    <string name="footer_secure">WebRTC • uçtan uca</string>
+    <string name="error_enter_server">Önce sinyal sunucusu adresini gir</string>
+    <string name="error_enter_password_from_card">Karttaki şifreyi yazıp bağlan</string>
+    <string name="error_pc_id_6">PC ID 6 hane olmalı</string>
+    <string name="error_password_6">Şifre 6 hane olmalı</string>
+    <string name="installer_opened">Kurulum ekranı açıldı ✓</string>
+    <string name="signal_unreachable">Sinyal sunucusuna ulaşılamadı (%1$s, %2$d deneme)</string>
+    <string name="no_identity_response">PC’den kimlik yanıtı gelmedi — PC uygulaması açık mı?</string>
+    <string name="media_start_failed">Medya başlatılamadı: %1$s</string>
+    <string name="video_connection_failed">Görüntü bağlantısı kurulamadı (birkaç deneme)</string>
+    <string name="auth_failed_reason">şifre hatalı</string>
+
+    <!-- Göreli zaman -->
+    <string name="time_just_now">az önce</string>
+    <string name="time_minutes_ago">%1$d dk önce</string>
+    <string name="time_hours_ago">%1$d sa önce</string>
+    <string name="time_days_ago">%1$d gün önce</string>
+</resources>

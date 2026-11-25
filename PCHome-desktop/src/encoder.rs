@@ -206,11 +206,8 @@ impl H264Capture {
                 .unwrap_or_default()
                 .to_ascii_lowercase();
             let kde = is_kde_wayland();
-            // KWin ScreenShot2 captures the compositor cursor (include-cursor)
-            // and therefore mirrors the real mouse pointer to the phone. The
-            // portal path is smoother (30 fps) but KDE does not embed the
-            // cursor into the PipeWire stream. Default to KWin on KDE; use
-            // PCHOME_CAPTURE=portal for the faster, cursor-less path.
+            // KWin yolu PC'nin kendi imlecini video karesine dahil eder.
+            // Portal daha akıcı olabilir; KDE varsayılanı KWin'dir.
             let kwin_first = kde && force != "portal";
 
             if kwin_first {
@@ -404,6 +401,7 @@ impl H264Capture {
             // Birden fazla fiziksel ekran seçilebilsin; sanal ekran/bölge
             // seçilirse portal yine o kaynağı verir, ama biz monitor isteriz.
             .set_multiple(true)
+            // Telefon PC'nin kendi imlecini göstersin.
             .set_cursor_mode(CursorMode::EMBEDDED)
             .set_persist_mode(PersistMode::ExplicitlyRevoked);
         if let Some(token) = token.as_deref() {
@@ -1278,6 +1276,7 @@ async fn kwin_capture_frame(proxy: &zbus::Proxy<'_>) -> Result<(Vec<u8>, u32, u3
     use std::os::fd::OwnedFd as StdOwnedFd;
 
     let mut options: HashMap<String, zbus::Variant<'_>> = HashMap::new();
+    // PC'nin kendi imleci video akışında görünsün.
     options.insert("include-cursor".to_string(), zbus::Variant::from(true));
     let mut file = kwin_memfd()?;
     let pass: zbus::OwnedFd = zbus::OwnedFd::from(StdOwnedFd::from(file.try_clone()?));

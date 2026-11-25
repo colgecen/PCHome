@@ -45,7 +45,10 @@ public class WebRtcClient {
     private AudioTrack localAudioTrack;
     private SurfaceViewRenderer localRenderer;
     private SurfaceViewRenderer remoteRenderer;
-    private DataChannel dataChannel;
+    /** Hızlı/güvenilmez kanal: imleç ve kaydırma. */
+    private volatile DataChannel controlChannel;
+    /** Güvenilir/sıralı kanal: tuş, tık, kombo, kip. */
+    private volatile DataChannel inputChannel;
     private SignalClient signalClient;
     private ConnectionState state;
     private String localSdp;
@@ -136,7 +139,8 @@ public class WebRtcClient {
                 Log.e(TAG, "Factory kurulamadı: " + e.getMessage());
                 state = ConnectionState.FAILED;
                 notifyStateChanged();
-                if (listener != null) listener.onError("Medya başlatılamadı: " + e.getMessage());
+                if (listener != null) listener.onError(
+                        appContext.getString(R.string.media_start_failed, e.getMessage()));
                 return;
             }
         }
@@ -211,7 +215,7 @@ public class WebRtcClient {
                 if (listener != null) listener.onError(error);
                 scheduleRecovery("sinyal-hata", 5000);
             }
-        }, phoneName, phoneOs, BuildConfig.VERSION_NAME);
+        }, phoneName, phoneOs, BuildConfig.VERSION_NAME, appContext);
         signalClient.connect();
     }
 
@@ -311,8 +315,13 @@ public class WebRtcClient {
                 Diag.phase(appContext, "veri-kanalı");
                 Log.i(TAG, "onDataChannel: label=" + dc.label() + " state=" + dc.state());
                 final DataChannel mine = dc;
-                dataChannel = dc;
-                dataChannel.registerObserver(new DataChannel.Observer() {
+                final boolean reliableInput = "input".equals(mine.label());
+                if (reliableInput) {
+                    inputChannel = mine;
+                } else {
+                    controlChannel = mine;
+                }
+                mine.registerObserver(new DataChannel.Observer() {
                     @Override
                     public void onMessage(DataChannel.Buffer buffer) {
                         // answerPing reads its own duplicate; the listener must
@@ -328,7 +337,17 @@ public class WebRtcClient {
                     @Override
                     public void onStateChange() {
                         if (gen != pcGeneration) return;
-                        Log.i(TAG, "DataChannel state=" + mine.state());
+                        Log.i(TAG, "DataChannel state=" + mine.state()
+                                + " label=" + mine.label());
+                        if (reliableInput) {
+                            if (mine.state() == DataChannel.State.CLOSED
+                                    && inputChannel == mine) {
+                                inputChannel = null;
+                            }
+                            // Klavye kanalı düşerse oturumu kapatma; gönderim
+                            // otomatik olarak control kanalına düşer.
+                            return;
+                        }
                         if (mine.state() == DataChannel.State.OPEN) {
                             p2pConnected = true;
                             recoverTries = 0;
@@ -336,6 +355,9 @@ public class WebRtcClient {
                             state = ConnectionState.CONNECTED;
                             notifyStateChanged();
                         } else if (mine.state() == DataChannel.State.CLOSED) {
+                            if (controlChannel == mine) {
+                                controlChannel = null;
+                            }
                             p2pConnected = false;
                             scheduleRecovery("veri-kanalı-kapandı", 1000);
                         }
@@ -559,7 +581,7 @@ public class WebRtcClient {
                 signalClient.sendJoin();
             }
             if (!closing && !authReceived && listener != null) {
-                listener.onError("PC'den kimlik yanıtı gelmedi — PC uygulaması açık mı?");
+                listener.onError(appContext.getString(R.string.no_identity_response));
             }
         });
         joinWatchdog.start();
@@ -602,7 +624,8 @@ public class WebRtcClient {
                     }
                     break;
                 case "auth_rejected":
-                    String reason = message.optString("reason", "şifre hatalı");
+                    String reason = message.optString("reason",
+                            appContext.getString(R.string.auth_failed_reason));
                     Log.w(TAG, "Kimlik reddedildi: " + reason);
                     Diag.phase(appContext, "auth-red: " + reason);
                     authReceived = true;
@@ -614,7 +637,8 @@ public class WebRtcClient {
                     }
                     state = ConnectionState.FAILED;
                     notifyStateChanged();
-                    if (listener != null) listener.onError("Bağlantı reddedildi: " + reason);
+                    if (listener != null) listener.onError(
+                            appContext.getString(R.string.connection_rejected) + ": " + reason);
                     break;
                 case "device_info":
                     if (listener != null) listener.onDeviceInfo(message);
@@ -729,8 +753,8 @@ public class WebRtcClient {
         return !closing
                 && p2pConnected
                 && peerConnection != null
-                && dataChannel != null
-                && dataChannel.state() == DataChannel.State.OPEN;
+                && controlChannel != null
+                && controlChannel.state() == DataChannel.State.OPEN;
     }
 
     private void scheduleRecovery(String reason, long delayMs) {
@@ -751,7 +775,8 @@ public class WebRtcClient {
             Log.w(TAG, "eski PeerConnection kapatılamadı: " + e.getMessage());
         }
         peerConnection = null;
-        dataChannel = null;
+        controlChannel = null;
+        inputChannel = null;
         p2pConnected = false;
         answerSent = false;
         iceCandidates.clear();
@@ -768,7 +793,7 @@ public class WebRtcClient {
         }
         if (recoverTries >= MAX_RECOVER_TRIES) {
             if (listener != null) {
-                listener.onError("Görüntü bağlantısı kurulamadı (birkaç deneme)");
+                listener.onError(appContext.getString(R.string.video_connection_failed));
             }
             return;
         }
@@ -866,7 +891,8 @@ public class WebRtcClient {
             Log.w(TAG, "Factory bırakılamadı: " + e.getMessage());
         }
         peerConnection = null;
-        dataChannel = null;
+        controlChannel = null;
+        inputChannel = null;
         localVideoTrack = null;
         videoSource = null;
         videoCapturer = null;
@@ -907,18 +933,34 @@ public class WebRtcClient {
         this.listener = listener;
     }
 
-    /// Send a UTF-8 JSON control message over the `control` DataChannel
+    /// Send a UTF-8 JSON pointer message over the `control` DataChannel
     /// (unordered/unreliable). No buffering: the bytes are transmitted
     /// immediately for lowest input latency.
     public void sendControl(String json) {
-        if (dataChannel != null && dataChannel.state() == DataChannel.State.OPEN) {
+        sendOn(controlChannel, json);
+    }
+
+    /// Send a key/click/mode message over the reliable ordered `input`
+    /// DataChannel. The desktop creates it separately so keyboard events are
+    /// never lost or reordered behind a flood of pointer moves. Older desktop
+    /// builds only have `control`; fall back to it for compatibility.
+    public void sendInput(String json) {
+        DataChannel channel = inputChannel;
+        if (channel == null || channel.state() != DataChannel.State.OPEN) {
+            channel = controlChannel;
+        }
+        sendOn(channel, json);
+    }
+
+    private void sendOn(DataChannel channel, String json) {
+        if (channel != null && channel.state() == DataChannel.State.OPEN) {
             byte[] bytes = json.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             DataChannel.Buffer buffer = new DataChannel.Buffer(
                     java.nio.ByteBuffer.wrap(bytes), false);
-            dataChannel.send(buffer);
+            channel.send(buffer);
         } else {
-            Log.d(TAG, "sendControl ignored (channel="
-                    + (dataChannel == null ? "null" : dataChannel.state()) + "): " + json);
+            Log.d(TAG, "send ignored (channel="
+                    + (channel == null ? "null" : channel.state()) + "): " + json);
         }
     }
 
