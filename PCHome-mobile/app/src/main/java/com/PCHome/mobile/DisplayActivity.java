@@ -47,7 +47,10 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     /** İki parmak ve sağ şerit için: 1 dp ≈ 20 yüksek çözünürlüklü birim. */
     private static final float SCROLL_UNITS_PER_DP = 20f;
     /** Trackpad'de imleç ile parmak arasındaki görsel boşluk (dp). */
-    private static final float TRACKPAD_GAP_DP = 160f;
+    private static final float TRACKPAD_GAP_DP = 130f;
+    /** Dikeyde parmağın gidiş yönüne hafif önde gitme. */
+    private static final float TRACKPAD_LEAD_RATIO = 0.35f;
+    private static final float TRACKPAD_LEAD_MAX_DP = 32f;
     private static final float MOVE_THRESHOLD = 12f;
     private static final long LONG_PRESS_MS = 500;
     private static final long DOUBLE_TAP_MS = 300;
@@ -122,6 +125,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private boolean leftHanded;
     private float virtX = pcWidth / 2f;
     private float virtY = pcHeight / 2f;
+    private float trackpadLeadScreen;
 
     private HandlerThread touchThread;
     private Handler touchHandler;
@@ -609,18 +613,15 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     }
 
     private void setupTouch() {
+        // Tam ekran reticle dokunuşu alır; böylece parmak video/letterbox
+        // kenarına çıksa da beyaz ok ekran kenarına kadar gider.
         reticle.setOnTouchListener((v, e) -> {
-            if (!zoomMode) {
-                return false;
-            }
-            handleZoomTouch(e);
-            return true;
-        });
-        surfaceView.setOnTouchListener((v, e) -> {
             if (zoomMode) {
+                handleZoomTouch(e);
                 return true;
             }
             MotionEvent copy = MotionEvent.obtain(e);
+            copy.offsetLocation(-surfaceView.getLeft(), -surfaceView.getTop());
             touchHandler.post(() -> {
                 processTouch(copy);
                 copy.recycle();
@@ -912,6 +913,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                 moved = false;
                 longPressFired = false;
                 pressed = true;
+                trackpadLeadScreen = 0f;
                 placeTrackpadCursor(x, y, viewW, viewH, true);
                 touchHandler.postDelayed(() -> {
                     if (pressed && !moved && !longPressFired) {
@@ -921,6 +923,14 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                 }, LONG_PRESS_MS);
                 break;
             case MotionEvent.ACTION_MOVE:
+                float dy = y - lastY;
+                if (dy != 0f) {
+                    float density = getResources().getDisplayMetrics().density;
+                    float maxLead = TRACKPAD_LEAD_MAX_DP * density;
+                    trackpadLeadScreen = clamp(
+                            trackpadLeadScreen + dy * TRACKPAD_LEAD_RATIO,
+                            -maxLead, maxLead) * 0.88f;
+                }
                 lastX = x;
                 lastY = y;
                 if (Math.abs(x - downX) > MOVE_THRESHOLD || Math.abs(y - downY) > MOVE_THRESHOLD) {
@@ -962,7 +972,8 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         float gapPc = (TRACKPAD_GAP_DP * density) / Math.max(1f, r[2]) * pcWidth;
         float side = leftHanded ? 1f : -1f;
         float targetX = clamp(mapped[0] + side * gapPc, 0, pcWidth - 1);
-        float targetY = clamp(mapped[1], 0, pcHeight - 1);
+        float leadPc = (trackpadLeadScreen / Math.max(1f, r[3])) * pcHeight;
+        float targetY = clamp(mapped[1] + leadPc, 0, pcHeight - 1);
         virtX = targetX;
         virtY = targetY;
         lastFingerX = x;

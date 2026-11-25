@@ -146,9 +146,9 @@ public class NeonKeyboard {
                         mod("SHIFT", KeyCodeMap.KEY_LEFTSHIFT, 1.35f),
                         letter("Z"), letter("X"), letter("C"), letter("V"),
                         letter("B"), letter("N"), letter("M"),
-                        pageKey("?123", 1, 1.35f)),
+                        key("DEL", KeyCodeMap.KEY_BACKSPACE, 1.35f)),
                 new RowDef(
-                        key("DEL", KeyCodeMap.KEY_BACKSPACE, 1.2f),
+                        pageKey("?123", 1, 1.2f),
                         capsKey(),
                         key("BOŞLUK", KeyCodeMap.KEY_SPACE, 3.4f),
                         key(".", KeyCodeMap.KEY_DOT, 1f),
@@ -169,10 +169,10 @@ public class NeonKeyboard {
                         sym("*"), sym("'"), sym("~")),
                 new RowDef(
                         sym(","), sym("."), sym("_"), sym("\\"), sym("|"),
-                        sym("<"), sym(">"), sym("^")),
+                        sym("<"), sym(">"), sym("^"),
+                        key("DEL", KeyCodeMap.KEY_BACKSPACE, 1.35f)),
                 new RowDef(
                         pageKey("ABC", 0, 1.35f),
-                        key("DEL", KeyCodeMap.KEY_BACKSPACE, 1.1f),
                         key("BOŞLUK", KeyCodeMap.KEY_SPACE, 3.4f),
                         key(".", KeyCodeMap.KEY_DOT, 1f),
                         key("ENTER", KeyCodeMap.KEY_ENTER, 1.6f)),
