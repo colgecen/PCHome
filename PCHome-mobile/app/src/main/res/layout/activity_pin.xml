@@ -20,11 +20,54 @@
         android:paddingEnd="20dp"
         android:paddingBottom="20dp">
 
+        <!-- ===================== El tercihi ===================== -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:layout_marginBottom="4dp"
+            android:gravity="end"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/hand_left"
+                style="@style/Widget.PCHome.Button.Key"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:text="@string/hand_left"
+                android:textSize="9.5sp"
+                app:icon="@drawable/ic_touch"
+                app:iconGravity="textStart"
+                app:iconPadding="3dp"
+                app:iconSize="12dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/hand_right"
+                style="@style/Widget.PCHome.Button.Key"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:layout_marginStart="4dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:text="@string/hand_right"
+                android:textSize="9.5sp"
+                app:icon="@drawable/ic_touch"
+                app:iconGravity="textStart"
+                app:iconPadding="3dp"
+                app:iconSize="12dp" />
+        </LinearLayout>
+
         <!-- ===================== Başlık ===================== -->
         <com.google.android.material.textview.MaterialTextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
+            android:layout_marginTop="10dp"
             android:text="@string/hero_title"
             android:textAppearance="@style/TextAppearance.PCHome.Hero" />
 

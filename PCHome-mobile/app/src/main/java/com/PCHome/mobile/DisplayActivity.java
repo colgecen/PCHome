@@ -11,6 +11,7 @@ import android.os.SystemClock;
 import android.util.Log;
 import android.view.PixelCopy;
 import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -43,14 +44,13 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
 
     private static final int MODE_DIRECT = 0;
     private static final int MODE_TRACKPAD = 1;
-    /** İki parmak ve sağ şerit için: 1 dp ≈ 12 yüksek çözünürlüklü birim. */
-    private static final float SCROLL_UNITS_PER_DP = 12f;
-    /** Trackpad: yatay 1:1 kalsın ki imleç parmağın hep solunda dursun. */
-    private static final float TRACKPAD_X_SENSITIVITY = 1.0f;
-    /** Dikeyde hafif önde gitsin: yukarı çıkarken üstte, aşağı inerken altta. */
-    private static final float TRACKPAD_Y_SENSITIVITY = 1.4f;
-    /** İmlecin parmaktan sola uzaklığı (dp). */
-    private static final float TRACKPAD_LEFT_OFFSET_DP = 56f;
+    /** İki parmak ve sağ şerit için: 1 dp ≈ 20 yüksek çözünürlüklü birim. */
+    private static final float SCROLL_UNITS_PER_DP = 20f;
+    /** Trackpad'de imleç ile parmak arasındaki görsel boşluk (dp). */
+    private static final float TRACKPAD_GAP_DP = 56f;
+    /** Dikey ön-gitme: parmak yukarıdayken yukarı, aşağıdayken aşağı. */
+    private static final float TRACKPAD_LEAD_RATIO = 0.35f;
+    private static final float TRACKPAD_LEAD_MAX_DP = 28f;
     private static final float MOVE_THRESHOLD = 12f;
     private static final long LONG_PRESS_MS = 500;
     private static final long DOUBLE_TAP_MS = 300;
@@ -71,7 +71,17 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     private ImageButton btnHideMenu;
     private Button btnKeyboard;
     private MaterialButton btnWheel;
+    private ImageButton btnZoom;
+    private ImageButton btnHand;
     private boolean menuHidden;
+    private boolean zoomMode;
+    private float zoomScale = 1f;
+    private float zoomPanX;
+    private float zoomPanY;
+    private float zoomLastTouchX;
+    private float zoomLastTouchY;
+    private ScaleGestureDetector scaleDetector;
+    private boolean topInfoVisible = true;
     private float twoFingerScrollCarryX;
     private float twoFingerScrollCarryY;
     private float scrollFlingVelocity;
@@ -107,10 +117,10 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     /** Klavye açıkken control_bar büyür; video alanı bu taban yüksekliği kullanır. */
     private int dockBaseHeight = 0;
     private int mode = MODE_DIRECT;
+    private boolean leftHanded;
     private float virtX = pcWidth / 2f;
     private float virtY = pcHeight / 2f;
-    private float trackpadCarryX;
-    private float trackpadCarryY;
+    private float trackpadLeadScreen;
 
     private HandlerThread touchThread;
     private Handler touchHandler;
@@ -152,8 +162,16 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         keyboardContainer = findViewById(R.id.keyboard_container);
         scrollRail = findViewById(R.id.scroll_rail);
         btnHideMenu = findViewById(R.id.btn_hide_menu);
+        btnZoom = findViewById(R.id.btn_zoom);
+        btnHand = findViewById(R.id.btn_hand);
 
         applyHudInsets();
+        topOverlay.setOnTouchListener((v, event) -> {
+            if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                hideTopInfoOnTouch();
+            }
+            return false;
+        });
 
         // Video alanı; üst/alt HUD yükseklikleri değişince (döndürme,
         // klavye, inset) yeniden hesaplanmalı.
@@ -182,6 +200,8 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         }
         if (pcId == null) pcId = "";
         if (password == null) password = "";
+        leftHanded = getIntent().getBooleanExtra("leftHanded", false);
+        updateHandButton();
         pcId = pcId.replaceAll("[^0-9]", "");
         password = password.replaceAll("[^0-9]", "");
         infoChip.setText("PC " + pcId);
@@ -267,8 +287,15 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             Insets cut = insets.getInsets(WindowInsetsCompat.Type.displayCutout());
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            topOverlay.setPadding(16 + cut.left, 12 + bars.top, 16 + cut.right, 16);
+            topOverlay.setPadding(56 + cut.left, 12 + bars.top + cut.top,
+                    16 + cut.right, 16);
             controlBar.setPadding(10 + cut.left, 9, 10 + cut.right, 9 + bars.bottom);
+            if (btnZoom != null) {
+                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) btnZoom.getLayoutParams();
+                lp.leftMargin = 8 + cut.left;
+                lp.topMargin = 8 + bars.top + cut.top;
+                btnZoom.setLayoutParams(lp);
+            }
             v.post(this::applyAspectLayout);
             return insets;
         });
@@ -334,6 +361,32 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             toggleMenu();
             tick();
         });
+        btnZoom.setOnClickListener(v -> {
+            toggleZoomMode();
+            tick();
+        });
+        btnZoom.setOnLongClickListener(v -> {
+            resetZoom();
+            return true;
+        });
+        btnHand.setOnClickListener(v -> {
+            toggleHandedness();
+            tick();
+        });
+        scaleDetector = new ScaleGestureDetector(this,
+                new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                    @Override
+                    public boolean onScale(ScaleGestureDetector detector) {
+                        if (!zoomMode) {
+                            return false;
+                        }
+                        zoomScale = clamp(zoomScale * detector.getScaleFactor(), 1f, 3f);
+                        applyAspectLayout();
+                        return true;
+                    }
+                });
+        scaleDetector.setQuickScaleEnabled(false);
+        scaleDetector.setStylusScaleEnabled(false);
         btnRotate.setOnClickListener(v -> rotateScreen());
         btnRefresh.setOnClickListener(v -> {
             if (webRtcClient != null) {
@@ -390,6 +443,12 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                     * getResources().getDisplayMetrics().density);
             scrollRail.setLayoutParams(lp);
         }
+        if (btnHand != null) {
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) btnHand.getLayoutParams();
+            lp.bottomMargin = Math.round((menuHidden ? 24f : 120f)
+                    * getResources().getDisplayMetrics().density);
+            btnHand.setLayoutParams(lp);
+        }
         applyAspectLayout();
         surfaceView.postDelayed(this::applyAspectLayout, 120L);
     }
@@ -414,6 +473,107 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         btnWheel.setIconTint(ColorStateList.valueOf(
                 active ? 0xFFF4F4F5 : 0xFFA1A1AA));
     }
+
+    private void toggleZoomMode() {
+        zoomMode = !zoomMode;
+        btnZoom.setImageTintList(ColorStateList.valueOf(
+                zoomMode ? 0xFFF4F4F5 : 0xFFA1A1AA));
+        if (zoomMode) {
+            hideTopInfoNow();
+            if (scrollRail.getVisibility() == View.VISIBLE) {
+                scrollRail.setVisibility(View.GONE);
+                setWheelActive(false);
+            }
+            reticle.setVisible(false);
+        } else {
+            reticle.setVisible(true);
+            if (surfaceView != null && surfaceView.getWidth() > 0 && surfaceView.getHeight() > 0) {
+                float[] r = videoRect(surfaceView.getWidth(), surfaceView.getHeight());
+                updateReticle(r[0] + virtX / pcWidth * r[2],
+                        r[1] + virtY / pcHeight * r[3]);
+            }
+            scheduleTopInfo();
+        }
+        applyAspectLayout();
+    }
+
+    private void resetZoom() {
+        zoomScale = 1f;
+        zoomPanX = 0f;
+        zoomPanY = 0f;
+        applyAspectLayout();
+        Toast.makeText(this, R.string.zoom_reset, Toast.LENGTH_SHORT).show();
+    }
+
+    private void toggleHandedness() {
+        leftHanded = !leftHanded;
+        new Prefs(this).setLeftHanded(leftHanded);
+        updateHandButton();
+        Toast.makeText(this, leftHanded ? R.string.hand_left : R.string.hand_right,
+                Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateHandButton() {
+        if (btnHand == null) {
+            return;
+        }
+        btnHand.setScaleX(leftHanded ? -1f : 1f);
+        btnHand.setContentDescription(getString(
+                leftHanded ? R.string.hand_left : R.string.hand_right));
+        btnHand.setImageTintList(ColorStateList.valueOf(
+                leftHanded ? 0xFFF4F4F5 : 0xFFA1A1AA));
+    }
+
+    private void hideTopInfoNow() {
+        topInfoVisible = false;
+        if (uiHandler != null) {
+            uiHandler.removeCallbacks(showTopInfoRunnable);
+        }
+        if (topOverlay != null) {
+            topOverlay.animate().cancel();
+            topOverlay.setVisibility(View.INVISIBLE);
+        }
+    }
+
+    private void hideTopInfoOnTouch() {
+        if (zoomMode) {
+            hideTopInfoNow();
+            return;
+        }
+        if (topInfoVisible) {
+            topInfoVisible = false;
+            topOverlay.animate().cancel();
+            topOverlay.animate()
+                    .alpha(0f)
+                    .setDuration(140L)
+                    .withEndAction(() -> {
+                        if (!topInfoVisible) {
+                            topOverlay.setVisibility(View.INVISIBLE);
+                        }
+                    })
+                    .start();
+        }
+        if (uiHandler != null) {
+            uiHandler.removeCallbacks(showTopInfoRunnable);
+        }
+    }
+
+    private void scheduleTopInfo() {
+        if (uiHandler == null) {
+            return;
+        }
+        uiHandler.removeCallbacks(showTopInfoRunnable);
+        uiHandler.postDelayed(showTopInfoRunnable, 1600L);
+    }
+
+    private final Runnable showTopInfoRunnable = () -> {
+        if (zoomMode || topOverlay == null) {
+            return;
+        }
+        topInfoVisible = true;
+        topOverlay.setVisibility(View.VISIBLE);
+        topOverlay.animate().alpha(1f).setDuration(180L).start();
+    };
 
     private void sendCopyPaste(int keyCode) {
         if (ctrlSticky) {
@@ -501,7 +661,28 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     }
 
     private void setupTouch() {
+        reticle.setOnTouchListener((v, e) -> {
+            if (!zoomMode) {
+                return false;
+            }
+            if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                hideTopInfoOnTouch();
+            }
+            handleZoomTouch(e);
+            return true;
+        });
         surfaceView.setOnTouchListener((v, e) -> {
+            int touchAction = e.getActionMasked();
+            if (touchAction == MotionEvent.ACTION_DOWN) {
+                hideTopInfoOnTouch();
+            }
+            if (zoomMode) {
+                return true;
+            }
+            if (touchAction == MotionEvent.ACTION_UP
+                    || touchAction == MotionEvent.ACTION_CANCEL) {
+                scheduleTopInfo();
+            }
             MotionEvent copy = MotionEvent.obtain(e);
             touchHandler.post(() -> {
                 processTouch(copy);
@@ -509,6 +690,44 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             });
             return true;
         });
+    }
+
+    /** Zoom modunda tek parmak pan, iki parmak pinch. Normal kontroller kapalı. */
+    private void handleZoomTouch(MotionEvent event) {
+        if (scaleDetector == null) {
+            return;
+        }
+        int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN
+                || action == MotionEvent.ACTION_POINTER_DOWN
+                || action == MotionEvent.ACTION_POINTER_UP) {
+            zoomLastTouchX = event.getRawX();
+            zoomLastTouchY = event.getRawY();
+        }
+        scaleDetector.onTouchEvent(event);
+        if (event.getPointerCount() == 1 && !scaleDetector.isInProgress()) {
+            float x = event.getRawX();
+            float y = event.getRawY();
+            switch (action) {
+                case MotionEvent.ACTION_DOWN:
+                    zoomLastTouchX = x;
+                    zoomLastTouchY = y;
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    zoomPanX += x - zoomLastTouchX;
+                    zoomPanY += y - zoomLastTouchY;
+                    zoomLastTouchX = x;
+                    zoomLastTouchY = y;
+                    applyAspectLayout();
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    scheduleTopInfo();
+                    break;
+                default:
+                    break;
+            }
+        }
     }
 
     /** Yatay ↔ dikey geçişi; 180° ters çevirme yapmaz. */
@@ -605,8 +824,6 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         FrameLayout parent = (FrameLayout) surfaceView.getParent();
         int parentW = parent.getWidth();
         int parentH = parent.getHeight();
-        int topInset = topOverlay != null && topOverlay.getVisibility() == View.VISIBLE
-                ? topOverlay.getHeight() : 0;
         int bottomInset = 0;
         if (controlBar != null && controlBar.getVisibility() == View.VISIBLE) {
             // Klavye açılınca dock yukarı büyür; videoyu sıfıra indirmek
@@ -619,24 +836,37 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             bottomInset = dockBaseHeight;
         }
         int availW = parentW;
-        int availH = parentH - topInset - bottomInset;
+        // Üst HUD artık videoyu aşağı itmez; üst alan da zoom/pan için kullanılır.
+        int availH = parentH - bottomInset;
         if (availW <= 0 || availH <= 0) {
             return;
         }
         float videoAspect = (float) Math.max(1, pcWidth) / Math.max(1, pcHeight);
-        int width = availW;
-        int height = (int) (availW / videoAspect);
-        if (height > availH) {
-            height = availH;
-            width = (int) (availH * videoAspect);
+        float fitW = availW;
+        float fitH = fitW / videoAspect;
+        if (fitH > availH) {
+            fitH = availH;
+            fitW = fitH * videoAspect;
         }
-        int left = (parentW - width) / 2;
-        int top = topInset + (availH - height) / 2;
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(width, height);
-        lp.gravity = android.view.Gravity.TOP | android.view.Gravity.CENTER_HORIZONTAL;
-        lp.topMargin = top;
+        float baseLeft = (parentW - fitW) / 2f;
+        float baseTop = (availH - fitH) / 2f;
+
+        float scaledW = fitW * zoomScale;
+        float scaledH = fitH * zoomScale;
+        float maxPanX = Math.max(0f, (scaledW - availW) / 2f);
+        float maxPanY = Math.max(0f, (scaledH - availH) / 2f);
+        zoomPanX = clamp(zoomPanX, -maxPanX, maxPanX);
+        zoomPanY = clamp(zoomPanY, -maxPanY, maxPanY);
+        float left = baseLeft + (fitW - scaledW) / 2f + zoomPanX;
+        float top = baseTop + (fitH - scaledH) / 2f + zoomPanY;
+
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                Math.round(scaledW), Math.round(scaledH));
+        lp.gravity = android.view.Gravity.TOP | android.view.Gravity.LEFT;
+        lp.leftMargin = Math.round(left);
+        lp.topMargin = Math.round(top);
         surfaceView.setLayoutParams(lp);
-        reticle.setVideoRect(left, top, left + width, top + height);
+        reticle.setVideoRect(left, top, left + scaledW, top + scaledH);
     }
 
     /** Dokunuş gerçekten video görüntüsünün üzerinde mi? */
@@ -725,9 +955,8 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                 moved = false;
                 longPressFired = false;
                 pressed = true;
-                trackpadCarryX = 0f;
-                trackpadCarryY = 0f;
-                placeTrackpadCursor(x, y, viewW, viewH);
+                trackpadLeadScreen = 0f;
+                placeTrackpadCursor(x, y, viewW, viewH, true);
                 touchHandler.postDelayed(() -> {
                     if (pressed && !moved && !longPressFired) {
                         longPressFired = true;
@@ -736,22 +965,20 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
                 }, LONG_PRESS_MS);
                 break;
             case MotionEvent.ACTION_MOVE:
-                float rawDx = (x - lastX) * TRACKPAD_X_SENSITIVITY + trackpadCarryX;
-                float rawDy = (y - lastY) * TRACKPAD_Y_SENSITIVITY + trackpadCarryY;
-                int dx = (int) rawDx;
-                int dy = (int) rawDy;
-                trackpadCarryX = rawDx - dx;
-                trackpadCarryY = rawDy - dy;
+                float dy = y - lastY;
+                if (dy != 0f) {
+                    float density = getResources().getDisplayMetrics().density;
+                    float maxLead = TRACKPAD_LEAD_MAX_DP * density;
+                    trackpadLeadScreen = clamp(
+                            trackpadLeadScreen + dy * TRACKPAD_LEAD_RATIO,
+                            -maxLead, maxLead) * 0.82f;
+                }
                 lastX = x;
                 lastY = y;
                 if (Math.abs(x - downX) > MOVE_THRESHOLD || Math.abs(y - downY) > MOVE_THRESHOLD) {
                     moved = true;
                 }
-                virtX = clamp(virtX + dx, 0, pcWidth);
-                virtY = clamp(virtY + dy, 0, pcHeight);
-                sendMoveRel(dx, dy);
-                float[] r = videoRect(viewW, viewH);
-                updateReticle(r[0] + virtX / pcWidth * r[2], r[1] + virtY / pcHeight * r[3]);
+                placeTrackpadCursor(x, y, viewW, viewH, false);
                 break;
             case MotionEvent.ACTION_UP:
                 pressed = false;
@@ -775,25 +1002,26 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
     }
 
     /**
-     * Trackpad'e dokunulunca imleci parmağın 56dp soluna yerleştirir.
-     * Yatay hareket 1:1 olduğu için bu mesafe korunur; dikeyde 1.4x
-     * hassasiyet sayesinde yukarı çıkarken imleç parmağın üstünde,
-     * aşağı inerken altında kalır. Böylece parmak imleci kapatmaz.
+     * Trackpad'de imleci parmağa göre mutlak konumlandırır. Sağ el seçiliyse
+     * imleç parmağın solunda, sol el seçiliyse sağında kalır; göreli paket
+     * kaybı offset'i bozamaz.
      */
-    private void placeTrackpadCursor(float x, float y, int viewW, int viewH) {
+    private void placeTrackpadCursor(float x, float y, int viewW, int viewH,
+                                     boolean announceMode) {
         float[] r = videoRect(viewW, viewH);
         float[] mapped = mapToPc(x, y, viewW, viewH);
         float density = getResources().getDisplayMetrics().density;
-        float offsetScreen = TRACKPAD_LEFT_OFFSET_DP * density;
-        float offsetPc = offsetScreen / Math.max(1f, r[2]) * pcWidth;
-        float targetX = clamp(mapped[0] - offsetPc, 0, pcWidth - 1);
-        float targetY = clamp(mapped[1], 0, pcHeight - 1);
+        float gapPc = (TRACKPAD_GAP_DP * density) / Math.max(1f, r[2]) * pcWidth;
+        float side = leftHanded ? 1f : -1f;
+        float leadPc = (trackpadLeadScreen / Math.max(1f, r[3])) * pcHeight;
+        float targetX = clamp(mapped[0] + side * gapPc, 0, pcWidth - 1);
+        float targetY = clamp(mapped[1] + leadPc, 0, pcHeight - 1);
         virtX = targetX;
         virtY = targetY;
-        // İlk yerleştirmeyi mutlak yap: PC imlecinin gerçek konumu ne olursa
-        // olsun parmağın solunda başlasın. Sonraki hareketler göreli kalır.
         sendMoveAbs(Math.round(targetX), Math.round(targetY));
-        sendMode(); // Kip satırı "Dokunma"ya dönmesin.
+        if (announceMode) {
+            sendMode(); // Kip satırı trackpad kalsın.
+        }
         updateReticle(r[0] + virtX / pcWidth * r[2], r[1] + virtY / pcHeight * r[3]);
     }
 
@@ -840,7 +1068,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
         if (uiHandler == null) {
             return;
         }
-        scrollFlingVelocity = clamp(unitsPerSecond, -4200f, 4200f);
+        scrollFlingVelocity = clamp(unitsPerSecond, -8000f, 8000f);
         if (Math.abs(scrollFlingVelocity) < 50f) {
             return;
         }
@@ -870,7 +1098,7 @@ public class DisplayActivity extends AppCompatActivity implements WebRtcClient.W
             if (units != 0) {
                 sendScrollHiRes(0, units);
             }
-            scrollFlingVelocity *= (float) Math.pow(0.08f, dt);
+            scrollFlingVelocity *= (float) Math.pow(0.12f, dt);
             if (Math.abs(scrollFlingVelocity) > 40f) {
                 uiHandler.postDelayed(this, 16L);
             }

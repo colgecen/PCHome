@@ -2,17 +2,24 @@ package com.PCHome.mobile.ui;
 
 import android.content.res.ColorStateList;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
+import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.PopupWindow;
 
 import com.PCHome.mobile.control.KeyCodeMap;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /// Telefon QWERTY'sine benzeyen iki sayfalı uzak klavye.
 /// 1) Harfler + Caps/Shift/Ctrl/Alt/Esc/Tab/Del/Enter/Space
@@ -73,6 +80,8 @@ public class NeonKeyboard {
     private final List<Button> ctrlButtons = new ArrayList<>();
     private final List<Button> altButtons = new ArrayList<>();
     private Button capsButton;
+    private PopupWindow altPopup;
+    private final Handler altHandler = new Handler(Looper.getMainLooper());
 
     public void build(LinearLayout container, OnKeyListener listener) {
         this.container = container;
@@ -105,6 +114,8 @@ public class NeonKeyboard {
         if (container == null) {
             return;
         }
+        dismissAltPopup();
+        altHandler.removeCallbacksAndMessages(null);
         container.removeAllViews();
         shiftButtons.clear();
         ctrlButtons.clear();
@@ -135,10 +146,10 @@ public class NeonKeyboard {
                         mod("SHIFT", KeyCodeMap.KEY_LEFTSHIFT, 1.35f),
                         letter("Z"), letter("X"), letter("C"), letter("V"),
                         letter("B"), letter("N"), letter("M"),
-                        mod("SHIFT", KeyCodeMap.KEY_LEFTSHIFT, 1.35f)),
+                        key("DEL", KeyCodeMap.KEY_BACKSPACE, 1.35f)),
                 new RowDef(
-                        capsKey(),
                         pageKey("?123", 1, 1.2f),
+                        capsKey(),
                         key("BOŞLUK", KeyCodeMap.KEY_SPACE, 3.4f),
                         key(".", KeyCodeMap.KEY_DOT, 1f),
                         key("ENTER", KeyCodeMap.KEY_ENTER, 1.6f)),
@@ -207,16 +218,43 @@ public class NeonKeyboard {
                 applyActive(btn, capsActive);
             }
 
-            btn.setOnTouchListener((v, event) -> {
-                int action = event.getActionMasked();
-                if (action == MotionEvent.ACTION_DOWN) {
-                    handleKeyDown(key);
-                } else if (action == MotionEvent.ACTION_UP
-                        || action == MotionEvent.ACTION_CANCEL) {
-                    handleKeyUp(key);
-                }
-                return true;
-            });
+            String[] alts = key.kind == Kind.NORMAL
+                    ? turkishAlternatives(key.label) : null;
+            if (alts != null && alts.length > 0) {
+                final boolean[] longPressed = {false};
+                final Runnable longPress = () -> {
+                    longPressed[0] = true;
+                    btn.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                    showAltPopup(btn, alts);
+                };
+                btn.setOnTouchListener((v, event) -> {
+                    int action = event.getActionMasked();
+                    if (action == MotionEvent.ACTION_DOWN) {
+                        longPressed[0] = false;
+                        altHandler.postDelayed(longPress, 380L);
+                    } else if (action == MotionEvent.ACTION_UP
+                            || action == MotionEvent.ACTION_CANCEL) {
+                        altHandler.removeCallbacks(longPress);
+                        if (action == MotionEvent.ACTION_UP
+                                && !longPressed[0] && listener != null) {
+                            listener.onKey(key.code, true, key.withShift);
+                            listener.onKey(key.code, false, key.withShift);
+                        }
+                    }
+                    return true;
+                });
+            } else {
+                btn.setOnTouchListener((v, event) -> {
+                    int action = event.getActionMasked();
+                    if (action == MotionEvent.ACTION_DOWN) {
+                        handleKeyDown(key);
+                    } else if (action == MotionEvent.ACTION_UP
+                            || action == MotionEvent.ACTION_CANCEL) {
+                        handleKeyUp(key);
+                    }
+                    return true;
+                });
+            }
             rowLayout.addView(btn);
         }
         container.addView(rowLayout);
@@ -250,6 +288,119 @@ public class NeonKeyboard {
     private void handleKeyUp(KeyDef key) {
         if (listener != null && key.kind == Kind.NORMAL) {
             listener.onKey(key.code, false, key.withShift);
+        }
+    }
+
+    private String[] turkishAlternatives(String label) {
+        if (label == null || label.length() != 1) {
+            return null;
+        }
+        switch (label.toLowerCase(Locale.ROOT)) {
+            case "c":
+                return new String[]{"ç"};
+            case "g":
+                return new String[]{"ğ"};
+            case "i":
+                return new String[]{"ı"};
+            case "o":
+                return new String[]{"ö"};
+            case "s":
+                return new String[]{"ş"};
+            case "u":
+                return new String[]{"ü"};
+            default:
+                return null;
+        }
+    }
+
+    /// Türkçe Q klavye fiziksel tuş karşılıkları.
+    private int altCode(String alt) {
+        switch (alt) {
+            case "ç":
+                return KeyCodeMap.KEY_DOT;
+            case "ğ":
+                return KeyCodeMap.KEY_LEFTBRACE;
+            case "ı":
+                return KeyCodeMap.KEY_I;
+            case "ö":
+                return KeyCodeMap.KEY_COMMA;
+            case "ş":
+                return KeyCodeMap.KEY_SEMICOLON;
+            case "ü":
+                return KeyCodeMap.KEY_RIGHTBRACE;
+            default:
+                return -1;
+        }
+    }
+
+    private void showAltPopup(Button anchor, String[] alts) {
+        dismissAltPopup();
+        if (container == null) {
+            return;
+        }
+        LinearLayout row = new LinearLayout(container.getContext());
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        int pad = Math.round(6 * density);
+        row.setPadding(pad, pad, pad, pad);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(0xFF1F1F23);
+        bg.setCornerRadius(12 * density);
+        row.setBackground(bg);
+
+        for (String alt : alts) {
+            Button choice = new Button(container.getContext());
+            choice.setText(alt);
+            choice.setTextSize(18f);
+            choice.setTextColor(0xFFF4F4F5);
+            choice.setAllCaps(false);
+            choice.setGravity(Gravity.CENTER);
+            choice.setMinWidth(0);
+            choice.setMinimumWidth(0);
+            choice.setMinHeight(0);
+            choice.setMinimumHeight(0);
+            choice.setPadding(0, 0, 0, 0);
+            GradientDrawable choiceBg = new GradientDrawable();
+            choiceBg.setColor(0xFF2A2A30);
+            choiceBg.setCornerRadius(9 * density);
+            choice.setBackground(choiceBg);
+            int size = Math.round(46 * density);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+            int gap = Math.round(4 * density);
+            lp.setMargins(gap, 0, gap, 0);
+            choice.setLayoutParams(lp);
+            choice.setOnClickListener(v -> {
+                int code = altCode(alt);
+                if (code > 0 && listener != null) {
+                    listener.onKey(code, true, false);
+                    listener.onKey(code, false, false);
+                }
+                dismissAltPopup();
+            });
+            row.addView(choice);
+        }
+
+        row.measure(
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        int width = row.getMeasuredWidth();
+        int height = row.getMeasuredHeight();
+        int[] loc = new int[2];
+        anchor.getLocationOnScreen(loc);
+        int x = loc[0] + anchor.getWidth() / 2 - width / 2;
+        int y = loc[1] - height - Math.round(8 * density);
+        if (y < 0) {
+            y = loc[1] + anchor.getHeight() + Math.round(8 * density);
+        }
+        altPopup = new PopupWindow(row, width, height, true);
+        altPopup.setOutsideTouchable(true);
+        altPopup.setBackgroundDrawable(new ColorDrawable(0x00000000));
+        altPopup.showAtLocation(anchor, Gravity.NO_GRAVITY, Math.max(0, x), y);
+    }
+
+    private void dismissAltPopup() {
+        if (altPopup != null) {
+            altPopup.dismiss();
+            altPopup = null;
         }
     }
 

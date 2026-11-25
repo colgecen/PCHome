@@ -7,6 +7,8 @@ import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
@@ -29,9 +31,9 @@ public class ScrollRailView extends View {
         void onFling(float unitsPerSecond);
     }
 
-    /// 1 dp parmak hareketi ≈ 12 yüksek çözünürlüklü tekerlek birimi.
-    private static final float UNITS_PER_DP = 12f;
-    private static final float MAX_VELOCITY = 5000f;
+    /// 1 dp parmak hareketi ≈ 22 yüksek çözünürlüklü tekerlek birimi.
+    private static final float UNITS_PER_DP = 22f;
+    private static final float MAX_VELOCITY = 9000f;
 
     private final Paint trackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint thumbPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -49,6 +51,20 @@ public class ScrollRailView extends View {
     private long lastMoveTime;
     private boolean dragging;
     private ValueAnimator settleAnimator;
+    private int edgeDirection;
+    private final Handler edgeHandler = new Handler(Looper.getMainLooper());
+    private final Runnable edgeScroll = new Runnable() {
+        @Override
+        public void run() {
+            if (!dragging || edgeDirection == 0) {
+                return;
+            }
+            if (listener != null) {
+                listener.onScroll(edgeDirection * 80);
+            }
+            edgeHandler.postDelayed(this, 50L);
+        }
+    };
 
     public ScrollRailView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -89,6 +105,8 @@ public class ScrollRailView extends View {
         super.onVisibilityChanged(changedView, visibility);
         if (visibility == VISIBLE) {
             excludeSystemGestures();
+        } else {
+            stopEdgeScroll();
         }
     }
 
@@ -139,6 +157,7 @@ public class ScrollRailView extends View {
                 lastMoveTime = SystemClock.uptimeMillis();
                 velocity = 0f;
                 scrollAccum = 0f;
+                stopEdgeScroll();
                 thumbCenterY = clamp(event.getY(),
                         trackRect.top + thumbHeight / 2f,
                         trackRect.bottom - thumbHeight / 2f);
@@ -159,7 +178,10 @@ public class ScrollRailView extends View {
                     long now = SystemClock.uptimeMillis();
                     long dtMs = now - lastMoveTime;
                     lastMoveTime = now;
-                    float units = -dy / density * UNITS_PER_DP;
+                    float dtSec = dtMs / 1000f;
+                    float speedDp = dtSec > 0f ? Math.abs(dy) / density / dtSec : 0f;
+                    float boost = 1f + Math.min(speedDp / 1200f, 1.2f);
+                    float units = -dy / density * UNITS_PER_DP * boost;
                     scrollAccum += units;
                     int send = (int) scrollAccum;
                     scrollAccum -= send;
@@ -167,7 +189,7 @@ public class ScrollRailView extends View {
                         listener.onScroll(send);
                     }
                     if (dtMs > 0 && dtMs < 120) {
-                        float instant = units / (dtMs / 1000f);
+                        float instant = units / dtSec;
                         velocity = velocity * 0.55f + instant * 0.45f;
                         velocity = clamp(velocity, -MAX_VELOCITY, MAX_VELOCITY);
                     } else if (dtMs >= 120) {
@@ -178,6 +200,13 @@ public class ScrollRailView extends View {
                         trackRect.top + thumbHeight / 2f,
                         trackRect.bottom - thumbHeight / 2f);
                 updateThumbRect();
+                if (y <= trackRect.top + thumbHeight / 2f + 1f) {
+                    startEdgeScroll(1);
+                } else if (y >= trackRect.bottom - thumbHeight / 2f - 1f) {
+                    startEdgeScroll(-1);
+                } else {
+                    stopEdgeScroll();
+                }
                 return true;
 
             case MotionEvent.ACTION_UP:
@@ -186,6 +215,7 @@ public class ScrollRailView extends View {
                     return true;
                 }
                 dragging = false;
+                stopEdgeScroll();
                 if (event.getActionMasked() == MotionEvent.ACTION_UP
                         && listener != null && Math.abs(velocity) > 40f) {
                     listener.onFling(velocity);
@@ -196,6 +226,22 @@ public class ScrollRailView extends View {
             default:
                 return super.onTouchEvent(event);
         }
+    }
+
+    private void startEdgeScroll(int direction) {
+        if (edgeDirection == direction) {
+            return;
+        }
+        edgeDirection = direction;
+        edgeHandler.removeCallbacks(edgeScroll);
+        if (direction != 0) {
+            edgeHandler.post(edgeScroll);
+        }
+    }
+
+    private void stopEdgeScroll() {
+        edgeDirection = 0;
+        edgeHandler.removeCallbacks(edgeScroll);
     }
 
     private void settleThumbToCenter() {

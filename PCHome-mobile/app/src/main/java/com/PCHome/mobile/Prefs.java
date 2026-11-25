@@ -24,6 +24,7 @@ public class Prefs {
     private static final String KEY_LAST_SERVER = "last_server";
     private static final String KEY_LAST_UPDATE_CHECK = "last_update_check";
     private static final String KEY_REMEMBER_PASSWORD = "remember_password";
+    private static final String KEY_LEFT_HANDED = "left_handed";
     private static final int MAX_RECENT = 8;
 
     private final SharedPreferences sp;
@@ -72,6 +73,15 @@ public class Prefs {
 
     public void setRememberPassword(boolean remember) {
         sp.edit().putBoolean(KEY_REMEMBER_PASSWORD, remember).apply();
+    }
+
+    /** true: sol el (imleç parmağın sağında), false: sağ el (solda). */
+    public boolean isLeftHanded() {
+        return sp.getBoolean(KEY_LEFT_HANDED, false);
+    }
+
+    public void setLeftHanded(boolean leftHanded) {
+        sp.edit().putBoolean(KEY_LEFT_HANDED, leftHanded).apply();
     }
 
     public long getLastUpdateCheck() {

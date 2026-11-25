@@ -1,6 +1,7 @@
 package com.PCHome.mobile;
 
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ArrayAdapter;
@@ -39,6 +40,8 @@ public class PinActivity extends AppCompatActivity {
     private MaterialTextView updateStateText;
     private RecyclerView recentGrid;
     private MaterialTextView recentEmpty;
+    private MaterialButton handLeft;
+    private MaterialButton handRight;
     private Prefs prefs;
     private RecentStore recentStore;
     private RecentAdapter recentAdapter;
@@ -65,6 +68,11 @@ public class PinActivity extends AppCompatActivity {
         prefs = new Prefs(this);
         recentStore = new RecentStore(this);
         rememberCheck.setChecked(prefs.getRememberPassword());
+        handLeft = findViewById(R.id.hand_left);
+        handRight = findViewById(R.id.hand_right);
+        updateHandednessUi(prefs.isLeftHanded());
+        handLeft.setOnClickListener(v -> selectHand(true));
+        handRight.setOnClickListener(v -> selectHand(false));
         playEntrance();
 
         // Sunucu adresi gömülü GELMEZ (anonim): kullanıcı eliyle yazar.
@@ -150,9 +158,28 @@ public class PinActivity extends AppCompatActivity {
         });
     }
 
+    private void selectHand(boolean left) {
+        prefs.setLeftHanded(left);
+        updateHandednessUi(left);
+        tick();
+    }
+
+    private void updateHandednessUi(boolean left) {
+        if (handLeft == null || handRight == null) {
+            return;
+        }
+        handLeft.setBackgroundTintList(ColorStateList.valueOf(
+                left ? 0xFF2A2A30 : 0xFF18181B));
+        handLeft.setTextColor(left ? 0xFFF4F4F5 : 0xFFA1A1AA);
+        handLeft.setIconTint(ColorStateList.valueOf(left ? 0xFFF4F4F5 : 0xFFA1A1AA));
+        handRight.setBackgroundTintList(ColorStateList.valueOf(
+                left ? 0xFF18181B : 0xFF2A2A30));
+        handRight.setTextColor(left ? 0xFFA1A1AA : 0xFFF4F4F5);
+        handRight.setIconTint(ColorStateList.valueOf(left ? 0xFFA1A1AA : 0xFFF4F4F5));
+    }
+
     /** Edge-to-edge: durum çubuğu/klavye altında kalan içeriği kaydır. */
-    private void applyWindowInsets() {
-        final View scroll = findViewById(R.id.pin_scroll);
+    private void applyWindowInsets() {        final View scroll = findViewById(R.id.pin_scroll);
         ViewCompat.setOnApplyWindowInsetsListener(scroll, (v, insets) -> {
             Insets bars = insets.getInsets(
                     WindowInsetsCompat.Type.systemBars()
@@ -303,6 +330,7 @@ public class PinActivity extends AppCompatActivity {
         intent.putExtra("signalUrl", server);
         intent.putExtra("pcId", pcId);
         intent.putExtra("password", password);
+        intent.putExtra("leftHanded", prefs.isLeftHanded());
         startActivity(intent);
     }
 

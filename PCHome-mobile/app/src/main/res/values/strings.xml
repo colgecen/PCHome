@@ -3,6 +3,8 @@
     <string name="app_name">PCHome</string>
     <string name="app_tagline">Uzak masaüstü</string>
     <string name="hero_title">PCHome: Masaüstün\nCebinde.</string>
+    <string name="hand_left">SOL EL</string>
+    <string name="hand_right">SAĞ EL</string>
     <string name="hero_subtitle">Gecikmesiz görüntü, gerçek fare ve klavye kontrolü. Tek dokunuşla bağlan.</string>
 
     <string name="accessibility_service_description">PCHome accessibility service for remote input control</string>
@@ -75,6 +77,8 @@
     <string name="ctrl_c">CTRL+C</string>
     <string name="ctrl_v">CTRL+V</string>
     <string name="scroll">KAYDIR</string>
+    <string name="zoom">Yakınlaştır</string>
+    <string name="zoom_reset">Sığdır</string>
     <string name="hide_menu">Menüyü gizle</string>
     <string name="show_menu">Menüyü göster</string>
     <string name="stream_border_desc">Uzak masaüstü görüntüsü</string>
