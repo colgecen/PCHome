@@ -199,12 +199,14 @@ struct PortalKeepAlive {
 
 impl H264Capture {
     pub async fn spawn(out_width: u32, out_height: u32, fps: u32, bitrate: u32) -> Result<Self> {
+        let force = std::env::var("PCHOME_CAPTURE")
+            .unwrap_or_default()
+            .to_ascii_lowercase();
         // Wayland first: a real portal screencast is the only way to see the
-        // whole compositor, not just XWayland.
-        if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-            let force = std::env::var("PCHOME_CAPTURE")
-                .unwrap_or_default()
-                .to_ascii_lowercase();
+        // whole compositor, not just XWayland. `PCHOME_CAPTURE=x11` explicitly
+        // selects the X11 path, which is useful when the compositor cannot
+        // grant screencast permission.
+        if force != "x11" && std::env::var_os("WAYLAND_DISPLAY").is_some() {
             let kde = is_kde_wayland();
             // KWin yolu PC'nin kendi imlecini video karesine dahil eder.
             // Portal daha akıcı olabilir; KDE varsayılanı KWin'dir.
@@ -973,19 +975,32 @@ fn build_args(
             "-i".into(),
             "default".into(),
         ],
-        CaptureInput::X11Grab => vec![
-            "-f".into(),
-            "x11grab".into(),
-            "-framerate".into(),
-            fps_str.clone(),
-            "-video_size".into(),
-            format!("{}x{}", width, height),
-            "-i".into(),
-            format!(
+        CaptureInput::X11Grab => {
+            let mut args = vec![
+                "-f".into(),
+                "x11grab".into(),
+                "-framerate".into(),
+                fps_str.clone(),
+                "-video_size".into(),
+                format!("{}x{}", width, height),
+            ];
+            // Capture one X11 window instead of the root drawable. Useful for
+            // demos/tests on composited desktops where the root is black.
+            if let Ok(window) = std::env::var("PCHOME_CAPTURE_WINDOW") {
+                if !window.trim().is_empty() {
+                    args.push("-window_id".into());
+                    args.push(window.trim().to_string());
+                    args.push("-draw_mouse".into());
+                    args.push("0".into());
+                }
+            }
+            args.push("-i".into());
+            args.push(format!(
                 "{}+0,0",
                 std::env::var("DISPLAY").unwrap_or_else(|_| ":0".to_string())
-            ),
-        ],
+            ));
+            args
+        }
     };
     // Shared low-latency output parameters. `h264_metadata=aud=insert` puts an
     // AUD before every access unit so the reader can split frames reliably.

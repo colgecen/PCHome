@@ -8,6 +8,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Gönderimi UDP soketiyle öğrenilen LAN adresi (paket yollanmaz).
 pub fn local_ip() -> String {
+    // Allow overriding the advertised address on multi-homed/NAT setups and
+    // for reproducible screenshots.
+    if let Ok(ip) = std::env::var("PCHOME_LOCAL_IP") {
+        if !ip.trim().is_empty() {
+            return ip.trim().to_string();
+        }
+    }
     if let Ok(s) = std::net::UdpSocket::bind("0.0.0.0:0") {
         if s.connect("8.8.8.8:80").is_ok() {
             if let Ok(addr) = s.local_addr() {

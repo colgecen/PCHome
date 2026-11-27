@@ -5,11 +5,11 @@
 ## Screenshots
 
 <p align="center">
-  <img src="docs/img/pixel-10-pro.svg" alt="PCHome Android app connected in landscape" width="800">
+  <img src="docs/img/pixel-10-pro.png" alt="PCHome Android app connected in landscape" width="800">
 </p>
 
 <p align="center">
-  <img src="docs/img/desktop.svg" alt="PCHome desktop app with a connected phone" width="800">
+  <img src="docs/img/desktop.png" alt="PCHome desktop app with a connected phone" width="800">
 </p>
 
 ## Features

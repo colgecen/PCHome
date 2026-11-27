@@ -351,16 +351,15 @@ pub fn start_stream_preview(state: SharedState) -> std::sync::mpsc::SyncSender<V
                 .args([
                     "-loglevel",
                     "error",
-                    "-fflags",
-                    "nobuffer",
-                    "-flags",
-                    "low_delay",
                     "-f",
                     "h264",
                     "-i",
                     "pipe:0",
+                    // MJPEG expects full-range YUV; without the explicit
+                    // conversion recent ffmpeg builds refuse to open the
+                    // encoder and the live preview stays blank.
                     "-vf",
-                    "fps=5,scale=544:-2",
+                    "fps=5,scale=544:-2,format=yuvj420p",
                     "-q:v",
                     "6",
                     "-f",

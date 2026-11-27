@@ -217,9 +217,8 @@ pkg_desktop_targz() {
   build_desktop_bin
   mkdir -p "$DIST/stage/usr/bin"
   install -m 755 "$ROOT/PCHome-desktop/target/release/PCHome-desktop" "$DIST/stage/usr/bin/"
-  install -m 644 "$ROOT/PCHome-desktop/BUILD.md" "$DIST/stage/" 2>/dev/null || true
   install -m 644 "$ROOT/README.md" "$DIST/stage/" 2>/dev/null || true
-  tar -czf "$DIST/PCHome-desktop-${VERSION}-x86_64.tar.gz" -C "$DIST/stage" usr/bin/PCHome-desktop BUILD.md README.md
+  tar -czf "$DIST/PCHome-desktop-${VERSION}-x86_64.tar.gz" -C "$DIST/stage" usr/bin/PCHome-desktop README.md
   echo "==> dist/PCHome-desktop-${VERSION}-x86_64.tar.gz"
 }
 
@@ -301,7 +300,7 @@ pkg_signal_targz() {
   build_signal_bin
   mkdir -p "$DIST/stage-signal"
   install -m 755 "$ROOT/PCHome-signal/target/release/PCHome-signal" "$DIST/stage-signal/"
-  install -m 644 "$ROOT/PCHome-signal/README.md" "$DIST/stage-signal/" 2>/dev/null || true
+  install -m 644 "$ROOT/README.md" "$DIST/stage-signal/" 2>/dev/null || true
   tar -czf "$DIST/PCHome-signal-${VERSION}-x86_64.tar.gz" -C "$DIST/stage-signal" PCHome-signal README.md
   echo "==> dist/PCHome-signal-${VERSION}-x86_64.tar.gz"
 }

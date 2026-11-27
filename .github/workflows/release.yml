@@ -32,7 +32,7 @@ jobs:
           mkdir -p staging/AppDir/usr/bin staging/usr/bin
           install -m 755 PCHome-desktop/target/release/PCHome-desktop \
             staging/AppDir/usr/bin/PCHome-desktop
-          install -m 644 PCHome-desktop/BUILD.md README.md staging/
+          install -m 644 README.md staging/
 
           # .desktop entry + placeholder icon for the AppImage (base64 PNG,
           # no ImageMagick needed on the runner)
@@ -61,7 +61,7 @@ jobs:
         run: |
           cp staging/AppDir/usr/bin/PCHome-desktop staging/usr/bin/
           tar -czf PCHome-desktop-${VERSION}-x86_64.tar.gz -C staging \
-            usr/bin/PCHome-desktop BUILD.md README.md
+            usr/bin/PCHome-desktop README.md
 
       - name: AppImage
         env:
@@ -131,7 +131,7 @@ jobs:
         run: |
           mkdir -p staging
           install -m 755 PCHome-signal/target/release/PCHome-signal staging/
-          install -m 644 PCHome-signal/README.md staging/
+          install -m 644 README.md staging/
           tar -czf PCHome-signal-${VERSION}-x86_64.tar.gz -C staging PCHome-signal README.md
 
       - name: Upload artifacts
